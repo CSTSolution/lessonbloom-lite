@@ -1,0 +1,26 @@
+{
+  "name": "lessonbloom",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Lesson notes to slides, narrated video and worksheets for primary teachers. Gemini on Google Cloud. AI Builder Cup 2026.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev:api": "tsx watch server/main.ts",
+    "make": "tsx server/cli.ts",
+    "test": "tsx --test server/test/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@google/genai": "^2.29.0",
+    "@hono/node-server": "^2.1.5",
+    "hono": "^4.13.13"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}

@@ -1,0 +1,13 @@
+Toán lớp 2 – Phép cộng có nhớ trong phạm vi 100
+
+Mục tiêu: Học sinh biết đặt tính và thực hiện phép cộng có nhớ hai số có hai chữ số trong phạm vi 100.
+
+Cách làm: Đặt tính thẳng cột, hàng đơn vị thẳng hàng đơn vị, hàng chục thẳng hàng chục. Cộng từ phải sang trái. Cộng hàng đơn vị trước: nếu kết quả từ 10 trở lên thì viết chữ số hàng đơn vị và nhớ 1 sang hàng chục. Sau đó cộng hàng chục, nhớ cộng thêm 1.
+
+Ví dụ: 36 + 27. Hàng đơn vị: 6 cộng 7 bằng 13, viết 3 nhớ 1. Hàng chục: 3 cộng 2 bằng 5, thêm 1 bằng 6, viết 6. Vậy 36 + 27 = 63.
+
+Ví dụ 2: 48 + 35 = 83.
+
+Bài toán: Vườn nhà Nam có 28 cây cam và 15 cây bưởi. Hỏi vườn nhà Nam có tất cả bao nhiêu cây?
+
+Lưu ý: Nhiều bạn quên cộng thêm số nhớ ở hàng chục. Hãy viết số 1 nhỏ phía trên hàng chục để nhớ.
