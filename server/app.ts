@@ -87,7 +87,8 @@ export function createApp(ai: AI, store: Store) {
     const subs = l.shareId ? await store.submissions(l.shareId) : [];
     const items = l.exercises.map((e) => {
       const tried = subs.filter((s) => e.id in s.correct), wrong = tried.filter((s) => !s.correct[e.id]).length;
-      return { id: e.id, level: e.level, type: e.type, prompt: e.prompt, tried: tried.length, wrong, wrongRate: tried.length ? wrong / tried.length : 0 };
+      const detail = 'equation' in e ? e.equation.replace('?', '…') : 'statement' in e ? e.statement : 'sentence' in e ? e.sentence : 'words' in e && e.type === 'eng_order' ? e.answer : '';
+      return { id: e.id, level: e.level, type: e.type, prompt: detail ? `${e.prompt}: ${detail}` : e.prompt, tried: tried.length, wrong, wrongRate: tried.length ? wrong / tried.length : 0 };
     }).sort((a, b) => b.wrongRate - a.wrongRate);
     return c.json({ pupils: subs.length, items });
   });
