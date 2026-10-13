@@ -50,6 +50,9 @@ export interface CheckResult {
 export interface Lesson {
   id: string;
   createdAt: string;
+  status: 'working' | 'ready' | 'error';
+  progress: string[];          // what the agent is doing, shown live to the teacher
+  error?: string;
   source: string;              // the teacher's text
   intake: Intake;
   slides: Slide[];

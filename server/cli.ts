@@ -36,6 +36,6 @@ if (!flag('--no-images')) {
     await writeFile(join(dir, s.image), pic.image);
   }
 }
-const lesson: Lesson = { id, createdAt: new Date().toISOString(), source, intake: it, slides, exercises: ex.exercises, checks: ex.checks };
+const lesson: Lesson = { id, createdAt: new Date().toISOString(), status: 'ready', progress: [], source, intake: it, slides, exercises: ex.exercises, checks: ex.checks };
 await writeFile(join(dir, 'lesson.json'), JSON.stringify(lesson, null, 1));
 log(`saved ${join(dir, 'lesson.json')}`);
