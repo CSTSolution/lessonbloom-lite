@@ -1,0 +1,23 @@
+/* teacher-only pieces: slide preview, slide list, print */
+.slide16 { position: relative; aspect-ratio: 16 / 9; background: #fff; border: 1px solid var(--line); border-radius: 16px; display: flex; gap: 4%; padding: 5% 6%; overflow: hidden; container-type: inline-size; }
+.slide16 .s-text { flex: 1.2; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
+.slide16 h2 { font-size: 5.6cqw; line-height: 1.12; color: var(--blue); margin: 0 0 2.4cqw; }
+.slide16 ul { margin: 0; padding-left: 1.1em; font-size: 2.9cqw; line-height: 1.5; }
+.slide16 .s-ex { margin-top: 2cqw; font-size: 5.4cqw; color: var(--amber); }
+.slide16 img { flex: 1; max-width: 44%; max-height: 100%; object-fit: contain; align-self: center; border-radius: 12px; }
+.slide16 .s-n { position: absolute; right: 2.6cqw; top: 2.2cqw; background: var(--amber-soft); color: var(--amber); font-weight: 700; font-size: 1.6cqw; padding: .4cqw 1.2cqw; border-radius: 999px; }
+.slide16.k-title .s-text { align-items: center; text-align: center; } .slide16.k-title h2 { font-size: 7cqw; }
+.thumbs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; max-height: 76vh; overflow: auto; }
+.thumbs button { width: 100%; text-align: left; border: 1px solid var(--line); background: #fff; border-radius: 10px; padding: 8px 10px; font-size: 12px; color: var(--ink-2); cursor: pointer; display: flex; gap: 8px; }
+.thumbs button span { color: var(--muted); font-weight: 700; }
+.thumbs button.on { border: 2px solid var(--blue); }
+.print-only { display: none; }
+@media (max-width: 900px) { main.page[style*="grid-template-columns"] { display: flex !important; flex-direction: column; } .thumbs { flex-direction: row; overflow-x: auto; max-height: none; } .thumbs button { width: 140px; } }
+@media print {
+  .topbar, .stepper, .no-print { display: none !important; }
+  body, .pupil-app { background: #fff; }
+  main.page { display: block !important; padding: 0; }
+  [data-print="slides"] .print-only { display: block; }
+  .print-page { page-break-after: always; padding: 12px; }
+  .card { box-shadow: none; break-inside: avoid; }
+}

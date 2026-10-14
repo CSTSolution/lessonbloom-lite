@@ -4,6 +4,7 @@
 // (Adapted from our StoryForge prototype, Oct 2026.)
 import { GoogleGenAI, type Part } from '@google/genai';
 import { config } from '../config.ts';
+import { cloudSpeak } from './cloudtts.ts';
 import { wavFromPcm } from './media.ts';
 import type { AI, ImageRequest, SpeechRequest, TextRequest, VisionRequest } from './provider.ts';
 
@@ -65,6 +66,9 @@ export class GeminiProvider implements AI {
   }
 
   async speak(req: SpeechRequest): Promise<Buffer> {
+    // On Google Cloud: Cloud Text-to-Speech (real vi-VN voices, North/South choice). With only an
+    // AI Studio key: Gemini TTS.
+    if (process.env.GOOGLE_GENAI_USE_VERTEXAI) return withRetry('cloud tts', () => cloudSpeak(req.text, req.lang, req.voice ?? 0));
     // A primary teacher's voice: warm, clear, a little slower than normal speech.
     const style = req.lang === 'vi'
       ? 'Đọc như một cô giáo tiểu học: giọng ấm, rõ ràng, chậm rãi, vui vẻ: '

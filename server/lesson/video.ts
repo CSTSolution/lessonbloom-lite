@@ -47,7 +47,7 @@ export async function makeVideo(ai: AI, store: Store, l: Lesson, o: VideoOptions
     for (const [i, s] of l.slides.entries()) {
       // voice
       const wav = join(dir, `${s.id}.wav`);
-      await writeFile(wav, await ai.speak({ text: s.narration, lang: l.intake.lang }));
+      await writeFile(wav, await ai.speak({ text: s.narration, lang: l.intake.lang, voice: Number(o.voice ?? 0) || 0 }));
       // picture (illustration inlined so the page needs no server)
       let img: string | null = null;
       if (s.image) {

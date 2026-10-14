@@ -313,7 +313,15 @@ export function createApp(ai: AI, store: Store) {
     if (!f) return c.notFound();
     const ext = c.req.param('name').split('.').pop() || '';
     const type = ({ png: 'image/png', jpg: 'image/jpeg', wav: 'audio/wav', mp4: 'video/mp4', pdf: 'application/pdf' } as Record<string, string>)[ext] || 'application/octet-stream';
-    return c.body(new Uint8Array(f), 200, { 'content-type': type, 'cache-control': 'public, max-age=86400' });
+    const head = { 'content-type': type, 'cache-control': 'public, max-age=86400', 'accept-ranges': 'bytes' };
+    // Range requests let the video player jump to a chapter
+    const m = /^bytes=(\d*)-(\d*)$/.exec(c.req.header('range') || '');
+    if (m && (m[1] || m[2])) {
+      const start = m[1] ? Number(m[1]) : Math.max(0, f.length - Number(m[2])), end = m[1] && m[2] ? Math.min(Number(m[2]), f.length - 1) : f.length - 1;
+      if (start > end || start >= f.length) return c.body(null, 416, { 'content-range': `bytes */${f.length}` });
+      return c.body(new Uint8Array(f.subarray(start, end + 1)), 206, { ...head, 'content-range': `bytes ${start}-${end}/${f.length}` });
+    }
+    return c.body(new Uint8Array(f), 200, head);
   });
   return app;
 }

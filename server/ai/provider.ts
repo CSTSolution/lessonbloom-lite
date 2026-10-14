@@ -14,7 +14,7 @@ export interface TextRequest {
 
 export interface ImageRequest { prompt: string; key: string; aspect?: '4:3' | '1:1' | '16:9' }
 export interface VisionRequest extends TextRequest { image: Buffer }
-export interface SpeechRequest { text: string; lang: 'vi' | 'en' }
+export interface SpeechRequest { text: string; lang: 'vi' | 'en'; voice?: number }   // voice: 0 female North, 1 female South, 2 male North
 
 export interface AI {
   name: string;
