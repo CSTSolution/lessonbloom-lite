@@ -71,20 +71,26 @@ export async function seedTeacher(store: Store, teacherId: string, name = 'Cô H
     await store.putMany('pupils', pupils);
     const a: Assignment = { id: id(), teacherId, lessonId: lesson.id, classId: c.id, dueAt: new Date(now + 4 * day).toISOString().slice(0, 10), allowRetry: true, autoSuggest: true, createdAt: new Date(now - 3 * day).toISOString() };
     await store.put('assignments', a);
+    // three practice sessions; each pupil answers 2 items per skill per session (6 per skill in all)
     let k = 0;
     const atts: Attempt[] = [];
     const wrongOf = (ans: string) => (/^\d+$/.test(ans) ? String(Math.max(0, Number(ans) - 10)) : ans === 'true' ? 'false' : 'true');
-    for (const [si, session] of ['s1', 's2'].entries()) {
-      for (const p of pupils.slice(0, cname === '2A' ? 9 : 12)) {
-        for (const e of lesson.exercises.filter((x) => x.level !== 'advanced')) {
-          const carryTrouble = plan[cname].carry.includes(p.displayName) && e.skill === 'carry_1';
-          const columnTrouble = plan[cname].column.includes(p.displayName) && e.skill === 'column';
-          const wrong = (carryTrouble && (k++ % 4 !== 0)) || (columnTrouble && (k++ % 3 !== 0)) || (!carryTrouble && !columnTrouble && k++ % 13 === 0);
-          const ans = (e as { answer: string }).answer;
-          const att: Attempt = { id: id(12), assignmentId: a.id, classId: c.id, pupilId: p.id, lessonId: lesson.id, exerciseId: e.id, skill: e.skill,
-            answer: wrong ? wrongOf(ans) : ans, correct: !wrong, errorType: wrong ? (carryTrouble ? CARRY : columnTrouble ? COLUMN : 'Nhầm phép tính') : undefined,
-            at: new Date(now - (2 - si) * day + k * 1000).toISOString(), session };
-          atts.push(att);
+    const bySkill = new Map<string, Exercise[]>();
+    for (const e of lesson.exercises) bySkill.set(e.skill, [...(bySkill.get(e.skill) || []), e]);
+    for (const [si, session] of ['s1', 's2', 's3'].entries()) {
+      for (const p of pupils.slice(0, cname === '2A' ? 10 : 12)) {
+        for (const [skill, items] of bySkill) {
+          for (let j = 0; j < 2; j++) {
+            const e = items[(si * 2 + j) % items.length];
+            const carryTrouble = plan[cname].carry.includes(p.displayName) && skill === 'carry_1';
+            const columnTrouble = plan[cname].column.includes(p.displayName) && skill === 'column';
+            k++;
+            const wrong = carryTrouble ? k % 3 !== 0 : columnTrouble ? k % 2 === 0 : (cname !== '2C' && skill === 'word_1step' && k % 3 === 0) || k % 17 === 0;
+            const ans = (e as { answer: string }).answer;
+            atts.push({ id: id(12), assignmentId: a.id, classId: c.id, pupilId: p.id, lessonId: lesson.id, exerciseId: e.id, skill,
+              answer: wrong ? wrongOf(ans) : ans, correct: !wrong, errorType: wrong ? (carryTrouble ? CARRY : columnTrouble ? COLUMN : 'Nhầm phép tính') : undefined,
+              at: new Date(now - (3 - si) * day + k * 1000).toISOString(), session });
+          }
         }
       }
     }

@@ -65,7 +65,7 @@ export function Insights() {
               <span className="muted small">{t.colSkill}: {s.skillName}</span>
               {s.errors.slice(0, 2).map((e) => (
                 <div key={e.errorType} className="small">
-                  {e.example && <div className="muted">{t.example} → {e.example}</div>}
+                  {e.example && <div className="muted">{t.example} {e.example}</div>}
                   <div><strong>{e.pupils.length} {t.pupilsW}:</strong> {e.pupils.join(', ')}</div>
                 </div>
               ))}

@@ -7,7 +7,7 @@ export interface PupilSkill { pupilId: string; name: string; label: Label; right
 export interface SkillSummary {
   skill: string; skillName: string; classLabel: Label;
   pupils: PupilSkill[];
-  errors: { errorType: string; count: number; pupils: string[]; example?: string }[];   // repeated error types, most common first
+  errors: { errorType: string; count: number; pupils: string[]; example?: string; exampleExercise?: string }[];   // repeated error types, most common first
 }
 
 export function pupilLabel(atts: Attempt[], c: Criteria): Omit<PupilSkill, 'pupilId' | 'name'> {
@@ -41,13 +41,13 @@ export function summarise(skill: Skill, pupils: Pupil[], attempts: Attempt[], c:
   if (counted.length && share('repeated') >= c.classRepeatedPct) classLabel = 'repeated';
   else if (counted.length && share('secure') >= c.classSecurePct && !counted.some((p) => p.label === 'repeated')) classLabel = 'secure';
 
-  const errMap = new Map<string, { count: number; pupils: Set<string>; example?: string }>();
+  const errMap = new Map<string, { count: number; pupils: Set<string>; example?: string; exampleExercise?: string }>();
   for (const a of mine) if (!a.correct && a.errorType) {
     const e = errMap.get(a.errorType) || { count: 0, pupils: new Set<string>() };
-    e.count++; e.pupils.add(a.pupilId); e.example ||= a.answer; errMap.set(a.errorType, e);
+    e.count++; e.pupils.add(a.pupilId); if (!e.example) { e.example = a.answer; e.exampleExercise = a.exerciseId; } errMap.set(a.errorType, e);
   }
   const nameOf = new Map(pupils.map((p) => [p.id, p.displayName]));
-  const errors = [...errMap].map(([errorType, e]) => ({ errorType, count: e.count, pupils: [...e.pupils].map((id) => nameOf.get(id) || '?'), example: e.example }))
+  const errors = [...errMap].map(([errorType, e]) => ({ errorType, count: e.count, pupils: [...e.pupils].map((id) => nameOf.get(id) || '?'), example: e.example, exampleExercise: e.exampleExercise }))
     .filter((e) => ps.some((p) => p.label === 'repeated' && p.topError === e.errorType))
     .sort((a, b) => b.count - a.count);
   return { skill: skill.tag, skillName: skill.name, classLabel, pupils: ps, errors };

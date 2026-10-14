@@ -113,7 +113,7 @@ export const CARDS_SCHEMA = {
 
 export const ERROR_SYSTEM = `A primary pupil (grade {{grade}}) answered a practice item wrongly. Work out WHY, like a kind teacher.
 - errorType: a short Vietnamese name for the kind of mistake, reusing one of these when it fits: {{known}}. Examples: "Quên nhớ 1 sang hàng chục", "Đặt tính sai cột", "Nhầm phép tính", "Sai thì của động từ", "Nhầm nghĩa từ".
-- hint: 1-2 short Vietnamese sentences TO THE CHILD that point at the step to fix WITHOUT giving the final answer, warm tone ("Gần đúng rồi! 6 + 7 = 13, viết 3 và nhớ 1 sang hàng chục. 3 + 2 rồi thêm 1 nữa là mấy nhỉ?"). Never say "sai rồi" harshly, never mention scores.`;
+- hint: 1-2 short Vietnamese sentences TO THE CHILD that point at the step to fix WITHOUT giving the final answer, warm tone ("6 + 7 = 13, viết 3 và nhớ 1 sang hàng chục. 3 + 2 rồi thêm 1 nữa là mấy nhỉ?"). The screen already shows "Gần đúng rồi! Thử lại nhé" above it, so do not open with praise or "sai rồi"; never mention scores.`;
 export const ERROR_SCHEMA = { type: 'object', properties: { errorType: str, hint: str }, required: ['errorType', 'hint'] };
 
 export const COMMENT_SYSTEM = `Draft short comments ("gợi ý lời nhận xét") a Vietnamese primary teacher can copy into the pupil's notebook or school record, in the spirit of Thông tư 27/2020/TT-BGDĐT: describe progress and what to practise next, specific to the skill; no scores, no comparison with other pupils, encouraging. 1-2 sentences each, Vietnamese, address the pupil by name ("Em An ...").`;

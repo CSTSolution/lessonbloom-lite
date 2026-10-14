@@ -211,7 +211,12 @@ export function createApp(ai: AI, store: Store) {
       lessons: lessons.map((x) => ({ id: x.id, title: x.intake.title })), lessonId: l.id, classId,
       classes: classes.map((k) => ({ id: k.id, name: k.name })),
       overview: l.skills.map((s, i) => ({ skill: s.tag, name: s.name, byClass: Object.fromEntries(per.map((p) => [p.k.id, p.sums[i].pupils.length ? p.sums[i].classLabel : null])) })),
-      detail: detail ? detail.sums.filter((s) => s.pupils.length) : null,
+      // "36 + 27 → 53": the question next to the pupil's slip
+      detail: detail ? detail.sums.filter((s) => s.pupils.length).map((s) => ({ ...s, errors: s.errors.map((e) => {
+        const q = l.exercises.find((x) => x.id === e.exampleExercise);
+        const shown = !q ? '' : 'expr' in q ? q.expr : 'equation' in q ? q.equation : 'statement' in q ? q.statement : q.prompt;
+        return { ...e, example: shown ? `${shown} → ${e.example}` : e.example };
+      }) })) : null,
     });
   });
   t.post('/insights/comments', async (c) => {
@@ -257,7 +262,10 @@ export function createApp(ai: AI, store: Store) {
     if (!x) return bad(c, 'not found', 404);
     if (!x.a || !x.l) return c.json({ name: x.p.displayName, className: x.k.name, lesson: null });
     const mine = (await store.find<Attempt>('attempts', 'pupilId', x.p.id)).sort((a, b) => a.at.localeCompare(b.at));
-    const lastErr = [...mine].reverse().find((a) => !a.correct && a.errorType);
+    // remind the pupil of the slip they make most often lately (not just the latest one)
+    const counts = new Map<string, number>();
+    for (const a of mine.slice(-30)) if (!a.correct && a.errorType) counts.set(a.errorType, (counts.get(a.errorType) || 0) + 1);
+    const lastErr = { errorType: [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] };
     const doneHere = new Set(mine.filter((a) => a.assignmentId === x.a!.id && a.correct).map((a) => a.exerciseId));
     const l = x.l;
     return c.json({

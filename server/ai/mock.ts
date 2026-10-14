@@ -58,8 +58,8 @@ export class MockProvider implements AI {
       case 'error': {
         const ex = inp.ex as Exercise, given = String(inp.given);
         const carry = ex.type.startsWith('math') && 'answer' in ex && Number(ex.answer) - Number(given) === 10;
-        return (carry ? { errorType: MOCK_CARRY_ERROR, hint: 'Gần đúng rồi! Hàng đơn vị được 13, viết 3 và nhớ 1 sang hàng chục. Con cộng hàng chục rồi thêm 1 nữa nhé.' }
-          : { errorType: ex.type.startsWith('math') ? 'Nhầm phép tính' : 'Nhầm nghĩa từ', hint: 'Chưa đúng rồi, con đọc lại đề và thử lần nữa nhé!' }) as T;
+        return (carry ? { errorType: MOCK_CARRY_ERROR, hint: 'Hàng đơn vị được 13, viết 3 và nhớ 1 sang hàng chục. Con cộng hàng chục rồi thêm 1 nữa nhé.' }
+          : { errorType: ex.type.startsWith('math') ? 'Nhầm phép tính' : 'Nhầm nghĩa từ', hint: 'Con đọc lại đề và thử lần nữa nhé!' }) as T;
       }
       case 'comments': return { comments: (inp.rows as any[]).map((r) => ({ pupilId: r.pupilId, text: r.label === 'repeated' ? `Em ${r.name} hay ${String(r.error || 'nhầm').toLowerCase()}; cô và em cùng luyện thêm vài bài cùng dạng nhé.` : `Em ${r.name} đã làm chắc dạng ${r.skill}, có thể thử bài nâng cao.` })) } as T;
       default: throw new Error(`mock has no answer for ${req.task}`);
