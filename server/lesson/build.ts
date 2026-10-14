@@ -1,13 +1,20 @@
-// The lesson agent. intake() pre-fills the teacher's form; makeSlides() writes the slide deck;
-// makeExercises() writes template exercises and then checks them itself:
-//   maths answers are recomputed in code, English items get structural checks, every item is
-//   reviewed by Gemini, and failing items are regenerated (up to maxFixRounds) or dropped.
-// Every check is recorded so the teacher (and the judges) can see what was caught.
+// The lesson agent.
+//   intake()        pre-fills the teacher's step-2 questions from the document
+//   makeSlides()    slides grounded in the document (each carries its source quote)
+//   editSlide()     per-slide "rewrite" / "simpler"
+//   makeExercises() skills + template items, then a self-check loop: maths recomputed in code,
+//                   English structural checks, a Gemini reviewer, failing items regenerated
+//   makeCards()     flashcards + memory-game pairs
+//   tagError()      why a pupil's answer is wrong + a gentle hint (cached per answer)
+//   draftComments() TT27-style comment drafts for the teacher
 import type { AI } from '../ai/provider.ts';
 import { config } from '../config.ts';
-import type { CheckResult, Exercise, Intake, Level, Slide } from '../types.ts';
+import type { CheckLog, CheckResult, Exercise, Flashcard, Intake, Level, MemoryPair, Skill, Slide } from '../types.ts';
 import { checkMath } from './mathcheck.ts';
-import { ENG_TYPES, EXERCISES_SCHEMA, EXERCISES_SYSTEM, fill, INTAKE_SCHEMA, INTAKE_SYSTEM, LESSON_SCHEMA, LESSON_SYSTEM, MATH_TYPES, REVIEW_SCHEMA, REVIEW_SYSTEM } from './prompts.ts';
+import {
+  CARDS_SCHEMA, CARDS_SYSTEM, COMMENT_SCHEMA, COMMENT_SYSTEM, ENG_TYPES, ERROR_SCHEMA, ERROR_SYSTEM, EXERCISES_SCHEMA, EXERCISES_SYSTEM, fill,
+  INTAKE_SCHEMA, INTAKE_SYSTEM, LESSON_SCHEMA, LESSON_SYSTEM, MATH_TYPES, REVIEW_SCHEMA, REVIEW_SYSTEM, SLIDE_EDIT_SYSTEM, SLIDE_SCHEMA,
+} from './prompts.ts';
 
 const LANG_NAME = { vi: 'Vietnamese', en: 'English' } as const;
 const TEMPLATE_HELP: Record<string, string> = {
@@ -15,23 +22,33 @@ const TEMPLATE_HELP: Record<string, string> = {
   math_word: 'math_word: word problem', eng_match: 'eng_match: match word to picture', eng_fill: 'eng_fill: fill the missing word',
   eng_listen: 'eng_listen: listen and choose', eng_order: 'eng_order: put words in order',
 };
+const noteLine = (it: Intake) => (it.note?.trim() ? `Teacher's note: ${it.note.trim()}` : '');
+const pad = (n: number) => String(n).padStart(2, '0');
 
 export async function intake(ai: AI, source: string): Promise<Intake> {
   const r = await ai.json<Intake>({ task: 'intake', tier: 'fast', system: INTAKE_SYSTEM, prompt: `DOCUMENT:\n${source}`, schema: INTAKE_SCHEMA, input: { source } });
-  return { ...r, grade: Math.min(5, Math.max(1, Math.round(r.grade))) as Intake['grade'], minutes: r.minutes || 35, objectives: r.objectives.slice(0, 3) };
+  const minutes = [15, 25, 35].reduce((b, m) => (Math.abs(m - (r.minutes || 25)) < Math.abs(b - (r.minutes || 25)) ? m : b), 25);
+  return { ...r, grade: Math.min(5, Math.max(1, Math.round(r.grade))) as Intake['grade'], minutes, objectives: r.objectives.slice(0, 2),
+    outputs: r.outputs?.length ? r.outputs : ['slides', 'video', 'exercises', 'flashcards'] };
 }
 
-export const slideCount = (minutes: number) => Math.max(8, Math.min(12, Math.round(minutes / 4)));
+export const slideCount = (minutes: number) => (minutes <= 15 ? 8 : minutes <= 25 ? 10 : 12);
 
 export async function makeSlides(ai: AI, source: string, it: Intake): Promise<Slide[]> {
   const count = slideCount(it.minutes);
   const r = await ai.json<{ slides: Omit<Slide, 'id'>[] }>({ task: 'lesson', tier: 'pro',
-    system: fill(LESSON_SYSTEM, { count, langName: LANG_NAME[it.lang], grade: it.grade, videoMin: 2, videoMax: 4 }),
+    system: fill(LESSON_SYSTEM, { count, langName: LANG_NAME[it.lang], grade: it.grade, videoMin: 2, videoMax: 4, note: noteLine(it) }),
     prompt: `SETUP:\n${JSON.stringify(it)}\n\nDOCUMENT:\n${source}`, schema: LESSON_SCHEMA, input: { source, intake: it, count } });
-  return r.slides.map((s, i) => ({ ...s, id: `sl${String(i + 1).padStart(2, '0')}`, bullets: (s.bullets || []).slice(0, 4) }));
+  return r.slides.map((s, i) => ({ ...s, id: `sl${pad(i + 1)}`, bullets: (s.bullets || []).filter(Boolean).slice(0, 4), source: s.source || '' }));
 }
 
-// Checks the model cannot be trusted with and code can do exactly.
+export async function editSlide(ai: AI, slide: Slide, how: 'rewrite' | 'simpler', it: Intake): Promise<Slide> {
+  const r = await ai.json<Omit<Slide, 'id'>>({ task: 'slide-edit', tier: 'fast', system: SLIDE_EDIT_SYSTEM,
+    prompt: `ACTION: ${how}\nGRADE: ${it.grade}\nSLIDE:\n${JSON.stringify(slide)}`, schema: SLIDE_SCHEMA, input: { slide, how } });
+  return { ...slide, ...r, id: slide.id, image: slide.image, bullets: (r.bullets || []).slice(0, 4) };
+}
+
+// Checks the model can't be trusted with and code can do exactly.
 export function checkLocal(ex: Exercise): CheckResult {
   if (ex.type.startsWith('math_')) return checkMath(ex);
   const issues: string[] = [];
@@ -62,59 +79,80 @@ export function checkLocal(ex: Exercise): CheckResult {
 }
 
 type RawItem = Record<string, any>;
-const toExercise = (r: RawItem, id: string): Exercise => ({ ...r, id, level: r.level as Level, options: r.options || [], words: r.words || [], pairs: r.pairs || [] } as unknown as Exercise);
+const toExercise = (r: RawItem, id: string, skills: Skill[]): Exercise =>
+  ({ ...r, id, level: r.level as Level, skill: skills.some((s) => s.tag === r.skill) ? r.skill : skills[0]?.tag || 'general',
+    options: r.options || [], words: r.words || [], pairs: r.pairs || [] } as unknown as Exercise);
 
-export interface ExerciseResult { exercises: Exercise[]; checks: { exercise: string; attempts: number; issues: string[] }[] }
+export interface ExerciseResult { skills: Skill[]; exercises: Exercise[]; checks: CheckLog[] }
 
 export async function makeExercises(ai: AI, source: string, it: Intake, slides: Slide[], log: (m: string) => void = () => {}, perLevel = 4): Promise<ExerciseResult> {
   const types = it.subject === 'math' ? MATH_TYPES : ENG_TYPES;
-  const system = fill(EXERCISES_SYSTEM, { templates: types.map((t) => `- ${TEMPLATE_HELP[t]}`).join('\n'), perLevel, grade: it.grade, langName: LANG_NAME[it.lang] });
+  const system = fill(EXERCISES_SYSTEM, { templates: types.map((t) => `- ${TEMPLATE_HELP[t]}`).join('\n'), perLevel, grade: it.grade, langName: LANG_NAME[it.lang], note: noteLine(it) });
   const lesson = `SETUP:\n${JSON.stringify(it)}\n\nLESSON SLIDES:\n${JSON.stringify(slides.map(({ heading, bullets, example }) => ({ heading, bullets, example })))}\n\nDOCUMENT:\n${source}`;
-  const gen = async (prompt: string, input: unknown) =>
-    (await ai.json<{ items: RawItem[] }>({ task: 'exercises', tier: 'pro', system, prompt, schema: EXERCISES_SCHEMA, input })).items.filter((r) => types.includes(r.type));
+  const gen = async (prompt: string, input: unknown) => {
+    const r = await ai.json<{ skills: Skill[]; items: RawItem[] }>({ task: 'exercises', tier: 'pro', system, prompt, schema: EXERCISES_SCHEMA, input });
+    return { skills: r.skills || [], items: (r.items || []).filter((x) => types.includes(x.type)) };
+  };
 
-  let items = (await gen(lesson, { intake: it, slides, perLevel })).map((r, i) => toExercise(r, `ex${String(i + 1).padStart(2, '0')}`));
-  const history = new Map<string, string[]>();
-  const tries = new Map<string, number>(items.map((e) => [e.id, 1]));
+  const first = await gen(lesson, { intake: it, slides, perLevel });
+  const skills = first.skills.filter((s, i, a) => s.tag && a.findIndex((x) => x.tag === s.tag) === i).slice(0, 4);
+  let items = first.items.map((r, i) => toExercise(r, `ex${pad(i + 1)}`, skills));
+  const history = new Map<string, string[]>(), tries = new Map<string, number>(items.map((e) => [e.id, 1]));
 
   for (let round = 0; ; round++) {
-    // 1. code checks; maths answers that code can compute are fixed in place
+    // 1. code checks; maths answers code can compute are fixed in place
     const failing = new Map<string, string[]>();
     items = items.map((e) => {
       const c = checkLocal(e);
-      const fixable = !c.ok && c.fixedAnswer !== undefined && c.issues.length === 1 && c.issues[0].startsWith('answer ');
-      if (fixable) {
+      if (!c.ok && c.fixedAnswer !== undefined && c.issues.length === 1 && c.issues[0].startsWith('answer ')) {
         history.set(e.id, [...(history.get(e.id) || []), `fixed by code: ${c.issues[0]}`]);
         return { ...e, answer: c.fixedAnswer } as Exercise;
       }
       if (!c.ok) failing.set(e.id, c.issues);
       return e;
     });
-    // 2. Gemini review of everything that passed the code checks
+    // 2. Gemini review of what passed the code checks
     const toReview = items.filter((e) => !failing.has(e.id));
     if (toReview.length) {
       const rv = await ai.json<{ results: { id: string; ok: boolean; issues: string[] }[] }>({ task: 'review', tier: 'fast', system: fill(REVIEW_SYSTEM, { grade: it.grade }),
-        prompt: `LESSON: ${it.title}\nITEMS:\n${JSON.stringify(toReview)}`, schema: REVIEW_SCHEMA, input: { items: toReview, round } });
+        prompt: `LESSON: ${it.title}\nSKILLS: ${JSON.stringify(skills)}\nITEMS:\n${JSON.stringify(toReview)}`, schema: REVIEW_SCHEMA, input: { items: toReview, round } });
       for (const r of rv.results) if (!r.ok && toReview.some((e) => e.id === r.id)) failing.set(r.id, r.issues);
     }
     for (const [id, iss] of failing) history.set(id, [...(history.get(id) || []), ...iss]);
     if (!failing.size) break;
-    if (round >= config.maxFixRounds) {
-      log(`dropping ${failing.size} item(s) that still fail after ${round} fix rounds`);
-      items = items.filter((e) => !failing.has(e.id));
-      break;
-    }
+    if (round >= config.maxFixRounds) { log(`bỏ ${failing.size} câu vẫn chưa đạt sau ${round} lượt sửa`); items = items.filter((e) => !failing.has(e.id)); break; }
     // 3. regenerate only the failing items, telling the model what was wrong
-    log(`round ${round + 1}: regenerating ${failing.size} item(s)`);
+    log(`tự kiểm tra lượt ${round + 1}: viết lại ${failing.size} câu`);
     const bad = items.filter((e) => failing.has(e.id));
-    const redo = await gen(`${lesson}\n\nREWRITE these ${bad.length} items, same template and level, fixing the issues. Return exactly ${bad.length} items in the same order.\n${JSON.stringify(bad.map((e) => ({ item: e, issues: failing.get(e.id) })))}`, { redo: bad, issues: Object.fromEntries(failing) });
+    const redo = await gen(`${lesson}\n\nREWRITE these ${bad.length} items, same template, level and skill, fixing the issues. Return the same skills and exactly ${bad.length} items in the same order.\n${JSON.stringify(bad.map((e) => ({ item: e, issues: failing.get(e.id) })))}`,
+      { redo: bad, issues: Object.fromEntries(failing) });
     bad.forEach((e, k) => {
-      if (!redo[k]) return;
-      const i = items.findIndex((x) => x.id === e.id);
-      items[i] = toExercise({ ...redo[k], level: e.level }, e.id);
+      if (!redo.items[k]) return;
+      items[items.findIndex((x) => x.id === e.id)] = toExercise({ ...redo.items[k], level: e.level, skill: e.skill }, e.id, skills);
       tries.set(e.id, (tries.get(e.id) || 1) + 1);
     });
   }
-  const checks = [...history].map(([exercise, issues]) => ({ exercise, attempts: tries.get(exercise) || 1, issues }));
-  return { exercises: items, checks };
+  const used = new Set(items.map((e) => e.skill));
+  return { skills: skills.filter((s) => used.has(s.tag)), exercises: items, checks: [...history].map(([exercise, issues]) => ({ exercise, attempts: tries.get(exercise) || 1, issues })) };
+}
+
+export async function makeCards(ai: AI, source: string, it: Intake): Promise<{ flashcards: Flashcard[]; pairs: MemoryPair[] }> {
+  const r = await ai.json<{ flashcards: Omit<Flashcard, 'id'>[]; pairs: Omit<MemoryPair, 'id'>[] }>({ task: 'cards', tier: 'fast',
+    system: fill(CARDS_SYSTEM, { nCards: 8, grade: it.grade }), prompt: `SETUP:\n${JSON.stringify(it)}\n\nDOCUMENT:\n${source}`, schema: CARDS_SCHEMA, input: { intake: it } });
+  const sides = new Set<string>();
+  const pairs = (r.pairs || []).filter((p) => p.a && p.b && p.a !== p.b && !sides.has(p.a) && !sides.has(p.b) && !!sides.add(p.a) && !!sides.add(p.b)).slice(0, 4);
+  return { flashcards: (r.flashcards || []).slice(0, 12).map((c, i) => ({ ...c, id: `fc${pad(i + 1)}` })), pairs: pairs.map((p, i) => ({ ...p, id: `mp${i + 1}` })) };
+}
+
+export async function tagError(ai: AI, ex: Exercise, given: string, grade: number, known: string[]): Promise<{ errorType: string; hint: string }> {
+  const correct = ex.type === 'eng_match' ? JSON.stringify(Object.fromEntries(ex.pairs.map((p) => [p.word, p.emoji]))) : (ex as { answer: string }).answer;
+  return ai.json({ task: 'error', tier: 'fast', system: fill(ERROR_SYSTEM, { grade, known: known.length ? known.map((k) => `"${k}"`).join(', ') : '(none yet)' }),
+    prompt: `ITEM:\n${JSON.stringify(ex)}\nCORRECT ANSWER: ${correct}\nPUPIL'S ANSWER: ${given}`, schema: ERROR_SCHEMA, input: { ex, given } });
+}
+
+export async function draftComments(ai: AI, lessonTitle: string, rows: { pupilId: string; name: string; skill: string; label: string; error?: string }[]): Promise<{ pupilId: string; text: string }[]> {
+  if (!rows.length) return [];
+  const r = await ai.json<{ comments: { pupilId: string; text: string }[] }>({ task: 'comments', tier: 'fast', system: COMMENT_SYSTEM,
+    prompt: `LESSON: ${lessonTitle}\nPUPILS (skill, label, repeated error):\n${JSON.stringify(rows)}`, schema: COMMENT_SCHEMA, input: { rows } });
+  return r.comments;
 }

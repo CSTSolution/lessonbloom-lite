@@ -1,58 +1,57 @@
-// Storage behind one interface: LocalStore (files under data/) for development, and the
-// Google Cloud store (Firestore + Cloud Storage) when deployed. Pupil results are anonymous.
+// Storage behind one small document interface: LocalStore (JSON files under data/) for
+// development and tests, GcpStore (Firestore + Cloud Storage) on Cloud Run.
 import { existsSync } from 'node:fs';
-import { appendFile, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { config } from './config.ts';
-import type { Lesson, Submission } from './types.ts';
+
+export type Coll = 'teachers' | 'classes' | 'pupils' | 'lessons' | 'assignments' | 'attempts' | 'selfchecks' | 'cache';
 
 export interface Store {
-  getLesson(id: string): Promise<Lesson | null>;
-  putLesson(l: Lesson): Promise<void>;
-  findShare(shareId: string): Promise<Lesson | null>;
-  addSubmission(s: Submission): Promise<void>;
-  submissions(shareId: string): Promise<Submission[]>;
-  putFile(lessonId: string, name: string, data: Buffer, type: string): Promise<string>;   // returns a URL path
-  getFile(lessonId: string, name: string): Promise<Buffer | null>;
+  get<T>(coll: Coll, id: string): Promise<T | null>;
+  put<T extends { id: string }>(coll: Coll, doc: T): Promise<void>;
+  putMany<T extends { id: string }>(coll: Coll, docs: T[]): Promise<void>;
+  find<T>(coll: Coll, field: string, value: string): Promise<T[]>;     // equality filter
+  putFile(folder: string, name: string, data: Buffer, type: string): Promise<string>;   // returns a /media URL
+  getFile(folder: string, name: string): Promise<Buffer | null>;
 }
 
-const safe = (s: string) => { if (!/^[\w.-]+$/.test(s)) throw new Error(`bad name: ${s}`); return s; };
+const safe = (s: string) => { if (!/^[\w.-]{1,120}$/.test(s)) throw new Error(`bad name: ${s}`); return s; };
 
 export class LocalStore implements Store {
+  private mem = new Map<string, Map<string, unknown>>();       // read cache; files are the truth
   constructor(private root = config.dataDir) {}
-  private dir(id: string) { return join(this.root, safe(id)); }
 
-  async getLesson(id: string) {
-    const f = join(this.dir(id), 'lesson.json');
-    return existsSync(f) ? JSON.parse(await readFile(f, 'utf8')) as Lesson : null;
+  private async coll(c: Coll): Promise<Map<string, unknown>> {
+    let m = this.mem.get(c);
+    if (m) return m;
+    m = new Map();
+    const dir = join(this.root, c);
+    if (existsSync(dir)) for (const f of await readdir(dir)) if (f.endsWith('.json')) m.set(f.slice(0, -5), JSON.parse(await readFile(join(dir, f), 'utf8')));
+    this.mem.set(c, m);
+    return m;
   }
-  async putLesson(l: Lesson) {
-    await mkdir(this.dir(l.id), { recursive: true });
-    // write-then-rename: progress updates arrive concurrently and must never leave half a file
-    const f = join(this.dir(l.id), 'lesson.json'), tmp = `${f}.${process.pid}.${Math.random().toString(36).slice(2)}`;
-    await writeFile(tmp, JSON.stringify(l, null, 1));
+  async get<T>(c: Coll, id: string) { return ((await this.coll(c)).get(safe(id)) as T) ?? null; }
+  async put<T extends { id: string }>(c: Coll, doc: T) {
+    const dir = join(this.root, c), f = join(dir, `${safe(doc.id)}.json`);
+    (await this.coll(c)).set(doc.id, structuredClone(doc));
+    await mkdir(dir, { recursive: true });
+    const tmp = `${f}.${process.pid}.${Math.random().toString(36).slice(2)}`;   // write-then-rename: never half a file
+    await writeFile(tmp, JSON.stringify(doc));
     await rename(tmp, f);
-    if (l.shareId) await writeFile(join(this.root, `share_${safe(l.shareId)}`), l.id);
   }
-  async findShare(shareId: string) {
-    const f = join(this.root, `share_${safe(shareId)}`);
-    return existsSync(f) ? this.getLesson((await readFile(f, 'utf8')).trim()) : null;
+  async putMany<T extends { id: string }>(c: Coll, docs: T[]) { for (const d of docs) await this.put(c, d); }
+  async find<T>(c: Coll, field: string, value: string) {
+    return [...(await this.coll(c)).values()].filter((d) => (d as Record<string, unknown>)[field] === value).map((d) => structuredClone(d) as T);
   }
-  async addSubmission(s: Submission) {
-    await mkdir(this.root, { recursive: true });
-    await appendFile(join(this.root, `subs_${safe(s.shareId)}.jsonl`), JSON.stringify(s) + '\n');
+  async putFile(folder: string, name: string, data: Buffer) {
+    const dir = join(this.root, 'media', safe(folder));
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, safe(name)), data);
+    return `/media/${folder}/${name}`;
   }
-  async submissions(shareId: string) {
-    const f = join(this.root, `subs_${safe(shareId)}.jsonl`);
-    return existsSync(f) ? (await readFile(f, 'utf8')).split('\n').filter(Boolean).map((l) => JSON.parse(l) as Submission) : [];
-  }
-  async putFile(lessonId: string, name: string, data: Buffer) {
-    await mkdir(this.dir(lessonId), { recursive: true });
-    await writeFile(join(this.dir(lessonId), safe(name)), data);
-    return `/media/${lessonId}/${name}`;
-  }
-  async getFile(lessonId: string, name: string) {
-    const f = join(this.dir(lessonId), safe(name));
+  async getFile(folder: string, name: string) {
+    const f = join(this.root, 'media', safe(folder), safe(name));
     return existsSync(f) ? readFile(f) : null;
   }
 }

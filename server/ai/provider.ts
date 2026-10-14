@@ -1,7 +1,7 @@
 // The one seam between LessonBloom and the models. GeminiProvider talks to Gemini (AI
 // Studio key or Vertex AI); MockProvider answers offline so everything runs without a key.
 
-export type Task = 'intake' | 'lesson' | 'exercises' | 'review' | 'image-critic' | 'report';
+export type Task = 'intake' | 'lesson' | 'slide-edit' | 'exercises' | 'review' | 'cards' | 'error' | 'comments' | 'image-critic';
 
 export interface TextRequest {
   task: Task;

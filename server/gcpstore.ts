@@ -1,44 +1,37 @@
-// Store on Google Cloud: Firestore for lessons and anonymous submissions, Cloud Storage for
-// images, audio, PDF and video. Cloud Run's service account authenticates both; no keys.
-// Media is served through /media/... by the API, so the bucket stays private.
+// Store on Google Cloud: Firestore documents + a private Cloud Storage bucket for media.
+// Cloud Run's service account authenticates both; there are no keys in code or config.
+// Media is served through the API (/media/...), so the bucket is never public.
 import { Firestore } from '@google-cloud/firestore';
 import { Storage } from '@google-cloud/storage';
-import type { Store } from './store.ts';
-import type { Lesson, Submission } from './types.ts';
+import type { Coll, Store } from './store.ts';
 
 export class GcpStore implements Store {
   private db = new Firestore({ ignoreUndefinedProperties: true });
   private bucket;
+  constructor(bucketName: string) { this.bucket = new Storage().bucket(bucketName); }
 
-  constructor(bucketName: string) {
-    this.bucket = new Storage().bucket(bucketName);
+  async get<T>(c: Coll, id: string) {
+    const d = await this.db.collection(c).doc(id).get();
+    return d.exists ? (d.data() as T) : null;
   }
-
-  async getLesson(id: string) {
-    const d = await this.db.collection('lessons').doc(id).get();
-    return d.exists ? (d.data() as Lesson) : null;
+  async put<T extends { id: string }>(c: Coll, doc: T) { await this.db.collection(c).doc(doc.id).set(doc as object); }
+  async putMany<T extends { id: string }>(c: Coll, docs: T[]) {
+    for (let i = 0; i < docs.length; i += 400) {
+      const b = this.db.batch();
+      for (const d of docs.slice(i, i + 400)) b.set(this.db.collection(c).doc(d.id), d as object);
+      await b.commit();
+    }
   }
-  async putLesson(l: Lesson) {
-    await this.db.collection('lessons').doc(l.id).set(l);
-    if (l.shareId) await this.db.collection('shares').doc(l.shareId).set({ lessonId: l.id });
+  async find<T>(c: Coll, field: string, value: string) {
+    const q = await this.db.collection(c).where(field, '==', value).limit(5000).get();
+    return q.docs.map((d) => d.data() as T);
   }
-  async findShare(shareId: string) {
-    const d = await this.db.collection('shares').doc(shareId).get();
-    return d.exists ? this.getLesson(d.get('lessonId')) : null;
+  async putFile(folder: string, name: string, data: Buffer, type: string) {
+    await this.bucket.file(`${folder}/${name}`).save(data, { contentType: type, resumable: false });
+    return `/media/${folder}/${name}`;
   }
-  async addSubmission(s: Submission) {
-    await this.db.collection('shares').doc(s.shareId).collection('submissions').add(s);
-  }
-  async submissions(shareId: string) {
-    const q = await this.db.collection('shares').doc(shareId).collection('submissions').orderBy('at').limit(2000).get();
-    return q.docs.map((d) => d.data() as Submission);
-  }
-  async putFile(lessonId: string, name: string, data: Buffer, type: string) {
-    await this.bucket.file(`${lessonId}/${name}`).save(data, { contentType: type, resumable: false });
-    return `/media/${lessonId}/${name}`;
-  }
-  async getFile(lessonId: string, name: string) {
-    const f = this.bucket.file(`${lessonId}/${name}`);
+  async getFile(folder: string, name: string) {
+    const f = this.bucket.file(`${folder}/${name}`);
     const [exists] = await f.exists();
     return exists ? (await f.download())[0] : null;
   }

@@ -5,7 +5,7 @@ import { GeminiProvider } from './ai/gemini.ts';
 import { MockProvider } from './ai/mock.ts';
 import type { AI } from './ai/provider.ts';
 import { config } from './config.ts';
-import { intake, makeExercises, makeSlides } from './lesson/build.ts';
+import { intake, makeCards, makeExercises, makeSlides } from './lesson/build.ts';
 import { illustrate } from './lesson/illustrate.ts';
 import type { Lesson } from './types.ts';
 
@@ -36,6 +36,8 @@ if (!flag('--no-images')) {
     await writeFile(join(dir, s.image), pic.image);
   }
 }
-const lesson: Lesson = { id, createdAt: new Date().toISOString(), status: 'ready', progress: [], source, intake: it, slides, exercises: ex.exercises, checks: ex.checks };
+const cards = await makeCards(ai, source, it);
+log(`flashcards: ${cards.flashcards.length}, memory pairs: ${cards.pairs.length}; skills: ${ex.skills.map((s) => s.name).join(', ')}`);
+const lesson: Lesson = { id, teacherId: 'cli', createdAt: new Date().toISOString(), status: 'ready', progress: [], source, intake: it, skills: ex.skills, slides, exercises: ex.exercises, checks: ex.checks, ...cards };
 await writeFile(join(dir, 'lesson.json'), JSON.stringify(lesson, null, 1));
 log(`saved ${join(dir, 'lesson.json')}`);

@@ -14,4 +14,5 @@ export const config = {
   maxImageTries: 3,
   port: Number(env('PORT', '8080')),
   dataDir: env('LB_DATA_DIR', 'data'),
+  chromium: env('CHROMIUM_PATH', `${process.env.HOME}/Library/Caches/ms-playwright/chromium-1148/chrome-mac/Chromium.app/Contents/MacOS/Chromium`),
 };
