@@ -27,6 +27,10 @@ echo "== Bucket (private)"
 gcloud storage buckets describe "gs://$BUCKET" >/dev/null 2>&1 || gcloud storage buckets create "gs://$BUCKET" --location="$REGION" --uniform-bucket-level-access --public-access-prevention
 gcloud storage buckets add-iam-policy-binding "gs://$BUCKET" --member "serviceAccount:$SA" --role roles/storage.objectAdmin >/dev/null
 
+echo "== Build permission (newer projects build as the default compute account)"
+NUM=$(gcloud projects describe "$PROJECT" --format="value(projectNumber)")
+gcloud projects add-iam-policy-binding "$PROJECT" --member "serviceAccount:${NUM}-compute@developer.gserviceaccount.com" --role roles/run.builder --condition=None >/dev/null
+
 echo "== Deploy (Cloud Build from source)"
 # --no-cpu-throttling: lessons are generated in the background after the request returns.
 gcloud run deploy "$SERVICE" --source . --region "$REGION" --service-account "$SA" --allow-unauthenticated \
