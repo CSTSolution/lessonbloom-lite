@@ -1,9 +1,8 @@
 // Teacher accounts with Firebase Authentication. Config comes from /api/config at runtime, so
 // the same build works with or without Firebase (without it, only the demo workspace exists).
-// Firebase sends the emails: address verification and password reset.
+// Emails (6-digit codes for register, reset and confirm) are sent by the server, not Firebase.
 import type { Auth, User } from 'firebase/auth';
 import { useSyncExternalStore } from 'react';
-import { getLang } from './i18n.ts';
 
 let auth: Auth | null = null;
 let user: User | null = null;
@@ -44,24 +43,13 @@ const fa = () => import('firebase/auth');
 // after 20 s with a message, instead of a button that spins forever.
 const limit = <T,>(p: Promise<T>, ms = 20000) =>
   Promise.race([p, new Promise<never>((_, no) => setTimeout(() => no(Object.assign(new Error('timeout'), { code: 'auth/timeout' })), ms))]);
-// Firebase writes the emails in the language the teacher is using, and the link in them comes
-// back to LessonBloom (?verified=1 / ?reset=1) after Firebase's confirmation page.
-const mailSetup = (back: string) => { auth!.languageCode = getLang(); return { url: `${location.origin}/?${back}=1` }; };
-// The workspace is created on the first API call, which can come before updateProfile finishes,
-// so the name typed at registration is kept here and sent with that call.
-let pendingName = '';
-export const displayName = () => user?.displayName || pendingName || '';
-export async function signUp(name: string, email: string, password: string) {
-  const a = await fa();
-  pendingName = name;
-  const cred = await limit(a.createUserWithEmailAndPassword(auth!, email, password));
-  await a.updateProfile(cred.user, { displayName: name });
-  user = cred.user; emit();
-  await a.sendEmailVerification(cred.user, mailSetup('verified')).catch(() => { /* the banner offers "Resend" */ });
-}
+// the name typed at registration, for that email only (a later sign-in on this tab must not inherit it)
+let pending = { email: '', name: '' };
+export const displayName = () => user?.displayName || (user?.email?.toLowerCase() === pending.email ? pending.name : '');
+// Registration itself happens on the server after the emailed code checks out (accountApi);
+// the name is kept here so the first workspace call carries it.
+export const rememberName = (email: string, name: string) => { pending = { email: email.toLowerCase(), name }; };
 export async function signIn(email: string, password: string) { const a = await fa(); user = (await limit(a.signInWithEmailAndPassword(auth!, email, password))).user; emit(); }
-export async function resetPassword(email: string) { const a = await fa(); await limit(a.sendPasswordResetEmail(auth!, email, mailSetup('reset'))); }
-export async function resendVerification() { const a = await fa(); if (user) await limit(a.sendEmailVerification(user, mailSetup('verified'))); }
 // After the teacher clicks the link: reload the account and get a fresh ID token, so the
 // server sees email_verified = true straight away (an old token would say false for up to an hour).
 export async function refreshUser(): Promise<boolean> {

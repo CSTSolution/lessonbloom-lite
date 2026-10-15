@@ -26,7 +26,7 @@ async function call<T>(method: string, path: string, body?: unknown, teacher = f
   if (!r.ok) {
     // the server sends both languages: error (VI) and errorEn
     const msg = (en ? j.errorEn || j.error : j.error) || (en ? `The server could not finish this (error ${r.status}). Please try again.` : `Máy chủ chưa làm xong việc này (lỗi ${r.status}). Cô thử lại nhé.`);
-    throw Object.assign(new Error(msg), { status: r.status, code: j.code as string | undefined, limit: j.limit as string | undefined });
+    throw Object.assign(new Error(msg), { status: r.status, code: j.code as string | undefined, limit: j.limit as string | undefined, retryIn: j.retryIn as number | undefined });
   }
   return j as T;
 }
@@ -76,7 +76,16 @@ export const teacherApi = {
   insights: (lessonId?: string, classId?: string) => tc<Insights>('GET', `/insights?${new URLSearchParams({ ...(lessonId ? { lessonId } : {}), ...(classId ? { classId } : {}) })}`),
   usage: () => tc<Usage>('GET', '/usage'),
   proRequest: () => tc<{ proRequestedAt: string }>('POST', '/pro-request'),
+  verifySend: () => tc<{ sent?: true; verified?: true }>('POST', '/verify/code', { lang: getLang() }),
+  verify: (code: string) => tc<{ verified: true }>('POST', '/verify', { code }),
   comments: (lessonId: string, classId: string) => tc<{ pupilId: string; text: string }[]>('POST', '/insights/comments', { lessonId, classId }),
+};
+
+// ----- accounts: 6-digit code by email for registering and resetting a password -----
+export const accountApi = {
+  sendCode: (email: string, purpose: 'register' | 'reset') => call<{ sent: true }>('POST', '/api/auth/code', { email, purpose, lang: getLang() }),
+  register: (b: { email: string; code: string; password: string; name: string }) => call<{ ok: true }>('POST', '/api/auth/register', b),
+  reset: (b: { email: string; code: string; password: string }) => call<{ ok: true }>('POST', '/api/auth/reset', b),
 };
 
 // ----- pupil -----

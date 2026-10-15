@@ -4,7 +4,9 @@
 // Pupil routes: join with a class code, tap your name; answers never leave the server, and
 //   nothing a pupil receives contains scores, percentages or labels.
 import { createHash, timingSafeEqual } from 'node:crypto';
-import { isAdminEmail, verify, webConfig } from './auth.ts';
+import { accountExists, createAccount, firebaseEnabled, isAdminEmail, markVerified, setPassword, verify, webConfig } from './auth.ts';
+import { sendCode } from './mail.ts';
+import { Otp, type Purpose } from './otp.ts';
 import { Hono, type Context } from 'hono';
 import type { AI } from './ai/provider.ts';
 import { nextSteps, summarise } from './insights.ts';
@@ -60,6 +62,8 @@ export function createApp(ai: AI, store: Store) {
   const spend = new SpendGuard(store);
   const usage = new UsageLog(store);
   const credits = new Credits(store);
+  const otp = new Otp(store);
+  const clientIp = (c: Context) => (c.req.header('x-forwarded-for') || 'local').split(',')[0].trim();
   // every model call: app-wide usage log + the real cost on the teacher whose request made it
   ai.onUsage = (e) => { usage.record(e); const tid = ctx.getStore()?.teacherId; if (tid) credits.addCost(tid, costOf(e)); };
   // an AI action: the teacher's daily credits first, then the app-wide spending guard
@@ -123,6 +127,27 @@ export function createApp(ai: AI, store: Store) {
     const today = days.find((d) => d.day === new Date().toISOString().slice(0, 10));
     return c.json({ plan, limit: Number.isFinite(dailyLimit(plan)) ? dailyLimit(plan) : null, usedToday: today?.credits || 0, costs: CREDIT_COST, proRequestedAt: tc.proRequestedAt || null,
       days: days.map(({ day, credits: cr, actions, usd, calls }) => ({ day, credits: cr, actions, usd, calls })) });
+  });
+  // accounts made before codes existed confirm their email with a code too (the banner)
+  t.post('/verify/code', async (c) => {
+    const tc = c.get('teacher');
+    if (!tc.account || !tc.email) return bad(c, 'needAccount');
+    if (!c.get('unverified')) return c.json({ verified: true });
+    const r = await otp.issue(tc.email, 'verify', clientIp(c));
+    if ('refused' in r) return r.refused === 'wait' ? bad(c, 'codeWait', 429, MSG.codeWait(r.retryIn || 60), { retryIn: r.retryIn }) : bad(c, 'codeLimit', 429);
+    const { lang } = await c.req.json<{ lang?: string }>().catch(() => ({ lang: 'vi' }));
+    try { await sendCode(tc.email, r.code, 'verify', lang === 'en' ? 'en' : 'vi'); }
+    catch (e) { console.error(`[mail] verify: ${(e as Error).message}`); return bad(c, 'mailFailed'); }
+    return c.json({ sent: true });
+  });
+  t.post('/verify', async (c) => {
+    const tc = c.get('teacher');
+    if (!tc.account || !tc.email) return bad(c, 'needAccount');
+    const { code } = await c.req.json<{ code?: string }>().catch(() => ({ code: '' }));
+    const v = await otp.check(tc.email, 'verify', String(code || ''));
+    if (v !== 'ok') return bad(c, v === 'wrong' ? 'codeWrong' : 'codeExpired');
+    await markVerified(tc.id.replace(/^u_/, ''));
+    return c.json({ verified: true });
   });
   t.post('/pro-request', async (c) => {
     const tc = c.get('teacher');
@@ -443,6 +468,37 @@ export function createApp(ai: AI, store: Store) {
       links: project ? { billing: `https://console.cloud.google.com/billing/linkedaccount?project=${project}`, reports: `https://console.cloud.google.com/billing/reports?project=${project}`,
         run: `https://console.cloud.google.com/run?project=${project}`, vertex: `https://console.cloud.google.com/vertex-ai?project=${project}` } : {} });
   });
+
+  // ---------- accounts: register and reset with a 6-digit code sent by email ----------
+  const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  app.post('/api/auth/code', async (c) => {
+    if (!firebaseEnabled()) return bad(c, 'noAccounts');
+    const b = await c.req.json<{ email?: string; purpose?: Purpose; lang?: string }>().catch(() => ({} as { email?: string; purpose?: Purpose; lang?: string }));
+    const email = String(b.email || '').trim().toLowerCase(), purpose = b.purpose === 'reset' ? 'reset' : 'register';
+    if (!EMAIL.test(email)) return bad(c, 'badEmail');
+    const exists = await accountExists(email);
+    if (purpose === 'register' && exists) return bad(c, 'emailInUse', 409);
+    if (purpose === 'reset' && !exists) return c.json({ sent: true });     // same answer either way: no account lookup by email
+    const r = await otp.issue(email, purpose, clientIp(c));
+    if ('refused' in r) return r.refused === 'wait' ? bad(c, 'codeWait', 429, MSG.codeWait(r.retryIn || 60), { retryIn: r.retryIn }) : bad(c, 'codeLimit', 429);
+    try { await sendCode(email, r.code, purpose, b.lang === 'en' ? 'en' : 'vi'); }
+    catch (e) { console.error(`[mail] ${purpose} to ${email.replace(/^(.).*@/, '$1…@')}: ${(e as Error).message}`); return bad(c, 'mailFailed', 400); }
+    return c.json({ sent: true });
+  });
+  const codeStep = async (c: Context, purpose: Purpose, then: (email: string, password: string, name: string) => Promise<void>) => {
+    if (!firebaseEnabled()) return bad(c, 'noAccounts');
+    const b = await c.req.json<{ email?: string; code?: string; password?: string; name?: string }>().catch(() => ({} as Record<string, string>));
+    const email = String(b.email || '').trim().toLowerCase(), password = String(b.password || '');
+    if (!EMAIL.test(email)) return bad(c, 'badEmail');
+    if (password.length < 6) return bad(c, 'weakPassword');
+    const v = await otp.check(email, purpose, String(b.code || ''));
+    if (v !== 'ok') return bad(c, v === 'wrong' ? 'codeWrong' : 'codeExpired');
+    try { await then(email, password, String(b.name || '').trim().slice(0, 40) || email.split('@')[0]); }
+    catch (e) { if ((e as { code?: string }).code === 'auth/email-already-exists') return bad(c, 'emailInUse', 409); throw e; }
+    return c.json({ ok: true });
+  };
+  app.post('/api/auth/register', (c) => codeStep(c, 'register', createAccount));
+  app.post('/api/auth/reset', (c) => codeStep(c, 'reset', (email, password) => setPassword(email, password)));
 
   // local testing only: FIREBASE_AUTH_EMULATOR_HOST points the browser (and firebase-admin) at the Auth emulator
   app.get('/api/config', (c) => c.json({ firebase: webConfig(), authEmulator: process.env.FIREBASE_AUTH_EMULATOR_HOST ? `http://${process.env.FIREBASE_AUTH_EMULATOR_HOST}` : undefined }));

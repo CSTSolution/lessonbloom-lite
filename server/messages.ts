@@ -26,6 +26,17 @@ export const MSG = {
   forbidden: { vi: 'Không có quyền truy cập.', en: 'Access denied.' },
   server: { vi: 'Máy chủ gặp lỗi, cô thử lại sau ít phút nhé.', en: 'Something went wrong on the server. Please try again in a few minutes.' },
 
+  // sign-up and password reset with an emailed 6-digit code
+  badEmail: { vi: 'Email chưa đúng định dạng (ví dụ: ten@truong.edu.vn).', en: 'That email address looks wrong (e.g. name@school.edu).' },
+  weakPassword: { vi: 'Mật khẩu cần ít nhất 6 ký tự.', en: 'The password needs at least 6 characters.' },
+  emailInUse: { vi: 'Email này đã có tài khoản. Cô đăng nhập, hoặc bấm "Quên mật khẩu?" nhé.', en: 'This email already has an account. Sign in, or use "Forgot password?".' },
+  codeWait: (s: number): Msg => ({ vi: `Mã vừa được gửi. Cô đợi ${s} giây rồi gửi lại nhé.`, en: `A code was just sent. Please wait ${s} seconds before asking again.` }),
+  codeLimit: { vi: 'Đã gửi quá nhiều mã. Cô thử lại sau một giờ nhé.', en: 'Too many codes sent. Please try again in an hour.' },
+  codeWrong: { vi: 'Mã chưa đúng. Cô kiểm tra lại 6 số trong email nhé.', en: 'That code is not right. Please check the 6 digits in the email.' },
+  codeExpired: { vi: 'Mã đã hết hạn hoặc nhập sai quá nhiều lần. Cô bấm "Gửi lại mã" nhé.', en: 'The code has expired or was entered wrongly too many times. Press "Send a new code".' },
+  mailFailed: { vi: 'Chưa gửi được email. Cô kiểm tra địa chỉ email rồi thử lại nhé.', en: 'The email could not be sent. Please check the address and try again.' },
+  noAccounts: { vi: 'Đăng ký tài khoản chưa bật. Cô dùng thử bản demo nhé.', en: 'Accounts are not switched on. Please try the demo.' },
+
   // lesson build progress (shown live in step 3)
   pReading: { vi: 'Đang đọc tài liệu và soạn slide…', en: 'Reading the document and writing slides…' },
   pSlides: (n: number): Msg => ({ vi: `Đã có ${n} slide. Đang soạn bài tập theo mẫu và tự kiểm tra đáp án…`, en: `${n} slides done. Writing exercises from the templates and checking the answers…` }),

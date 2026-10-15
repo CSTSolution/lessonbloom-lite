@@ -1,8 +1,8 @@
 // Teacher app: top bar + routes. The first visit creates this browser's demo workspace.
 import { useEffect, useState } from 'react';
 import { go, isDemo, leaveDemo, loadWorkspace, type Teacher } from '../api.ts';
-import { authError, refreshUser, resendVerification, signOut, useAuth } from '../auth.ts';
-import { useLang, useT } from '../i18n.ts';
+import { refreshUser, signOut, useAuth } from '../auth.ts';
+import { useT } from '../i18n.ts';
 import { LangToggle, Logo } from '../main.tsx';
 import { Classes } from './Classes.tsx';
 import { Create } from './Create.tsx';
@@ -22,12 +22,14 @@ export function Link({ to, children, className, ...rest }: { to: string; childre
 
 const U = {
   vi: { signOut: 'Đăng xuất', demo: 'Bản dùng thử', register: 'Đăng ký để lưu bài của cô',
-    verify: (e: string) => `Cô mở email gửi tới ${e} và bấm đường link xác nhận (xem cả mục Spam) để dùng AI.`, resend: 'Gửi lại email', done: 'Tôi đã xác nhận', sent: 'Đã gửi lại',
-    notYet: 'Chưa thấy xác nhận. Cô bấm đường link trong email rồi bấm lại nút này nhé.', verified: 'Đã xác nhận email! Cô dùng AI được rồi.', checking: 'Đang kiểm tra…',
+    verify: (e: string) => `Xác nhận email ${e} để dùng AI.`, send: 'Gửi mã xác nhận', sentTo: (e: string) => `Đã gửi mã 6 số tới ${e} (xem cả mục Spam).`,
+    codePh: 'Mã 6 số', confirm: 'Xác nhận', resend: 'Gửi lại mã', resendIn: (s: number) => `Gửi lại sau ${s} giây`, codeShort: 'Cô nhập đủ 6 số nhé.',
+    verified: 'Đã xác nhận email! Cô dùng AI được rồi.', busy: 'Đang gửi…', checking: 'Đang xác nhận…',
     loadErr: 'Chưa tải được trang.', retry: 'Thử lại', loading: 'Đang tải…' },
   en: { signOut: 'Sign out', demo: 'Demo', register: 'Register to keep your lessons',
-    verify: (e: string) => `Open the email we sent to ${e} and click the confirmation link (check Spam too) to use AI.`, resend: 'Resend email', done: 'I have confirmed', sent: 'Sent again',
-    notYet: 'Not confirmed yet. Click the link in the email, then press this button again.', verified: 'Email confirmed! You can use AI now.', checking: 'Checking…',
+    verify: (e: string) => `Confirm ${e} to use AI.`, send: 'Send verification code', sentTo: (e: string) => `A 6-digit code was sent to ${e} (check Spam too).`,
+    codePh: '6-digit code', confirm: 'Confirm', resend: 'Send a new code', resendIn: (s: number) => `New code in ${s} s`, codeShort: 'Please enter all 6 digits.',
+    verified: 'Email confirmed! You can use AI now.', busy: 'Sending…', checking: 'Checking…',
     loadErr: 'The page could not load.', retry: 'Try again', loading: 'Loading…' },
 };
 
@@ -58,28 +60,40 @@ function CreditPill({ path }: { path: string }) {
   return <Link to="/usage" className={`chip ${u.plan === 'pro' ? 'green' : 'blue'}`} title="AI">{u.plan === 'pro' ? 'PRO' : `⚡ ${Math.max(0, (u.limit ?? 0) - u.usedToday)}/${u.limit}`}</Link>;
 }
 
+// For accounts made before registration used codes: confirm the email with a 6-digit code
 function VerifyBanner() {
-  const u = useT(U), lang = useLang();
+  const u = useT(U);
   const { user } = useAuth();
-  const [state, setState] = useState<'' | 'sent' | 'checking' | 'notYet' | 'verified'>('');
-  const [err, setErr] = useState<unknown>(null);
-  const check = async () => { setState('checking'); setErr(null); try { setState((await refreshUser()) ? 'verified' : 'notYet'); } catch (e) { setErr(e); setState(''); } };
-  // back from the confirmation link (?verified=1) while signed in: check straight away
-  useEffect(() => {
-    if (new URLSearchParams(location.search).has('verified')) { history.replaceState(null, '', location.pathname); if (user) check(); }
-  }, []);   // eslint-disable-line react-hooks/exhaustive-deps
+  const [state, setState] = useState<'' | 'sending' | 'sent' | 'checking' | 'verified'>('');
+  const [code, setCode] = useState(''), [wait, setWait] = useState(0), [err, setErr] = useState('');
+  useEffect(() => { if (wait > 0) { const id = setTimeout(() => setWait(wait - 1), 1000); return () => clearTimeout(id); } }, [wait]);
   useEffect(() => { if (state === 'verified') { const id = setTimeout(() => setState(''), 6000); return () => clearTimeout(id); } }, [state]);
+  const send = async () => {
+    setErr(''); setState('sending');
+    try { const r = await teacherApi.verifySend(); if (r.verified) { await refreshUser(); setState('verified'); } else { setState('sent'); setWait(60); } }
+    catch (e) { setErr((e as Error).message); setWait((e as { retryIn?: number }).retryIn || 0); setState(code || wait ? 'sent' : ''); }
+  };
+  const confirm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!/^\d{6}$/.test(code)) return setErr(u.codeShort);
+    setErr(''); setState('checking');
+    try { await teacherApi.verify(code); await refreshUser(); setState('verified'); } catch (x) { setErr((x as Error).message); setState('sent'); }
+  };
   if (state === 'verified') return <div className="ok-note" role="status" style={{ borderRadius: 0, textAlign: 'center' }}>✓ {u.verified}</div>;
   if (!user || user.emailVerified) return null;
+  const sent = state === 'sent' || state === 'checking';
   return (
     <div className="note verify-banner" role="status">
-      <span>✉️ {u.verify(user.email || '')}</span>
-      <span className="row" style={{ gap: 8 }}>
-        <button className="btn sm" disabled={state === 'sent'} onClick={async () => { setErr(null); try { await resendVerification(); setState('sent'); } catch (e) { setErr(e); } }}>{state === 'sent' ? u.sent : u.resend}</button>
-        <button className="btn primary sm" disabled={state === 'checking'} onClick={check}>{state === 'checking' ? u.checking : u.done}</button>
-      </span>
-      {state === 'notYet' && <span className="small" style={{ color: 'var(--amber)', width: '100%' }}>{u.notYet}</span>}
-      {!!err && <span className="small error" style={{ width: '100%' }}>{authError(err, lang)}</span>}
+      <span>✉️ {sent ? u.sentTo(user.email || '') : u.verify(user.email || '')}</span>
+      {sent ? (
+        <form className="row" style={{ gap: 8 }} onSubmit={confirm}>
+          <input className="code-input sm" inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder={u.codePh} aria-label={u.codePh}
+            value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} />
+          <button className="btn primary sm" disabled={state === 'checking'}>{state === 'checking' ? u.checking : u.confirm}</button>
+          <button type="button" className="btn ghost sm" disabled={wait > 0} onClick={send}>{wait > 0 ? u.resendIn(wait) : u.resend}</button>
+        </form>
+      ) : <button className="btn primary sm" disabled={state === 'sending'} onClick={send}>{state === 'sending' ? u.busy : u.send}</button>}
+      {err && <span className="small error" style={{ width: '100%' }}>{err}</span>}
     </div>
   );
 }

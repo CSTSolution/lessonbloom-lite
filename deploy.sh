@@ -16,7 +16,8 @@ gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregi
 
 echo "== Service account"
 gcloud iam service-accounts describe "$SA" >/dev/null 2>&1 || gcloud iam service-accounts create lessonbloom-run --display-name "LessonBloom on Cloud Run"
-for ROLE in roles/aiplatform.user roles/datastore.user; do
+# firebaseauth.admin: the server creates accounts and resets passwords after the emailed code checks out
+for ROLE in roles/aiplatform.user roles/datastore.user roles/firebaseauth.admin; do
   gcloud projects add-iam-policy-binding "$PROJECT" --member "serviceAccount:$SA" --role "$ROLE" --condition=None >/dev/null
 done
 
@@ -36,6 +37,12 @@ if ! gcloud secrets describe lb-admin-key >/dev/null 2>&1; then
 fi
 gcloud secrets add-iam-policy-binding lb-admin-key --member "serviceAccount:$SA" --role roles/secretmanager.secretAccessor >/dev/null
 
+echo "== SMTP key for the code emails (Brevo, from $SMTP_ENV_FILE; never printed or committed)"
+if ! gcloud secrets describe lb-smtp-key >/dev/null 2>&1; then
+  ( set -a; . "$SMTP_ENV_FILE"; printf %s "$SMTP_OVH_KEY" ) | gcloud secrets create lb-smtp-key --replication-policy=automatic --data-file=- >/dev/null
+fi
+gcloud secrets add-iam-policy-binding lb-smtp-key --member "serviceAccount:$SA" --role roles/secretmanager.secretAccessor >/dev/null
+
 # Firebase web config (public by design) from Project settings > Your apps; enables teacher sign-in
 FBCFG="$HOME/.config/lessonbloom/firebase-web.json"
 FB_ENV=""
@@ -49,6 +56,6 @@ echo "== Deploy (Cloud Build from source)"
 # --no-cpu-throttling: lessons are generated in the background after the request returns.
 gcloud run deploy "$SERVICE" --source . --region "$REGION" --service-account "$SA" --allow-unauthenticated \
   --cpu 2 --memory 2Gi --timeout 900 --concurrency 20 --min-instances 0 --max-instances 3 --no-cpu-throttling \
-  --set-secrets "LB_ADMIN_KEY=lb-admin-key:latest" --set-env-vars "^|^GOOGLE_GENAI_USE_VERTEXAI=true|GOOGLE_CLOUD_PROJECT=$PROJECT|GOOGLE_CLOUD_LOCATION=global|LB_BUCKET=$BUCKET|LB_MONTH_USD=${MONTH_USD:-40}|LB_DAY_USD=${DAY_USD:-10}|LB_MODEL_IMAGE=${IMAGE_MODEL:-gemini-3.1-flash-image}${FB_ENV}"
+  --set-secrets "LB_ADMIN_KEY=lb-admin-key:latest,LB_SMTP_KEY=lb-smtp-key:latest" --set-env-vars "^|^GOOGLE_GENAI_USE_VERTEXAI=true|GOOGLE_CLOUD_PROJECT=$PROJECT|GOOGLE_CLOUD_LOCATION=global|LB_BUCKET=$BUCKET|LB_MONTH_USD=${MONTH_USD:-40}|LB_DAY_USD=${DAY_USD:-10}|LB_MODEL_IMAGE=${IMAGE_MODEL:-gemini-3.1-flash-image}${FB_ENV}"
 
 gcloud run services describe "$SERVICE" --region "$REGION" --format 'value(status.url)'
