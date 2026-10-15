@@ -7,3 +7,10 @@ data/
 *.log
 .DS_Store
 service-account*.json
+
+# never commit
+*.pem
+*.p12
+*-key.json
+firebase-web.json
+admin-key
