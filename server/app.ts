@@ -14,7 +14,8 @@ import { runLesson } from './lesson/job.ts';
 import { makeVideo } from './lesson/video.ts';
 import { id, seedTeacher } from './seed.ts';
 import { SpendGuard, type SpendKind } from './spend.ts';
-import { PRICE, UsageLog } from './usage.ts';
+import { costOf, PRICE, UsageLog } from './usage.ts';
+import { CREDIT_COST, Credits, ctx, dailyLimit, planOf, type CreditKind } from './credits.ts';
 import { config } from './config.ts';
 import type { Store } from './store.ts';
 import type { Assignment, Attempt, ClassRoom, Criteria, Exercise, Intake, Lesson, Pupil, SelfCheck, Slide, Teacher } from './types.ts';
@@ -42,14 +43,31 @@ export function createApp(ai: AI, store: Store) {
   const app = new Hono();
   const spend = new SpendGuard(store);
   const usage = new UsageLog(store);
-  ai.onUsage = (e) => usage.record(e);
+  const credits = new Credits(store);
+  // every model call: app-wide usage log + the real cost on the teacher whose request made it
+  ai.onUsage = (e) => { usage.record(e); const tid = ctx.getStore()?.teacherId; if (tid) credits.addCost(tid, costOf(e)); };
   const LIMIT_MSG = { month: 'Bản demo đã dùng hết hạn mức AI của tháng này. / The demo has used this month\'s AI allowance.', day: 'Bản demo đã dùng hết hạn mức AI hôm nay, cô thử lại vào ngày mai nhé. / The demo has used today\'s AI allowance; please try again tomorrow.' };
-  const guard = async (c: Context, kind: SpendKind) => { const why = await spend.charge(kind); return why ? c.json({ error: LIMIT_MSG[why as 'month' | 'day'], limit: why }, 429) : null; };
+  // an AI action: the teacher's daily credits first, then the app-wide spending guard
+  const guard = async (c: Context, kind: SpendKind & CreditKind) => {
+    const teacher = (c as Context<{ Variables: { teacher: Teacher } }>).get('teacher');
+    if (teacher) {
+      const r = await credits.charge(teacher, kind);
+      if (!r.ok) return c.json({ error: `Hôm nay cô đã dùng ${r.used}/${r.limit} lượt AI của gói ${planOf(teacher) === 'demo' ? 'dùng thử' : 'miễn phí'}. Nâng cấp Pro để tạo không giới hạn. / You have used ${r.used}/${r.limit} AI credits today. Upgrade to Pro for unlimited creation.`, limit: 'credits', used: r.used, max: r.limit }, 429);
+    }
+    const why = await spend.charge(kind);
+    return why ? c.json({ error: LIMIT_MSG[why as 'month' | 'day'], limit: why }, 429) : null;
+  };
   type Env = { Variables: { teacher: Teacher } };
   const t = new Hono<Env>();
 
   // ---------- teacher workspace ----------
   t.post('/me', async (c) => {                      // create + seed a demo workspace
+    // each demo seeds ~600 documents: cap per IP per day so bots can't run up Firestore writes
+    const ip = (c.req.header('x-forwarded-for') || 'local').split(',')[0].trim();
+    const ipKey = `demoip-${createHash('sha1').update(ip).digest('hex').slice(0, 16)}-${new Date().toISOString().slice(0, 10)}`;
+    const seen = (await store.get<{ id: string; n: number }>('cache', ipKey)) || { id: ipKey, n: 0 };
+    if (seen.n >= config.demoPerIpDay) return c.json({ error: 'Quá nhiều bản dùng thử từ mạng này hôm nay. / Too many demo workspaces from this network today.' }, 429);
+    await store.put('cache', { ...seen, n: seen.n + 1 });
     const { name } = await c.req.json<{ name?: string }>().catch(() => ({ name: undefined }));
     const tid = id(24);
     const teacher = await seedTeacher(store, tid, name?.trim().slice(0, 40) || undefined);
@@ -78,10 +96,23 @@ export function createApp(ai: AI, store: Store) {
     }
     if (!teacher) return bad(c, 'no workspace', 403);
     c.set('teacher', teacher);
-    await next();
+    await ctx.run({ teacherId: teacher.id }, next);     // background work started here keeps the teacher id
   });
   t.get('/me', (c) => c.json(c.get('teacher')));
   t.get('/spend', async (c) => c.json(await spend.status()));
+  t.get('/usage', async (c) => {
+    const tc = c.get('teacher'), plan = planOf(tc), days = await credits.history(tc.id, 30);
+    const today = days.find((d) => d.day === new Date().toISOString().slice(0, 10));
+    return c.json({ plan, limit: Number.isFinite(dailyLimit(plan)) ? dailyLimit(plan) : null, usedToday: today?.credits || 0, costs: CREDIT_COST, proRequestedAt: tc.proRequestedAt || null,
+      days: days.map(({ day, credits: cr, actions, usd, calls }) => ({ day, credits: cr, actions, usd, calls })) });
+  });
+  t.post('/pro-request', async (c) => {
+    const tc = c.get('teacher');
+    if (!tc.account) return bad(c, 'Cô đăng ký tài khoản trước nhé. / Please register an account first.');
+    tc.proRequestedAt ||= new Date().toISOString();
+    await store.put('teachers', tc);
+    return c.json({ proRequestedAt: tc.proRequestedAt });
+  });
   t.put('/me/criteria', async (c) => {
     const tc = c.get('teacher'), body = await c.req.json<Partial<Criteria>>();
     for (const [k, v] of Object.entries(body)) if (k in tc.criteria && Number.isFinite(v) && (v as number) >= 0 && (v as number) <= 100) (tc.criteria as unknown as Record<string, number>)[k] = Number(v);
@@ -327,7 +358,7 @@ export function createApp(ai: AI, store: Store) {
       if (!tag) {
         const known = [...new Set((await store.find<Attempt>('attempts', 'lessonId', x.l.id)).map((a) => a.errorType).filter(Boolean) as string[])].slice(0, 12);
         const allowed = !(await spend.charge('errorTag'));
-        try { tag = allowed ? { id: key, ...(await tagError(ai, e, answer, x.l.intake.grade, known)) } : { id: key, errorType: '', hint: '' }; if (allowed) await store.put('cache', tag); } catch { tag = { id: key, errorType: '', hint: '' }; }
+        try { tag = allowed ? { id: key, ...(await ctx.run({ teacherId: x.k.teacherId }, () => tagError(ai, e, answer, x.l!.intake.grade, known))) } : { id: key, errorType: '', hint: '' }; if (allowed) await store.put('cache', tag); } catch { tag = { id: key, errorType: '', hint: '' }; }
       }
       errorType = tag.errorType || undefined; hint = tag.hint || undefined;
     }
@@ -358,6 +389,28 @@ export function createApp(ai: AI, store: Store) {
     const want = (process.env.LB_ADMIN_KEY || '').trim(), got = (c.req.header('x-admin') || '').trim();
     return want.length >= 24 && got.length === want.length && timingSafeEqual(Buffer.from(got), Buffer.from(want));
   };
+  app.get('/api/admin/users', async (c) => {
+    if (!(await adminOk(c))) return c.json({ error: 'forbidden' }, 403);
+    const month = new Date().toISOString().slice(0, 7), today = new Date().toISOString().slice(0, 10);
+    const teachers = await store.list<Teacher>('teachers', 2000);
+    const rows = await Promise.all(teachers.map(async (t) => {
+      const [days, lessons] = await Promise.all([credits.history(t.id, 31), store.find<Lesson>('lessons', 'teacherId', t.id)]);
+      const m = days.filter((d) => d.day.startsWith(month));
+      return { id: t.id, name: t.name, email: t.email || null, plan: planOf(t), account: !!t.account, createdAt: t.createdAt, proRequestedAt: t.proRequestedAt || null,
+        lessons: lessons.filter((l) => l.source !== 'Bài mẫu do đội LessonBloom tự viết.').length, creditsToday: days.find((d) => d.day === today)?.credits || 0,
+        creditsMonth: m.reduce((a, d) => a + d.credits, 0), usdMonth: Math.round(m.reduce((a, d) => a + d.usd, 0) * 1000) / 1000, lastActive: days[0]?.day || t.createdAt.slice(0, 10) };
+    }));
+    return c.json(rows.sort((a, b) => (b.proRequestedAt ? 1 : 0) - (a.proRequestedAt ? 1 : 0) || b.usdMonth - a.usdMonth || b.createdAt.localeCompare(a.createdAt)));
+  });
+  app.post('/api/admin/users/:id/plan', async (c) => {
+    if (!(await adminOk(c))) return c.json({ error: 'forbidden' }, 403);
+    const { plan } = await c.req.json<{ plan: 'free' | 'pro' | 'demo' }>();
+    const t = await store.get<Teacher>('teachers', c.req.param('id'));
+    if (!t || !['free', 'pro', 'demo'].includes(plan)) return bad(c, 'not found', 404);
+    t.plan = plan; if (plan === 'pro') delete t.proRequestedAt;
+    await store.put('teachers', t);
+    return c.json({ id: t.id, plan });
+  });
   app.get('/api/admin/overview', async (c) => {
     if (!(await adminOk(c))) return c.json({ error: 'forbidden' }, 403);
     const days = await usage.days(Math.min(90, Number(c.req.query('days') || 31)));

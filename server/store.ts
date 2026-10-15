@@ -12,6 +12,7 @@ export interface Store {
   put<T extends { id: string }>(coll: Coll, doc: T): Promise<void>;
   putMany<T extends { id: string }>(coll: Coll, docs: T[]): Promise<void>;
   find<T>(coll: Coll, field: string, value: string): Promise<T[]>;     // equality filter
+  list<T>(coll: Coll, limit?: number): Promise<T[]>;
   putFile(folder: string, name: string, data: Buffer, type: string): Promise<string>;   // returns a /media URL
   getFile(folder: string, name: string): Promise<Buffer | null>;
 }
@@ -44,6 +45,7 @@ export class LocalStore implements Store {
   async find<T>(c: Coll, field: string, value: string) {
     return [...(await this.coll(c)).values()].filter((d) => (d as Record<string, unknown>)[field] === value).map((d) => structuredClone(d) as T);
   }
+  async list<T>(c: Coll, limit = 1000) { return [...(await this.coll(c)).values()].slice(0, limit).map((d) => structuredClone(d) as T); }
   async putFile(folder: string, name: string, data: Buffer) {
     const dir = join(this.root, 'media', safe(folder));
     await mkdir(dir, { recursive: true });

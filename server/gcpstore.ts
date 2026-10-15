@@ -26,6 +26,7 @@ export class GcpStore implements Store {
     const q = await this.db.collection(c).where(field, '==', value).limit(5000).get();
     return q.docs.map((d) => d.data() as T);
   }
+  async list<T>(c: Coll, limit = 1000) { return (await this.db.collection(c).limit(limit).get()).docs.map((d) => d.data() as T); }
   async putFile(folder: string, name: string, data: Buffer, type: string) {
     await this.bucket.file(`${folder}/${name}`).save(data, { contentType: type, resumable: false });
     return `/media/${folder}/${name}`;

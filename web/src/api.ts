@@ -45,6 +45,8 @@ export interface ClassCard extends ClassRoom { pupils: number; joined: number; a
 export interface ClassDetail extends ClassRoom { pupils: Pupil[]; assignments: (Assignment & { title: string; done: number; total: number })[] }
 export interface PupilSkill { pupilId: string; name: string; label: Label; right: number; total: number; topError?: string }
 export interface SkillSummary { skill: string; skillName: string; classLabel: Label; pupils: PupilSkill[]; errors: { errorType: string; count: number; pupils: string[]; example?: string }[] }
+export interface Usage { plan: 'demo' | 'free' | 'pro'; limit: number | null; usedToday: number; costs: Record<string, number>; proRequestedAt: string | null;
+  days: { day: string; credits: number; actions: Record<string, number>; usd: number; calls: number }[] }
 export interface Insights { lessons: { id: string; title: string }[]; lessonId: string; classId: string; classes: { id: string; name: string }[];
   overview: { skill: string; name: string; byClass: Record<string, Label | null> }[]; detail: SkillSummary[] | null }
 
@@ -64,6 +66,8 @@ export const teacherApi = {
   makeVideo: (id: string, o: { speed: number; subtitles: boolean; voice?: string }) => tc<Lesson['video']>('POST', `/lessons/${id}/video`, o),
   assign: (b: { lessonId: string; classId: string; dueAt?: string; allowRetry: boolean; autoSuggest: boolean }) => tc<Assignment & { joinCode: string }>('POST', '/assignments', b),
   insights: (lessonId?: string, classId?: string) => tc<Insights>('GET', `/insights?${new URLSearchParams({ ...(lessonId ? { lessonId } : {}), ...(classId ? { classId } : {}) })}`),
+  usage: () => tc<Usage>('GET', '/usage'),
+  proRequest: () => tc<{ proRequestedAt: string }>('POST', '/pro-request'),
   comments: (lessonId: string, classId: string) => tc<{ pupilId: string; text: string }[]>('POST', '/insights/comments', { lessonId, classId }),
 };
 

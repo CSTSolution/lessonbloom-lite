@@ -78,7 +78,7 @@ export interface Criteria {
 }
 export const DEFAULT_CRITERIA: Criteria = { lastN: 10, minAnswers: 5, securePct: 80, repeatedPct: 50, repeatTimes: 3, repeatSessions: 2, classRepeatedPct: 30, classSecurePct: 70 };
 
-export interface Teacher { id: string; name: string; subject: Subject; criteria: Criteria; createdAt: string; email?: string; account?: boolean }
+export interface Teacher { id: string; name: string; subject: Subject; criteria: Criteria; createdAt: string; email?: string; account?: boolean; plan?: 'demo' | 'free' | 'pro'; proRequestedAt?: string }
 export interface ClassRoom { id: string; teacherId: string; name: string; joinCode: string }
 export interface Pupil { id: string; classId: string; displayName: string; joinedAt?: string }
 export interface Assignment { id: string; teacherId: string; lessonId: string; classId: string; dueAt?: string; allowRetry: boolean; autoSuggest: boolean; createdAt: string }

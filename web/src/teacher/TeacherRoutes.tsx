@@ -12,6 +12,8 @@ import { Home } from './Home.tsx';
 import { Insights } from './Insights.tsx';
 import { LessonFlow } from './LessonFlow.tsx';
 import { Login } from './Login.tsx';
+import { Usage } from './Usage.tsx';
+import { teacherApi, type Usage as UsageT } from '../api.ts';
 import './teacher.css';
 
 export function Link({ to, children, className, ...rest }: { to: string; children: React.ReactNode; className?: string } & React.AnchorHTMLAttributes<HTMLAnchorElement>) {
@@ -34,11 +36,20 @@ export function TopBar({ teacher, path, onSignOut }: { teacher: Teacher; path: s
       <div className="row">
         <LangToggle />
         {isDemo() && <span className="chip amber" title={u.register}>{u.demo}</span>}
+        <CreditPill path={path} />
         <span className="avatar">{teacher.name.replace(/^(Cô|Thầy)\s*/, '').slice(0, 1).toUpperCase()}</span><span>{teacher.name}</span>
         <button className="btn ghost sm" onClick={onSignOut}>{u.signOut}</button>
       </div>
     </header>
   );
+}
+
+// "⚡ 10/30" credits left today (or PRO), links to the usage page; refreshes on navigation
+function CreditPill({ path }: { path: string }) {
+  const [u, setU] = useState<UsageT | null>(null);
+  useEffect(() => { teacherApi.usage().then(setU).catch(() => {}); }, [path]);
+  if (!u) return null;
+  return <Link to="/usage" className={`chip ${u.plan === 'pro' ? 'green' : 'blue'}`} title="AI">{u.plan === 'pro' ? 'PRO' : `⚡ ${Math.max(0, (u.limit ?? 0) - u.usedToday)}/${u.limit}`}</Link>;
 }
 
 function VerifyBanner() {
@@ -70,6 +81,7 @@ export function TeacherRoutes({ path }: { path: string }) {
   else if (path.startsWith('/new')) body = <Create />;
   else if (path.startsWith('/classes')) body = <Classes />;
   else if (path.startsWith('/insights')) body = <Insights />;
+  else if (path.startsWith('/usage')) body = <Usage />;
   else if (path.startsWith('/criteria')) body = <Criteria teacher={teacher} onSaved={setTeacher} />;
   else body = <Home teacher={teacher} />;
   return <><TopBar teacher={teacher} path={path} onSignOut={out} /><VerifyBanner />{body}</>;
