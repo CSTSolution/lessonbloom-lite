@@ -1,7 +1,7 @@
 // Storage behind one small document interface: LocalStore (JSON files under data/) for
 // development and tests, GcpStore (Firestore + Cloud Storage) on Cloud Run.
 import { existsSync } from 'node:fs';
-import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { config } from './config.ts';
 
@@ -11,6 +11,7 @@ export interface Store {
   get<T>(coll: Coll, id: string): Promise<T | null>;
   put<T extends { id: string }>(coll: Coll, doc: T): Promise<void>;
   putMany<T extends { id: string }>(coll: Coll, docs: T[]): Promise<void>;
+  removeMany(coll: Coll, ids: string[]): Promise<void>;
   find<T>(coll: Coll, field: string, value: string): Promise<T[]>;     // equality filter
   list<T>(coll: Coll, limit?: number): Promise<T[]>;
   putFile(folder: string, name: string, data: Buffer, type: string): Promise<string>;   // returns a /media URL
@@ -42,6 +43,10 @@ export class LocalStore implements Store {
     await rename(tmp, f);
   }
   async putMany<T extends { id: string }>(c: Coll, docs: T[]) { for (const d of docs) await this.put(c, d); }
+  async removeMany(c: Coll, ids: string[]) {
+    const m = await this.coll(c);
+    for (const id of ids) { m.delete(safe(id)); await rm(join(this.root, c, `${id}.json`), { force: true }); }
+  }
   async find<T>(c: Coll, field: string, value: string) {
     return [...(await this.coll(c)).values()].filter((d) => (d as Record<string, unknown>)[field] === value).map((d) => structuredClone(d) as T);
   }

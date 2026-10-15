@@ -2,9 +2,11 @@
 // code and the class code, and the roster with who has joined.
 import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
-import { teacherApi, type ClassCard, type ClassDetail, type Lesson } from '../api.ts';
+import { go, teacherApi, type ClassCard, type ClassDetail, type Lesson } from '../api.ts';
 import { useT } from '../i18n.ts';
 import { T } from './dict.ts';
+import { GuideHint, pulse } from './Guide.tsx';
+import { Link } from './TeacherRoutes.tsx';
 import { ErrorNote } from './ErrorNote.tsx';
 
 export function Assign({ l, presetClass }: { l: Lesson; presetClass?: string }) {
@@ -14,9 +16,16 @@ export function Assign({ l, presetClass }: { l: Lesson; presetClass?: string }) 
   const [detail, setDetail] = useState<ClassDetail | null>(null);
   const [due, setDue] = useState(new Date(Date.now() + 5 * 864e5).toISOString().slice(0, 10));
   const [retry, setRetry] = useState(true), [suggest, setSuggest] = useState(true);
-  const [done, setDone] = useState(false), [qr, setQr] = useState(''), [copied, setCopied] = useState(false), [err, setErr] = useState('');
+  const [loaded, setLoaded] = useState(false), [done, setDone] = useState(false), [qr, setQr] = useState(''), [copied, setCopied] = useState(false), [err, setErr] = useState('');
 
-  useEffect(() => { teacherApi.classes().then((cs) => { setClasses(cs); setCid((c) => c || cs[0]?.id || ''); }); }, []);
+  // classes of this lesson's subject first (and picked by default)
+  useEffect(() => {
+    teacherApi.classes().then((all) => {
+      const fits = (k: ClassCard) => !k.subject || k.subject === 'both' || k.subject === l.intake.subject;
+      const cs = [...all.filter(fits), ...all.filter((k) => !fits(k))];
+      setClasses(cs); setLoaded(true); setCid((c) => c || cs[0]?.id || '');
+    });
+  }, [l.intake.subject]);
   useEffect(() => { if (cid) { setDone(false); teacherApi.klass(cid).then(setDetail); } }, [cid]);
   const url = detail ? `${location.origin}/learn?code=${detail.joinCode}` : '';
   useEffect(() => { if (url) QRCode.toDataURL(url, { margin: 1, width: 220, color: { dark: '#17202E' } }).then(setQr); }, [url]);
@@ -30,6 +39,8 @@ export function Assign({ l, presetClass }: { l: Lesson; presetClass?: string }) 
 
   return (
     <main className="page stack" style={{ gap: 20 }}>
+      <GuideHint step="assign" />
+      {loaded && classes.length === 0 && <div className="card empty"><p style={{ margin: 0 }}>{t.needClass}</p><Link to="/classes?add=1" className="btn primary">{t.goClasses}</Link></div>}
       <div className="row">
         <span className="muted">{t.pickClassAssign}</span>
         <div className="pills">{classes.map((k) => <button key={k.id} className={`pill ${cid === k.id ? 'on' : ''}`} onClick={() => setCid(k.id)}>{t.cls} {k.name}</button>)}</div>
@@ -52,8 +63,12 @@ export function Assign({ l, presetClass }: { l: Lesson; presetClass?: string }) 
               <label className="row" style={{ gap: 8 }}><input type="checkbox" checked={retry} onChange={(e) => setRetry(e.target.checked)} />{t.retry}</label>
               <label className="row" style={{ gap: 8 }}><input type="checkbox" checked={suggest} onChange={(e) => setSuggest(e.target.checked)} />{t.suggest}</label>
             </div>
-            {done ? <div className="ok-note">✓ {t.assigned} {t.cls} {detail.name} · {t.joinCode}: <strong>{detail.joinCode}</strong></div>
-              : <button className="btn primary lg" onClick={assign}>{already ? `${t.assign} ✓` : t.assign}</button>}
+            {done ? (
+              <div className="stack" style={{ gap: 8 }}>
+                <div className="ok-note">✓ {t.assigned} {t.cls} {detail.name} · {t.joinCode}: <strong>{detail.joinCode}</strong></div>
+                <button className="link-btn" style={{ alignSelf: 'flex-start' }} onClick={() => { try { sessionStorage.setItem('lb-guide', 'share'); } catch { /* ok */ } go('/classes'); }}>{t.nextInvite}</button>
+              </div>
+            ) : <button className={`btn primary lg${pulse('assign')}`} onClick={assign}>{already ? `${t.assign} ✓` : t.assign}</button>}
             <ErrorNote text={err} />
           </section>
           <section className="card stack">

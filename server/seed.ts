@@ -11,6 +11,14 @@ export const NAMES = ['An', 'Bình', 'Chi', 'Dũng', 'Hà', 'Khôi', 'Linh', 'Mi
 export const id = (n = 10) => randomBytes(n).toString('base64url').replace(/[-_]/g, 'x').slice(0, n);
 const code = () => Array.from(randomBytes(4)).map((b) => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b % 32]).join('');
 
+export const SAMPLE_SOURCE = 'Bài mẫu do đội LessonBloom tự viết.';
+// Demo data, including workspaces seeded before the sample flag existed (same source text, classes 2A/2B/2C given that lesson)
+export function sampleOf(classes: ClassRoom[], lessons: Lesson[], assigns: Assignment[]) {
+  const ls = lessons.filter((l) => l.sample || l.source === SAMPLE_SOURCE), lids = new Set(ls.map((l) => l.id));
+  const ks = classes.filter((k) => k.sample || (['2A', '2B', '2C'].includes(k.name) && assigns.some((a) => a.classId === k.id && lids.has(a.lessonId))));
+  return { classes: ks, lessons: ls };
+}
+
 const CARRY = 'Quên nhớ 1 sang hàng chục', COLUMN = 'Đặt tính sai cột';
 
 export function sampleLesson(teacherId: string): Lesson {
@@ -32,7 +40,7 @@ export function sampleLesson(teacherId: string): Lesson {
   const slide = (n: number, kind: Lesson['slides'][0]['kind'], heading: string, bullets: string[], notes: string, narration: string, example?: string) =>
     ({ id: `sl${String(n).padStart(2, '0')}`, kind, heading, bullets, example, notes, narration, imagePrompt: 'children counting mangoes', source: 'Phép cộng có nhớ trong phạm vi 100 (tài liệu mẫu của đội).' });
   return {
-    id: id(), teacherId, createdAt: new Date(Date.now() - 3 * 864e5).toISOString(), status: 'ready', progress: [], source: 'Bài mẫu do đội LessonBloom tự viết.',
+    id: id(), teacherId, createdAt: new Date(Date.now() - 3 * 864e5).toISOString(), status: 'ready', progress: [], sample: true, source: SAMPLE_SOURCE,
     intake: { subject: 'math', grade: 2, title: 'Phép cộng có nhớ trong phạm vi 100', objectives: ['Học sinh biết đặt tính thẳng cột và thực hiện phép cộng có nhớ trong phạm vi 100.'], minutes: 25, level: 'mixed', lang: 'vi', outputs: ['slides', 'video', 'exercises', 'flashcards'] },
     skills: [{ tag: 'carry_1', name: 'Nhớ 1 sang hàng chục' }, { tag: 'column', name: 'Đặt tính thẳng cột' }, { tag: 'no_carry', name: 'Cộng không nhớ' }, { tag: 'word_1step', name: 'Toán có lời văn một bước' }],
     slides: [
@@ -52,6 +60,13 @@ export function sampleLesson(teacherId: string): Lesson {
   };
 }
 
+// A registered account starts empty; the home page's getting-started guide takes it from there
+export async function newTeacher(store: Store, teacherId: string, name: string, email?: string): Promise<Teacher> {
+  const t: Teacher = { id: teacherId, name, subject: 'math', criteria: { ...DEFAULT_CRITERIA }, createdAt: new Date().toISOString(), email, account: true };
+  await store.put('teachers', t);
+  return t;
+}
+
 export async function seedTeacher(store: Store, teacherId: string, name = 'Cô Hạnh'): Promise<Teacher> {
   const t: Teacher = { id: teacherId, name, subject: 'math', criteria: { ...DEFAULT_CRITERIA }, createdAt: new Date().toISOString() };
   await store.put('teachers', t);
@@ -65,7 +80,7 @@ export async function seedTeacher(store: Store, teacherId: string, name = 'Cô H
   };
   const day = 864e5, now = Date.now();
   for (const cname of ['2A', '2B', '2C']) {
-    const c: ClassRoom = { id: id(), teacherId, name: cname, joinCode: `${cname}-${code()}` };
+    const c: ClassRoom = { id: id(), teacherId, name: cname, joinCode: `${cname}-${code()}`, subject: 'math', sample: true };
     await store.put('classes', c);
     const pupils: Pupil[] = NAMES.map((n, i) => ({ id: id(), classId: c.id, displayName: n, joinedAt: i < 11 || cname !== '2A' ? new Date(now - 2 * day).toISOString() : undefined }));
     await store.putMany('pupils', pupils);

@@ -14,7 +14,7 @@ import { cleanCard, draftComments, editSlide, intake, tagError } from './lesson/
 import { illustrate } from './lesson/illustrate.ts';
 import { runLesson } from './lesson/job.ts';
 import { makeVideo } from './lesson/video.ts';
-import { id, seedTeacher } from './seed.ts';
+import { id, newTeacher, sampleOf, seedTeacher } from './seed.ts';
 import { SpendGuard, type SpendKind } from './spend.ts';
 import { costOf, PRICE, UsageLog } from './usage.ts';
 import { CREDIT_COST, Credits, ctx, dailyLimit, planOf, type CreditKind } from './credits.ts';
@@ -107,9 +107,7 @@ export function createApp(ai: AI, store: Store) {
       teacher = await store.get<Teacher>('teachers', tid);
       if (!teacher) {
         const name = String(c.req.header('x-teacher-name') || tok.name || tok.email?.split('@')[0] || 'Cô giáo').slice(0, 40);
-        teacher = await seedTeacher(store, tid, decodeURIComponent(name));
-        teacher = { ...teacher, email: tok.email, account: true };
-        await store.put('teachers', teacher);
+        teacher = await newTeacher(store, tid, decodeURIComponent(name), tok.email);
       }
     } else {
       // demo workspace: an unguessable key kept in the browser. Account ids (u_...) are not keys.
@@ -149,6 +147,39 @@ export function createApp(ai: AI, store: Store) {
     await markVerified(tc.id.replace(/^u_/, ''));
     return c.json({ verified: true });
   });
+  // the home page's getting-started guide: what this teacher has done so far
+  t.get('/start', async (c) => {
+    const tid = c.get('teacher').id;
+    const [classes, lessons, assigns] = await Promise.all([store.find<ClassRoom>('classes', 'teacherId', tid), store.find<Lesson>('lessons', 'teacherId', tid), store.find<Assignment>('assignments', 'teacherId', tid)]);
+    const smp = sampleOf(classes, lessons, assigns);
+    const real = classes.filter((k) => !smp.classes.includes(k)), realLessons = lessons.filter((l) => !smp.lessons.includes(l));
+    const realAssigns = assigns.filter((a) => real.some((k) => k.id === a.classId) && realLessons.some((l) => l.id === a.lessonId));
+    const pupils = (await Promise.all(real.map((k) => store.find<Pupil>('pupils', 'classId', k.id)))).flat();
+    const practised = (await Promise.all(realAssigns.slice(0, 20).map((a) => store.find<Attempt>('attempts', 'assignmentId', a.id)))).some((x) => x.length > 0);
+    const ready = realLessons.filter((l) => l.status === 'ready').sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return c.json({
+      classes: real.length, pupils: pupils.length, lessons: realLessons.length, readyLessonId: ready[0]?.id || null,
+      assigned: realAssigns.length, joined: pupils.filter((p) => p.joinedAt).length, practised,
+      sample: smp.classes.length + smp.lessons.length > 0,
+    });
+  });
+  // remove the demo classes, pupils, results and lesson from a workspace (e.g. an account seeded before accounts started empty)
+  t.post('/sample/clear', async (c) => {
+    const tid = c.get('teacher').id;
+    const all = await store.find<Assignment>('assignments', 'teacherId', tid);
+    const { classes, lessons } = sampleOf(await store.find<ClassRoom>('classes', 'teacherId', tid), await store.find<Lesson>('lessons', 'teacherId', tid), all);
+    const assigns = all.filter((a) => classes.some((k) => k.id === a.classId) || lessons.some((l) => l.id === a.lessonId));
+    const pupils = (await Promise.all(classes.map((k) => store.find<Pupil>('pupils', 'classId', k.id)))).flat();
+    const attempts = (await Promise.all(assigns.map((a) => store.find<Attempt>('attempts', 'assignmentId', a.id)))).flat();
+    const checks = (await Promise.all(assigns.map((a) => store.find<SelfCheck>('selfchecks', 'assignmentId', a.id)))).flat();
+    await store.removeMany('attempts', attempts.map((x) => x.id));
+    await store.removeMany('selfchecks', checks.map((x) => x.id));
+    await store.removeMany('assignments', assigns.map((x) => x.id));
+    await store.removeMany('pupils', pupils.map((x) => x.id));
+    await store.removeMany('classes', classes.map((x) => x.id));
+    await store.removeMany('lessons', lessons.map((x) => x.id));
+    return c.json({ removed: { classes: classes.length, lessons: lessons.length, pupils: pupils.length, attempts: attempts.length } });
+  });
   t.post('/pro-request', async (c) => {
     const tc = c.get('teacher');
     if (!tc.account) return bad(c, 'needAccount');
@@ -183,9 +214,10 @@ export function createApp(ai: AI, store: Store) {
     })));
   });
   t.post('/classes', async (c) => {
-    const { name, names } = await c.req.json<{ name: string; names?: string[] }>();
+    const { name, names, subject } = await c.req.json<{ name: string; names?: string[]; subject?: string }>();
     if (!name?.trim()) return bad(c, 'className');
-    const k: ClassRoom = { id: id(), teacherId: c.get('teacher').id, name: name.trim().slice(0, 12), joinCode: `${name.trim().slice(0, 4).replace(/\W/g, '').toUpperCase()}-${id(4).toUpperCase()}` };
+    const k: ClassRoom = { id: id(), teacherId: c.get('teacher').id, name: name.trim().slice(0, 12), joinCode: `${name.trim().slice(0, 4).replace(/\W/g, '').toUpperCase()}-${id(4).toUpperCase()}`,
+      subject: subject === 'math' || subject === 'english' ? subject : 'both' };
     await store.put('classes', k);
     await store.putMany('pupils', (names || []).map((n) => n.trim()).filter(Boolean).slice(0, 60).map((n) => ({ id: id(), classId: k.id, displayName: n.slice(0, 30) })));
     return c.json(k);

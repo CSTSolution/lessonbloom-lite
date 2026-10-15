@@ -6,6 +6,7 @@ import { teacherApi, type Insights as Ins, type Label } from '../api.ts';
 import { useT } from '../i18n.ts';
 import { LABEL_KEY, T } from './dict.ts';
 import { Link } from './TeacherRoutes.tsx';
+import { GuideHint } from './Guide.tsx';
 
 export function LabelChip({ l }: { l: Label | null }) {
   const t = useT(T);
@@ -23,7 +24,7 @@ export function Insights() {
   const [drafting, setDrafting] = useState(false), [copied, setCopied] = useState('');
   useEffect(() => { teacherApi.insights(lessonId, classId).then((x) => { setD(x); setComments(null); }); }, [lessonId, classId]);
   if (!d) return <p className="page muted" role="status">{t.loading}</p>;
-  if (!d.lessons.length) return <main className="page"><h1>{t.inTitle}</h1><p className="muted">{t.noData}</p></main>;
+  if (!d.lessons.length) return <main className="page stack"><h1>{t.inTitle}</h1><div className="card empty"><p className="muted" style={{ margin: 0 }}>{t.insEmpty}</p><Link to="/new" className="btn primary">＋ {t.newLesson}</Link></div></main>;
   const cname = d.classes.find((k) => k.id === d.classId)?.name || '';
   const repeated = (d.detail || []).filter((s) => s.classLabel === 'repeated' || s.errors.length);
   const mastered = (d.detail || []).filter((s) => s.classLabel === 'secure');
@@ -35,6 +36,7 @@ export function Insights() {
   return (
     <main className="page stack" style={{ gap: 18 }}>
       <h1>{t.inTitle}</h1>
+      <GuideHint step="insights" />
       <div className="card row" style={{ gap: 16 }}>
         <label className="row lesson-pick" style={{ gap: 8, flexWrap: 'nowrap' }}><span className="muted" style={{ whiteSpace: 'nowrap' }}>{t.lessonLabel}</span>
           <select value={d.lessonId} onChange={(e) => setLessonId(e.target.value)} style={{ minWidth: 0, maxWidth: 420 }}>{d.lessons.map((x) => <option key={x.id} value={x.id}>{x.title}</option>)}</select></label>

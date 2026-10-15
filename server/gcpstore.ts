@@ -22,6 +22,13 @@ export class GcpStore implements Store {
       await b.commit();
     }
   }
+  async removeMany(c: Coll, ids: string[]) {
+    for (let i = 0; i < ids.length; i += 400) {
+      const b = this.db.batch();
+      for (const id of ids.slice(i, i + 400)) b.delete(this.db.collection(c).doc(id));
+      await b.commit();
+    }
+  }
   async find<T>(c: Coll, field: string, value: string) {
     const q = await this.db.collection(c).where(field, '==', value).limit(5000).get();
     return q.docs.map((d) => d.data() as T);

@@ -7,6 +7,7 @@ import { T } from './dict.ts';
 import { Stepper } from './LessonFlow.tsx';
 import { Link } from './TeacherRoutes.tsx';
 import { ErrorNote } from './ErrorNote.tsx';
+import { GuideHint } from './Guide.tsx';
 
 const SAMPLES = {
   math: `Toán lớp 2 – Phép cộng có nhớ trong phạm vi 100
@@ -74,6 +75,7 @@ export function Create() {
       <Stepper current={step - 1} />
       <main className="page narrow stack" style={{ gap: 18 }}>
         <div className="row"><div className="grow" /><Link to="/" className="btn ghost">{t.exit}</Link></div>
+        {step === 1 && <GuideHint step="lesson" />}
         {step === 1 && (
           <>
             <div><h1>{t.upTitle}</h1><p className="muted">{t.upSub}</p></div>

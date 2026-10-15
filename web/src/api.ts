@@ -48,6 +48,8 @@ export async function startDemo(): Promise<Teacher> {
 export const isDemo = () => !currentUser() && !!getKey();
 export function leaveDemo() { try { localStorage.removeItem(KEY); } catch { /* ok */ } }
 
+// getting-started guide on the home page (sample/demo data not counted)
+export interface StartState { classes: number; pupils: number; lessons: number; readyLessonId: string | null; assigned: number; joined: number; practised: boolean; sample: boolean }
 export interface LessonCard { id: string; title: string; subject: string; grade: number; status: string; createdAt: string; slides: number; exercises: number; flashcards: number; video: boolean; cover: string; classes: string[] }
 export interface ClassCard extends ClassRoom { pupils: number; joined: number; assignments: number }
 export interface ClassDetail extends ClassRoom { pupils: Pupil[]; assignments: (Assignment & { title: string; done: number; total: number })[] }
@@ -63,7 +65,9 @@ export const teacherApi = {
   saveCriteria: (c: Partial<Criteria>) => tc<Teacher>('PUT', '/me/criteria', c),
   classes: () => tc<ClassCard[]>('GET', '/classes'),
   klass: (id: string) => tc<ClassDetail>('GET', `/classes/${id}`),
-  addClass: (name: string, names: string[]) => tc<ClassRoom>('POST', '/classes', { name, names }),
+  addClass: (name: string, names: string[], subject: 'math' | 'english' | 'both') => tc<ClassRoom>('POST', '/classes', { name, names, subject }),
+  start: () => tc<StartState>('GET', '/start'),
+  clearSample: () => tc<{ removed: Record<string, number> }>('POST', '/sample/clear'),
   addPupils: (id: string, names: string[]) => tc<Pupil[]>('POST', `/classes/${id}/pupils`, { names }),
   lessons: () => tc<LessonCard[]>('GET', '/lessons'),
   intake: (source: string) => tc<Intake>('POST', '/intake', { source }),
