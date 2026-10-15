@@ -6,7 +6,10 @@ import { GoogleGenAI, type Part } from '@google/genai';
 import { config } from '../config.ts';
 import { cloudSpeak } from './cloudtts.ts';
 import { wavFromPcm } from './media.ts';
+import type { UsageEvent } from '../usage.ts';
 import type { AI, ImageRequest, SpeechRequest, TextRequest, VisionRequest } from './provider.ts';
+
+type Meta = { usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number } };
 
 const RETRIES = 3;
 
@@ -25,7 +28,14 @@ async function withRetry<T>(what: string, fn: () => Promise<T>): Promise<T> {
 
 export class GeminiProvider implements AI {
   name: string;
+  onUsage?: (e: UsageEvent) => void;
   private ai: GoogleGenAI;
+
+  // thinking tokens are billed as output
+  private report(r: Meta, e: Omit<UsageEvent, 'inTokens' | 'outTokens'>) {
+    const u = r.usageMetadata || {};
+    this.onUsage?.({ ...e, inTokens: u.promptTokenCount || 0, outTokens: (u.candidatesTokenCount || 0) + (u.thoughtsTokenCount || 0) });
+  }
 
   constructor() {
     this.ai = new GoogleGenAI({});   // the SDK reads the env vars above
@@ -40,6 +50,7 @@ export class GeminiProvider implements AI {
         contents: [{ role: 'user', parts }],
         config: { systemInstruction: req.system, responseMimeType: 'application/json', responseJsonSchema: req.schema, temperature: req.tier === 'pro' ? 0.7 : 0.2 },
       });
+      this.report(r, { model, tier: req.tier, task: req.task });
       if (!r.text) throw new Error(`empty answer (finish: ${r.candidates?.[0]?.finishReason})`);
       return JSON.parse(r.text) as T;
     });
@@ -60,6 +71,7 @@ export class GeminiProvider implements AI {
         config: { responseModalities: ['IMAGE'], imageConfig: { aspectRatio: req.aspect || '4:3' } },
       });
       const img = r.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data);
+      this.report(r, { model: config.models.image, tier: 'image', task: 'image', images: img ? 1 : 0 });
       if (!img?.inlineData?.data) throw new Error(`no image returned (finish: ${r.candidates?.[0]?.finishReason})`);
       return Buffer.from(img.inlineData.data, 'base64');
     });
@@ -68,7 +80,11 @@ export class GeminiProvider implements AI {
   async speak(req: SpeechRequest): Promise<Buffer> {
     // On Google Cloud: Cloud Text-to-Speech (real vi-VN voices, North/South choice). With only an
     // AI Studio key: Gemini TTS.
-    if (process.env.GOOGLE_GENAI_USE_VERTEXAI) return withRetry('cloud tts', () => cloudSpeak(req.text, req.lang, req.voice ?? 0));
+    if (process.env.GOOGLE_GENAI_USE_VERTEXAI) {
+      const wav = await withRetry('cloud tts', () => cloudSpeak(req.text, req.lang, req.voice ?? 0));
+      this.onUsage?.({ model: 'cloud-tts', tier: 'tts', task: 'tts', chars: req.text.length });
+      return wav;
+    }
     // A primary teacher's voice: warm, clear, a little slower than normal speech.
     const style = req.lang === 'vi'
       ? 'Đọc như một cô giáo tiểu học: giọng ấm, rõ ràng, chậm rãi, vui vẻ: '
@@ -79,6 +95,7 @@ export class GeminiProvider implements AI {
         contents: [{ role: 'user', parts: [{ text: style + req.text }] }],
         config: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: config.voices[req.lang] } } } },
       });
+      this.report(r, { model: config.models.tts, tier: 'fast', task: 'tts' });
       const a = r.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data)?.inlineData;
       if (!a?.data) throw new Error('no audio returned');
       const rate = Number(/rate=(\d+)/.exec(a.mimeType || '')?.[1] || 24000);

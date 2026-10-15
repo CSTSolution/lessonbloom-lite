@@ -3,7 +3,7 @@
 //   browser (demo: no accounts). Every read and write is scoped to that teacher.
 // Pupil routes: join with a class code, tap your name; answers never leave the server, and
 //   nothing a pupil receives contains scores, percentages or labels.
-import { createHash } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { Hono, type Context } from 'hono';
 import type { AI } from './ai/provider.ts';
 import { nextSteps, summarise } from './insights.ts';
@@ -13,6 +13,7 @@ import { runLesson } from './lesson/job.ts';
 import { makeVideo } from './lesson/video.ts';
 import { id, seedTeacher } from './seed.ts';
 import { SpendGuard, type SpendKind } from './spend.ts';
+import { PRICE, UsageLog } from './usage.ts';
 import { config } from './config.ts';
 import type { Store } from './store.ts';
 import type { Assignment, Attempt, ClassRoom, Criteria, Exercise, Intake, Lesson, Pupil, SelfCheck, Slide, Teacher } from './types.ts';
@@ -39,6 +40,8 @@ export function mark(e: Exercise, given: string): boolean {
 export function createApp(ai: AI, store: Store) {
   const app = new Hono();
   const spend = new SpendGuard(store);
+  const usage = new UsageLog(store);
+  ai.onUsage = (e) => usage.record(e);
   const LIMIT_MSG = { month: 'Bản demo đã dùng hết hạn mức AI của tháng này. / The demo has used this month\'s AI allowance.', day: 'Bản demo đã dùng hết hạn mức AI hôm nay, cô thử lại vào ngày mai nhé. / The demo has used today\'s AI allowance; please try again tomorrow.' };
   const guard = async (c: Context, kind: SpendKind) => { const why = await spend.charge(kind); return why ? c.json({ error: LIMIT_MSG[why as 'month' | 'day'], limit: why }, 429) : null; };
   type Env = { Variables: { teacher: Teacher } };
@@ -328,6 +331,20 @@ export function createApp(ai: AI, store: Store) {
     if (!x || !x.a || !['easy', 'ok', 'hard'].includes(mood)) return bad(c, 'bad request');
     await store.put('selfchecks', { id: id(12), assignmentId: x.a.id, pupilId: x.p.id, mood, at: new Date().toISOString() } satisfies SelfCheck);
     return c.json({ ok: true });
+  });
+
+  // ---------- admin (Son): AI usage + spending guard. Off unless LB_ADMIN_KEY is set. ----------
+  const adminOk = (c: Context) => {
+    const want = process.env.LB_ADMIN_KEY || '', got = c.req.header('x-admin') || '';
+    return want.length >= 24 && got.length === want.length && timingSafeEqual(Buffer.from(got), Buffer.from(want));
+  };
+  app.get('/api/admin/overview', async (c) => {
+    if (!adminOk(c)) return c.json({ error: 'forbidden' }, 403);
+    const days = await usage.days(Math.min(90, Number(c.req.query('days') || 31)));
+    const project = process.env.GOOGLE_CLOUD_PROJECT || '';
+    return c.json({ provider: ai.name, project, prices: PRICE, guard: await spend.status(), days,
+      links: project ? { billing: `https://console.cloud.google.com/billing/linkedaccount?project=${project}`, reports: `https://console.cloud.google.com/billing/reports?project=${project}`,
+        run: `https://console.cloud.google.com/run?project=${project}`, vertex: `https://console.cloud.google.com/vertex-ai?project=${project}` } : {} });
   });
 
   app.get('/api/health', (c) => c.json({ ok: true, provider: ai.name }));

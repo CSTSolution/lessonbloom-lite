@@ -16,8 +16,11 @@ export interface ImageRequest { prompt: string; key: string; aspect?: '4:3' | '1
 export interface VisionRequest extends TextRequest { image: Buffer }
 export interface SpeechRequest { text: string; lang: 'vi' | 'en'; voice?: number }   // voice: 0 female North, 1 female South, 2 male North
 
+import type { UsageEvent } from '../usage.ts';
+
 export interface AI {
   name: string;
+  onUsage?: (e: UsageEvent) => void;   // every model call reports what it used (admin page)
   json<T>(req: TextRequest): Promise<T>;
   image(req: ImageRequest): Promise<Buffer>;     // PNG or JPEG bytes
   see<T>(req: VisionRequest): Promise<T>;

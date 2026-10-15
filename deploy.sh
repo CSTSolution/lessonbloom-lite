@@ -12,7 +12,7 @@ gcloud config set project "$PROJECT" >/dev/null
 
 echo "== APIs"
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com \
-  aiplatform.googleapis.com firestore.googleapis.com storage.googleapis.com texttospeech.googleapis.com
+  aiplatform.googleapis.com firestore.googleapis.com storage.googleapis.com texttospeech.googleapis.com secretmanager.googleapis.com
 
 echo "== Service account"
 gcloud iam service-accounts describe "$SA" >/dev/null 2>&1 || gcloud iam service-accounts create lessonbloom-run --display-name "LessonBloom on Cloud Run"
@@ -27,6 +27,15 @@ echo "== Bucket (private)"
 gcloud storage buckets describe "gs://$BUCKET" >/dev/null 2>&1 || gcloud storage buckets create "gs://$BUCKET" --location="$REGION" --uniform-bucket-level-access --public-access-prevention
 gcloud storage buckets add-iam-policy-binding "gs://$BUCKET" --member "serviceAccount:$SA" --role roles/storage.objectAdmin >/dev/null
 
+echo "== Admin key (Secret Manager; local copy in ~/.config/lessonbloom/admin-key, never in the repo)"
+KEYFILE="$HOME/.config/lessonbloom/admin-key"
+if ! gcloud secrets describe lb-admin-key >/dev/null 2>&1; then
+  mkdir -p "$(dirname "$KEYFILE")"; umask 077
+  [ -s "$KEYFILE" ] || openssl rand -base64 36 | tr -d '/+=\n' | cut -c1-40 > "$KEYFILE"
+  gcloud secrets create lb-admin-key --replication-policy=automatic --data-file="$KEYFILE" >/dev/null
+fi
+gcloud secrets add-iam-policy-binding lb-admin-key --member "serviceAccount:$SA" --role roles/secretmanager.secretAccessor >/dev/null
+
 echo "== Build permission (newer projects build as the default compute account)"
 NUM=$(gcloud projects describe "$PROJECT" --format="value(projectNumber)")
 gcloud projects add-iam-policy-binding "$PROJECT" --member "serviceAccount:${NUM}-compute@developer.gserviceaccount.com" --role roles/run.builder --condition=None >/dev/null
@@ -35,6 +44,6 @@ echo "== Deploy (Cloud Build from source)"
 # --no-cpu-throttling: lessons are generated in the background after the request returns.
 gcloud run deploy "$SERVICE" --source . --region "$REGION" --service-account "$SA" --allow-unauthenticated \
   --cpu 2 --memory 2Gi --timeout 900 --concurrency 20 --min-instances 0 --max-instances 3 --no-cpu-throttling \
-  --set-env-vars "GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=$PROJECT,GOOGLE_CLOUD_LOCATION=global,LB_BUCKET=$BUCKET,LB_MONTH_USD=${MONTH_USD:-40},LB_DAY_USD=${DAY_USD:-8}"
+  --set-secrets "LB_ADMIN_KEY=lb-admin-key:latest" --set-env-vars "GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=$PROJECT,GOOGLE_CLOUD_LOCATION=global,LB_BUCKET=$BUCKET,LB_MONTH_USD=${MONTH_USD:-40},LB_DAY_USD=${DAY_USD:-8}"
 
 gcloud run services describe "$SERVICE" --region "$REGION" --format 'value(status.url)'

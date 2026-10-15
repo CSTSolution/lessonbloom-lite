@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { Admin } from './admin/Admin.tsx';
 import { setLang, useLang } from './i18n.ts';
 import { PupilRoutes } from './pupil/PupilRoutes.tsx';
 import { TeacherRoutes } from './teacher/TeacherRoutes.tsx';
@@ -34,6 +35,7 @@ export function Logo({ size = 32 }: { size?: number }) {
 
 function App() {
   const path = usePath();
+  if (path.startsWith('/admin')) return <Admin />;
   return path.startsWith('/learn') ? <PupilRoutes path={path} /> : <TeacherRoutes path={path} />;
 }
 
