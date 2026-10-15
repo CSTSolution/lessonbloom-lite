@@ -97,3 +97,53 @@ test('match pictures are never shown in the same order as the words', async () =
     assert.deepEqual([...p.pictures].sort(), ['🔴', '🔵', '🟡'].sort());
   }
 });
+
+test('classes and pupils can be edited and removed; one pupil’s progress; lessons copied and deleted; sample data cleared', async () => {
+  const app = createApp(new MockProvider(), new LocalStore(await mkdtemp(join(tmpdir(), 'lb-'))));
+  let key = '';
+  const call = async (method: string, path: string, body?: unknown) => {
+    const r = await app.request(path, { method, headers: { 'content-type': 'application/json', 'x-teacher': key }, body: body ? JSON.stringify(body) : undefined });
+    return { status: r.status, json: await r.json() as any };
+  };
+  key = (await call('POST', '/api/t/me', {})).json.key;
+  const [k2a] = (await call('GET', '/api/t/classes')).json;
+  const detail = (await call('GET', `/api/t/classes/${k2a.id}`)).json;
+  const an = detail.pupils.find((p: any) => p.displayName === 'An');
+
+  // one pupil: the seeded lesson with skills from their own answers only
+  const prog = (await call('GET', `/api/t/classes/${k2a.id}/pupils/${an.id}`)).json;
+  assert.equal(prog.pupil.displayName, 'An');
+  assert.equal(prog.lessons.length, 1);
+  assert.ok(prog.lessons[0].answered > 0 && prog.lessons[0].skills.some((s: any) => s.label === 'repeated'), 'An is seeded with a carrying problem');
+
+  assert.equal((await call('PUT', `/api/t/classes/${k2a.id}/pupils/${an.id}`, { name: 'An Nhiên' })).json.displayName, 'An Nhiên');
+  assert.equal((await call('DELETE', `/api/t/classes/${k2a.id}/pupils/${an.id}`)).status, 200);
+  assert.equal((await call('GET', `/api/t/classes/${k2a.id}`)).json.pupils.length, 11);
+
+  assert.equal((await call('PUT', `/api/t/classes/${k2a.id}`, { name: '2A1', subject: 'english' })).json.subject, 'english');
+  assert.equal((await call('PUT', `/api/t/classes/${k2a.id}`, { name: ' ' })).status, 400);
+
+  // lessons: copy keeps the content, delete removes its assignments too
+  const [lesson] = (await call('GET', '/api/t/lessons')).json;
+  const copy = (await call('POST', `/api/t/lessons/${lesson.id}/copy`, { lang: 'vi' })).json;
+  const c = (await call('GET', `/api/t/lessons/${copy.id}`)).json;
+  assert.ok(c.intake.title.endsWith('(bản sao)') && c.exercises.length === 12 && !c.sample);
+  assert.equal((await call('DELETE', `/api/t/lessons/${lesson.id}`)).status, 200);
+  assert.equal((await call('GET', `/api/t/classes/${k2a.id}`)).json.assignments.length, 0);
+
+  // a class goes with its pupils; another workspace cannot touch it
+  const other = (await call('POST', '/api/t/me', {})).json.key, mine = key;
+  key = other;
+  assert.equal((await call('DELETE', `/api/t/classes/${k2a.id}`)).status, 404);
+  key = mine;
+  assert.equal((await call('DELETE', `/api/t/classes/${k2a.id}`)).status, 200);
+  assert.equal((await call('GET', '/api/t/classes')).json.length, 2);
+
+  // sample data: the copy (own lesson) stays, the demo classes go
+  const cleared = (await call('POST', '/api/t/sample/clear')).json.removed;
+  assert.equal(cleared.classes, 2);
+  assert.deepEqual((await call('GET', '/api/t/lessons')).json.map((l: any) => l.id), [copy.id]);
+  const start = (await call('GET', '/api/t/start')).json;
+  assert.equal(start.sample, false);
+  assert.equal(start.lessons, 1);
+});

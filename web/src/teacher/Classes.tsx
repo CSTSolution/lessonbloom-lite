@@ -5,6 +5,7 @@ import { go, teacherApi, type ClassCard, type ClassDetail, type Insights } from 
 import { useT } from '../i18n.ts';
 import { T } from './dict.ts';
 import { activeStep, GuideHint, pulse } from './Guide.tsx';
+import { shareMessage } from './share.ts';
 import { Link } from './TeacherRoutes.tsx';
 
 export function Classes() {
@@ -16,7 +17,8 @@ export function Classes() {
   const [adding, setAdding] = useState<'class' | 'pupils' | null>(() => (new URLSearchParams(location.search).has('add') || activeStep() === 'class' ? 'class' : null));
   const [form, setForm] = useState<{ name: string; names: string; subject: 'math' | 'english' | 'both' }>({ name: '', names: '', subject: 'math' });
   const [subj, setSubj] = useState<'all' | 'math' | 'english'>('all');
-  const [loaded, setLoaded] = useState(false), [copied, setCopied] = useState('');
+  const [loaded, setLoaded] = useState(false), [copied, setCopied] = useState(''), [shared, setShared] = useState('');
+  const [edit, setEdit] = useState<{ name: string; subject: 'math' | 'english' | 'both' } | null>(null);
   const load = () => teacherApi.classes().then((cs) => { setClasses(cs); setLoaded(true); setCid((c) => c || cs[0]?.id || ''); });
   useEffect(() => { load(); }, []);
   const visible = classes.filter((k) => subj === 'all' || !k.subject || k.subject === subj || k.subject === 'both');
@@ -65,6 +67,18 @@ export function Classes() {
       )}
       {d && (
         <>
+          {edit ? (
+            <form className="card row" style={{ gap: 12, alignItems: 'flex-end' }} onSubmit={async (e) => { e.preventDefault(); await teacherApi.updateClass(d.id, edit); setEdit(null); await load(); setD(await teacherApi.klass(d.id)); }}>
+              <label className="field grow">{t.newClassName}<input autoFocus maxLength={12} value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></label>
+              <label className="field grow">{t.classSubject}<select value={edit.subject} onChange={(e) => setEdit({ ...edit, subject: e.target.value as 'math' | 'english' | 'both' })}><option value="math">{t.math}</option><option value="english">{t.english}</option><option value="both">{t.both}</option></select></label>
+              <button className="btn primary">{t.save}</button><button type="button" className="btn" onClick={() => setEdit(null)}>{t.cancel}</button>
+            </form>
+          ) : (
+            <div className="row" style={{ justifyContent: 'flex-end', gap: 8 }}>
+              <button className="btn sm" onClick={() => setEdit({ name: d.name, subject: (d.subject as 'math' | 'english' | 'both') || 'both' })}>{t.editClass}</button>
+              <button className="btn sm danger" onClick={async () => { if (!confirm(t.delClassConfirm(d.name))) return; await teacherApi.deleteClass(d.id); setD(null); setCid(''); const cs = await teacherApi.classes(); setClasses(cs); setCid(cs[0]?.id || ''); }}>{t.deleteClass}</button>
+            </div>
+          )}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 14 }}>
             <div className="card"><div className="muted small">{t.kSize}</div><div className="display" style={{ fontSize: 30 }}>{d.pupils.length}</div></div>
             <div className="card"><div className="muted small">{t.kJoined}</div><div className="display" style={{ fontSize: 30, color: 'var(--green-ink)' }}>{d.pupils.filter((p) => p.joinedAt).length}<span className="muted" style={{ fontSize: 18 }}> / {d.pupils.length}</span></div></div>
@@ -95,10 +109,12 @@ export function Classes() {
               <span className="chip blue" style={{ fontSize: 18, fontWeight: 700, padding: '6px 14px' }}>{t.joinCode}: {d.joinCode}</span>
               <code className="small muted">{`${location.origin}/learn?code=${d.joinCode}`}</code>
               <button className={`btn primary sm${pulse('share')}`} onClick={() => { navigator.clipboard?.writeText(`${location.origin}/learn?code=${d.joinCode}`); setCopied(d.id); }}>{copied === d.id ? t.copied : t.copy}</button>
+              <button className="btn sm" onClick={async () => { const url = `${location.origin}/learn?code=${d.joinCode}`; if ((await shareMessage(t.shareClassMsg(d.name, d.joinCode, url), url)) === 'copied') setShared(d.id); }}>{t.share}</button>
             </div>
+            {shared === d.id && <p className="ok-note" style={{ margin: 0 }}>{t.msgCopied}</p>}
             <p className="muted small" style={{ margin: 0 }}>{t.privacy(d.joinCode)}</p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10 }}>
-              {d.pupils.map((p) => <div key={p.id} className="card" style={{ padding: 12 }}><strong>{p.displayName}</strong><div className="small" style={{ color: p.joinedAt ? 'var(--green-ink)' : 'var(--muted)' }}>{p.joinedAt ? t.joined : t.notYet}</div></div>)}
+              {d.pupils.map((p) => <Link key={p.id} to={`/classes/${d.id}/pupil/${p.id}`} className="card pupil-card" aria-label={`${p.displayName}: ${t.viewPupil}`}><strong>{p.displayName}</strong><div className="small" style={{ color: p.joinedAt ? 'var(--green-ink)' : 'var(--muted)' }}>{p.joinedAt ? t.joined : t.notYet}</div></Link>)}
             </div>
           </div>
         </>

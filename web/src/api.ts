@@ -48,6 +48,12 @@ export async function startDemo(): Promise<Teacher> {
 export const isDemo = () => !currentUser() && !!getKey();
 export function leaveDemo() { try { localStorage.removeItem(KEY); } catch { /* ok */ } }
 
+export interface PupilProgress {
+  pupil: Pupil; className: string; classId: string;
+  lessons: { lessonId: string; title: string; subject: string; assignedAt: string; dueAt?: string; answered: number; sessions: number; lastAt: string | null; mood: 'easy' | 'ok' | 'hard' | null;
+    skills: { skill: string; name: string; label: Label; right: number; total: number; topError?: string; enough: boolean }[];
+    mistakes: { errorType?: string; exercise: string; answer: string; at: string }[] }[];
+}
 // getting-started guide on the home page (sample/demo data not counted)
 export interface StartState { classes: number; pupils: number; lessons: number; readyLessonId: string | null; assigned: number; joined: number; practised: boolean; sample: boolean }
 export interface LessonCard { id: string; title: string; subject: string; grade: number; status: string; createdAt: string; slides: number; exercises: number; flashcards: number; video: boolean; cover: string; classes: string[] }
@@ -67,6 +73,13 @@ export const teacherApi = {
   klass: (id: string) => tc<ClassDetail>('GET', `/classes/${id}`),
   addClass: (name: string, names: string[], subject: 'math' | 'english' | 'both') => tc<ClassRoom>('POST', '/classes', { name, names, subject }),
   start: () => tc<StartState>('GET', '/start'),
+  updateClass: (id: string, b: { name?: string; subject?: 'math' | 'english' | 'both' }) => tc<ClassRoom>('PUT', `/classes/${id}`, b),
+  deleteClass: (id: string) => tc<{ ok: true }>('DELETE', `/classes/${id}`),
+  pupil: (cid: string, pid: string) => tc<PupilProgress>('GET', `/classes/${cid}/pupils/${pid}`),
+  renamePupil: (cid: string, pid: string, name: string) => tc<Pupil>('PUT', `/classes/${cid}/pupils/${pid}`, { name }),
+  deletePupil: (cid: string, pid: string) => tc<{ ok: true }>('DELETE', `/classes/${cid}/pupils/${pid}`),
+  deleteLesson: (id: string) => tc<{ ok: true }>('DELETE', `/lessons/${id}`),
+  copyLesson: (id: string) => tc<{ id: string }>('POST', `/lessons/${id}/copy`, { lang: getLang() }),
   clearSample: () => tc<{ removed: Record<string, number> }>('POST', '/sample/clear'),
   addPupils: (id: string, names: string[]) => tc<Pupil[]>('POST', `/classes/${id}/pupils`, { names }),
   lessons: () => tc<LessonCard[]>('GET', '/lessons'),

@@ -13,6 +13,7 @@ import { Insights } from './Insights.tsx';
 import { LessonFlow } from './LessonFlow.tsx';
 import { Login } from './Login.tsx';
 import { Usage } from './Usage.tsx';
+import { Pupil } from './Pupil.tsx';
 import { teacherApi, type Usage as UsageT } from '../api.ts';
 import './teacher.css';
 
@@ -122,9 +123,10 @@ export function TeacherRoutes({ path }: { path: string }) {
   if (!teacher) return <Login onReady={setTeacher} />;
   const out = async () => { if (user) await signOut(); else leaveDemo(); setTeacher(null); go('/'); };
   const m = /^\/lesson\/(\w+)(?:\/(\w+))?/.exec(path);
-  let body: React.ReactNode;
+  let body: React.ReactNode, pm: RegExpExecArray | null;
   if (m) body = <LessonFlow id={m[1]} step={m[2] || 'slides'} />;
   else if (path.startsWith('/new')) body = <Create />;
+  else if ((pm = /^\/classes\/(\w+)\/pupil\/(\w+)/.exec(path))) body = <Pupil cid={pm[1]} pid={pm[2]} />;
   else if (path.startsWith('/classes')) body = <Classes />;
   else if (path.startsWith('/insights')) body = <Insights />;
   else if (path.startsWith('/usage')) body = <Usage />;

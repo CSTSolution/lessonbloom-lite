@@ -36,6 +36,7 @@ h1 { font-size: 28px; line-height: 1.25; } h2 { font-size: 20px; } h3 { font-siz
 .btn.primary { background: var(--blue); border-color: var(--blue); color: #fff; } .btn.primary:hover { background: var(--blue-dark); }
 .btn.green { background: var(--green); border-color: var(--green); color: #fff; }
 .btn.orange { background: var(--orange-dark); border-color: var(--orange-dark); color: #fff; }
+.btn.danger { color: var(--red); border-color: #F2C4C0; } .btn.danger:hover { background: var(--red-soft); border-color: var(--red); color: var(--red); }
 .btn.ghost { border-color: transparent; background: none; color: var(--blue); padding: 8px 10px; }
 .btn.sm { padding: 6px 12px; min-height: 32px; font-size: 13px; border-radius: 8px; }
 .btn.lg { padding: 14px 26px; font-size: 17px; border-radius: 12px; }

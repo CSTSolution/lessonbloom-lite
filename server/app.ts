@@ -234,6 +234,76 @@ export function createApp(ai: AI, store: Store) {
     }));
     return c.json({ ...k, pupils: pupils.sort((a, b) => a.displayName.localeCompare(b.displayName, 'vi')), assignments: rows.sort((a, b) => b.createdAt.localeCompare(a.createdAt)) });
   });
+  // delete assignments and everything pupils did in them (attempts, self-checks)
+  const dropAssignments = async (assigns: Assignment[]) => {
+    const atts = (await Promise.all(assigns.map((a) => store.find<Attempt>('attempts', 'assignmentId', a.id)))).flat();
+    const checks = (await Promise.all(assigns.map((a) => store.find<SelfCheck>('selfchecks', 'assignmentId', a.id)))).flat();
+    await store.removeMany('attempts', atts.map((x) => x.id));
+    await store.removeMany('selfchecks', checks.map((x) => x.id));
+    await store.removeMany('assignments', assigns.map((x) => x.id));
+  };
+  t.put('/classes/:cid', async (c) => {
+    const k = await myClass(c, c.req.param('cid'));
+    if (!k) return bad(c, 'notFound', 404);
+    const { name, subject } = await c.req.json<{ name?: string; subject?: string }>();
+    if (name !== undefined && !name.trim()) return bad(c, 'className');
+    if (name) k.name = name.trim().slice(0, 12);
+    if (subject === 'math' || subject === 'english' || subject === 'both') k.subject = subject;
+    await store.put('classes', k);
+    return c.json(k);
+  });
+  t.delete('/classes/:cid', async (c) => {
+    const k = await myClass(c, c.req.param('cid'));
+    if (!k) return bad(c, 'notFound', 404);
+    await dropAssignments(await store.find<Assignment>('assignments', 'classId', k.id));
+    await store.removeMany('pupils', (await store.find<Pupil>('pupils', 'classId', k.id)).map((p) => p.id));
+    await store.removeMany('classes', [k.id]);
+    return c.json({ ok: true });
+  });
+  const myPupil = async (c: Context<Env>) => {
+    const k = await myClass(c, c.req.param('cid') || '');
+    const p = k ? await store.get<Pupil>('pupils', c.req.param('pid') || '') : null;
+    return k && p && p.classId === k.id ? { k, p } : null;
+  };
+  t.put('/classes/:cid/pupils/:pid', async (c) => {
+    const x = await myPupil(c);
+    if (!x) return bad(c, 'notFound', 404);
+    const { name } = await c.req.json<{ name?: string }>();
+    if (!name?.trim()) return bad(c, 'badRequest');
+    x.p.displayName = name.trim().slice(0, 30);
+    await store.put('pupils', x.p);
+    return c.json(x.p);
+  });
+  t.delete('/classes/:cid/pupils/:pid', async (c) => {
+    const x = await myPupil(c);
+    if (!x) return bad(c, 'notFound', 404);
+    await store.removeMany('attempts', (await store.find<Attempt>('attempts', 'pupilId', x.p.id)).map((a) => a.id));
+    await store.removeMany('selfchecks', (await store.find<SelfCheck>('selfchecks', 'pupilId', x.p.id)).map((a) => a.id));
+    await store.removeMany('pupils', [x.p.id]);
+    return c.json({ ok: true });
+  });
+  // one pupil across every lesson assigned to their class: skills, mistakes, self-checks
+  t.get('/classes/:cid/pupils/:pid', async (c) => {
+    const x = await myPupil(c);
+    if (!x) return bad(c, 'notFound', 404);
+    const tc = c.get('teacher');
+    const assigns = (await store.find<Assignment>('assignments', 'classId', x.k.id)).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const atts = await store.find<Attempt>('attempts', 'pupilId', x.p.id);
+    const moods = await store.find<SelfCheck>('selfchecks', 'pupilId', x.p.id);
+    const lessons = await Promise.all(assigns.map(async (a) => {
+      const l = await store.get<Lesson>('lessons', a.lessonId);
+      if (!l) return null;
+      const mine = atts.filter((t) => t.assignmentId === a.id);
+      return {
+        lessonId: l.id, title: l.intake.title, subject: l.intake.subject, assignedAt: a.createdAt, dueAt: a.dueAt,
+        answered: mine.length, sessions: new Set(mine.map((t) => t.session)).size, lastAt: mine.map((t) => t.at).sort().pop() || null,
+        mood: moods.filter((m) => m.assignmentId === a.id).sort((p, q) => q.at.localeCompare(p.at))[0]?.mood || null,
+        skills: l.skills.map((s) => { const ps = summarise(s, [x.p], mine, tc.criteria).pupils[0]; return { skill: s.tag, name: s.name, label: ps.label, right: ps.right, total: ps.total, topError: ps.topError, enough: ps.enough }; }).filter((s) => s.total > 0),
+        mistakes: mine.filter((t) => !t.correct && t.errorType).slice(-5).reverse().map((t) => ({ errorType: t.errorType, exercise: l.exercises.find((e) => e.id === t.exerciseId)?.prompt || '', answer: t.answer, at: t.at })),
+      };
+    }));
+    return c.json({ pupil: x.p, className: x.k.name, classId: x.k.id, lessons: lessons.filter(Boolean) });
+  });
   t.post('/classes/:cid/pupils', async (c) => {
     const k = await myClass(c, c.req.param('cid'));
     if (!k) return bad(c, 'notFound', 404);
@@ -282,6 +352,24 @@ export function createApp(ai: AI, store: Store) {
     for (const k of ['slides', 'exercises', 'flashcards', 'pairs'] as const) if (Array.isArray(body[k])) (l as unknown as Record<string, unknown>)[k] = body[k];
     await store.put('lessons', l);
     return c.json(l);
+  });
+  t.delete('/lessons/:id', async (c) => {
+    const l = await myLesson(c);
+    if (!l) return bad(c, 'notFound', 404);
+    await dropAssignments(await store.find<Assignment>('assignments', 'lessonId', l.id));
+    await store.removeMany('lessons', [l.id]);
+    return c.json({ ok: true });
+  });
+  // a copy to adapt for another class: same content and pictures, no assignments, not the demo flag
+  t.post('/lessons/:id/copy', async (c) => {
+    const l = await myLesson(c);
+    if (!l) return bad(c, 'notFound', 404);
+    if (l.status !== 'ready') return bad(c, 'notReady', 409);
+    const { lang } = await c.req.json<{ lang?: string }>().catch(() => ({ lang: 'vi' }));
+    const copy: Lesson = { ...structuredClone(l), id: id(), createdAt: new Date().toISOString(), sample: false, picturesPending: false,
+      intake: { ...l.intake, title: `${l.intake.title} (${lang === 'en' ? 'copy' : 'bản sao'})`.slice(0, 120) } };
+    await store.put('lessons', copy);
+    return c.json({ id: copy.id });
   });
   t.post('/lessons/:id/slides/:sid', async (c) => {
     const l = await myLesson(c);

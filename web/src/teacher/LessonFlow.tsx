@@ -1,7 +1,7 @@
 // Steps 3-6 of the create flow (slides, video, exercises, assign) plus the live "AI is
 // preparing your lesson" view while the agent works. The step bar stays on top of every screen.
 import { useEffect, useState } from 'react';
-import { teacherApi, type Lesson } from '../api.ts';
+import { go, teacherApi, type Lesson } from '../api.ts';
 import { pick, useLang, useT } from '../i18n.ts';
 import { Assign } from './Assign.tsx';
 import { T } from './dict.ts';
@@ -76,6 +76,11 @@ export function LessonFlow({ id, step }: { id: string; step: string }) {
   return (
     <>
       <Stepper current={idx} lessonId={l.id} />
+      <div className="lesson-bar">
+        <span className="grow" />
+        <button className="btn sm" onClick={async () => { const { id: nid } = await teacherApi.copyLesson(l.id); go(`/lesson/${nid}/slides`); }}>{t.copyLesson}</button>
+        <button className="btn sm danger" onClick={async () => { if (!confirm(t.delLessonConfirm)) return; await teacherApi.deleteLesson(l.id); go('/'); }}>{t.deleteLesson}</button>
+      </div>
       {idx === 2 && <Slides l={l} onChange={onChange} />}
       {idx === 3 && <Video l={l} onChange={onChange} onStarted={() => setTimeout(restartPoll, 300)} />}
       {idx === 4 && <Exercises l={l} onChange={onChange} />}
