@@ -87,3 +87,13 @@ test('marking is forgiving about case, spaces and the final full stop', () => {
   assert.ok(mark(match, JSON.stringify({ cat: '🐱', sun: '☀️' })));
   assert.ok(!mark(match, JSON.stringify({ cat: '☀️', sun: '🐱' })));
 });
+
+test('match pictures are never shown in the same order as the words', async () => {
+  const { forPupil } = await import('../app.ts');
+  for (const id of ['ex01', 'ex02', 'ex03', 'ex04', 'ex05', 'ex06']) {
+    const e = { id, level: 'basic', skill: 's', type: 'eng_match', prompt: '', explain: '', pairs: [{ word: 'red', emoji: '🔴' }, { word: 'blue', emoji: '🔵' }, { word: 'yellow', emoji: '🟡' }] } as unknown as Exercise;
+    const p = forPupil(e) as { pictures: string[] };
+    assert.notDeepEqual(p.pictures, ['🔴', '🔵', '🟡']);
+    assert.deepEqual([...p.pictures].sort(), ['🔴', '🔵', '🟡'].sort());
+  }
+});

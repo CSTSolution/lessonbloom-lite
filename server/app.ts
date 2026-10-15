@@ -28,7 +28,12 @@ export function forPupil(e: Exercise) {
   const { answer: _a, explain: _x, ...rest } = e as Exercise & { answer?: string };
   if (e.type === 'math_mcq' || e.type === 'math_word') { const { expr: _e, ...r } = rest as Record<string, unknown>; return r; }
   if (e.type === 'eng_order') return { ...rest, words: [...e.words].sort((a, b) => a.localeCompare(b)) };
-  if (e.type === 'eng_match') return { ...rest, pictures: e.pairs.map((p) => p.emoji).sort(), pairs: e.pairs.map((p) => ({ word: p.word })) };
+  if (e.type === 'eng_match') {
+    const pics = e.pairs.map((p) => p.emoji), seed = [...e.id].reduce((a, ch) => a + ch.charCodeAt(0), 7);
+    let shuffled = [...pics].map((p, i) => ({ p, k: (seed * (i + 3) * 2654435761) % 1000 })).sort((a, b) => a.k - b.k).map((x) => x.p);
+    if (shuffled.every((p, i) => p === pics[i])) shuffled = [...pics.slice(1), pics[0]];   // never the words' order
+    return { ...rest, pictures: shuffled, pairs: e.pairs.map((p) => ({ word: p.word })) };
+  }
   return rest;
 }
 
@@ -344,7 +349,9 @@ export function createApp(ai: AI, store: Store) {
     const mine = (await store.find<Attempt>('attempts', 'pupilId', x.p.id)).sort((a, b) => a.at.localeCompare(b.at));
     // remind the pupil of the slip they make most often lately (not just the latest one)
     const counts = new Map<string, number>();
-    for (const a of mine.slice(-30)) if (!a.correct && a.errorType) counts.set(a.errorType, (counts.get(a.errorType) || 0) + 1);
+    const subjectOf = new Map((await store.find<Lesson>('lessons', 'teacherId', x.k.teacherId)).map((y) => [y.id, y.intake.subject]));
+    const sameSubject = mine.filter((a) => subjectOf.get(a.lessonId) === x.l!.intake.subject);
+    for (const a of sameSubject.slice(-30)) if (!a.correct && a.errorType) counts.set(a.errorType, (counts.get(a.errorType) || 0) + 1);
     const lastErr = { errorType: [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] };
     const doneHere = new Set(mine.filter((a) => a.assignmentId === x.a!.id && a.correct).map((a) => a.exerciseId));
     const l = x.l;

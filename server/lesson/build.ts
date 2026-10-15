@@ -143,7 +143,8 @@ export async function makeCards(ai: AI, source: string, it: Intake): Promise<{ f
     system: fill(CARDS_SYSTEM, { nCards: 8, grade: it.grade }), prompt: `SETUP:\n${JSON.stringify(it)}\n\nDOCUMENT:\n${source}`, schema: CARDS_SCHEMA, input: { intake: it } });
   const sides = new Set<string>();
   const pairs = (r.pairs || []).filter((p) => p.a && p.b && p.a !== p.b && !sides.has(p.a) && !sides.has(p.b) && !!sides.add(p.a) && !!sides.add(p.b)).slice(0, 4);
-  return { flashcards: (r.flashcards || []).slice(0, 12).map((c, i) => ({ ...c, id: `fc${pad(i + 1)}` })), pairs: pairs.map((p, i) => ({ ...p, id: `mp${i + 1}` })) };
+  const noEmoji = (t: string) => t.replace(/\p{Extended_Pictographic}\uFE0F?/gu, '').replace(/\s{2,}/g, ' ').trim();
+  return { flashcards: (r.flashcards || []).slice(0, 12).map((c, i) => ({ ...c, front: c.emoji ? noEmoji(c.front) || c.front : c.front, id: `fc${pad(i + 1)}` })), pairs: pairs.map((p, i) => ({ ...p, id: `mp${i + 1}` })) };
 }
 
 export async function tagError(ai: AI, ex: Exercise, given: string, grade: number, known: string[]): Promise<{ errorType: string; hint: string }> {
