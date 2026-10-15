@@ -4,7 +4,7 @@ export const T = {
     editClass: 'Sửa lớp', deleteClass: 'Xoá lớp', delClassConfirm: (n: string) => `Xoá lớp ${n}? Danh sách học sinh, bài đã giao và kết quả của lớp sẽ bị xoá. Bài giảng vẫn giữ.`,
     rename: 'Đổi tên', removePupil: 'Xoá khỏi lớp', delPupilConfirm: (n: string) => `Xoá ${n} khỏi lớp? Kết quả làm bài của em cũng bị xoá.`,
     pupilOf: (k: string) => `Học sinh lớp ${k}`, backClass: '‹ Về lớp', pAnswered: (n: number, s: number) => `${n} câu · ${s} lượt luyện`, pNone: 'Em chưa làm bài nào.', pLast: 'Lần cuối',
-    pMood: 'Em tự đánh giá', moods: { easy: 'Dễ', ok: 'Vừa', hard: 'Khó' }, pMistakes: 'Lỗi gần đây', pSkills: 'Theo dạng bài', pNoLessons: 'Lớp chưa được giao bài nào.', viewPupil: 'Xem tiến bộ',
+    pMood: 'Em tự nhận xét', moods: { easy: 'Dễ', ok: 'Vừa', hard: 'Khó' }, pMistakes: 'Lỗi gần đây', pSkills: 'Theo dạng bài', pNoLessons: 'Lớp chưa được giao bài nào.', viewPupil: 'Xem tiến bộ',
     copyLesson: 'Nhân bản', deleteLesson: 'Xoá bài', delLessonConfirm: 'Xoá bài giảng này? Bài đã giao và kết quả của học sinh cho bài này cũng bị xoá.', copiedLesson: 'Đã tạo bản sao.',
     alsoAssign: 'Giao luôn cho lớp khác:', assignedMany: (n: string) => `Đã giao cho ${n}.`,
     share: 'Gửi qua Zalo / tin nhắn', shareMsg: (title: string, k: string, code: string, url: string) => `Lớp ${k}: các con vào học bài "${title}" tại ${url} (mã lớp ${code}), rồi chọn tên mình nhé.`,
