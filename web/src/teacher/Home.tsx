@@ -43,7 +43,7 @@ export function Home({ teacher }: { teacher: Teacher }) {
             const state = l.status === 'working' ? t.working : l.status === 'error' ? t.failed : l.classes.length ? t.sent : t.draft;
             return (
               <Link key={l.id} to={l.status === 'ready' || l.status === 'error' ? `/lesson/${l.id}/slides` : `/lesson/${l.id}/build`} className="card" style={{ textDecoration: 'none', color: 'inherit', padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div className="display" style={{ background: tint.bg, color: tint.ink, borderRadius: 12, height: 104, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 30, textAlign: 'center', padding: 8, overflow: 'hidden' }}>{l.cover || l.title.slice(0, 18)}</div>
+                <div className="display" style={{ background: tint.bg, color: tint.ink, borderRadius: 12, height: 104, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: (l.cover || '').length > 10 ? 24 : 30, lineHeight: 1.15, textAlign: 'center', padding: 8, overflow: 'hidden' }}>{l.cover || l.title.slice(0, 18)}</div>
                 <div className="row">
                   {l.classes.length > 0 && <span className="chip">{t.cls} {l.classes.join(', ')}</span>}
                   <span className={`chip ${l.classes.length ? 'green' : ''}`}>{state}</span>

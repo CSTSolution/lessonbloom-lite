@@ -20,6 +20,7 @@ async function withRetry<T>(what: string, fn: () => Promise<T>): Promise<T> {
       last = e;
       const msg = String((e as Error)?.message || e);
       if (!/429|500|503|UNAVAILABLE|RESOURCE_EXHAUSTED|deadline/i.test(msg)) break;   // only retry transient errors
+      console.warn(`[retry] ${what} attempt ${i + 1}: ${msg.slice(0, 160)}`);
       await new Promise((r) => setTimeout(r, (/429|RESOURCE_EXHAUSTED/.test(msg) ? 6000 : 2000) * 2 ** i));
     }
   }
@@ -43,17 +44,35 @@ export class GeminiProvider implements AI {
     this.name = process.env.GOOGLE_GENAI_USE_VERTEXAI ? 'gemini-vertex' : 'gemini-aistudio';
   }
 
+  // Text models: the chosen model first; on a quota / overload error move at once to the
+  // fallback model (separate quota). Only when every model is busy does withRetry back off.
   private async generateJson<T>(req: TextRequest, parts: Part[]): Promise<T> {
-    const model = req.tier === 'pro' ? config.models.pro : config.models.fast;
-    return withRetry(`${req.task} (${model})`, async () => {
-      const base = { systemInstruction: req.system, responseMimeType: 'application/json', responseJsonSchema: req.schema, temperature: req.tier === 'pro' ? 0.7 : 0.2 };
-      const ask = (thinking: boolean) => this.ai.models.generateContent({ model, contents: [{ role: 'user', parts }],
-        config: thinking ? { ...base, thinkingConfig: { thinkingBudget: req.tier === 'pro' ? 2048 : 512 } } : base });
-      // a model that doesn't accept a thinking budget gets the call again without it
-      const r = await ask(this.thinkingOk).catch((e) => { if (this.thinkingOk && /thinking/i.test(String(e?.message))) { this.thinkingOk = false; return ask(false); } throw e; });
-      this.report(r, { model, tier: req.tier, task: req.task });
-      if (!r.text) throw new Error(`empty answer (finish: ${r.candidates?.[0]?.finishReason})`);
-      return JSON.parse(r.text) as T;
+    const primary = req.tier === 'pro' ? config.models.pro : config.models.fast;
+    const chain = [primary, ...config.models.textFallbacks.filter((m) => m !== primary)];
+    const base = { systemInstruction: req.system, responseMimeType: 'application/json', responseJsonSchema: req.schema, temperature: req.tier === 'pro' ? 0.7 : 0.2 };
+    const ask = (model: string, thinking: boolean) => this.ai.models.generateContent({ model, contents: [{ role: 'user', parts }],
+      config: thinking ? { ...base, thinkingConfig: { thinkingBudget: req.tier === 'pro' ? 2048 : 512 } } : base });
+    return withRetry(`${req.task} (${primary})`, async () => {
+      let lastErr: unknown;
+      for (const model of chain) {
+        const t0 = Date.now();
+        try {
+          // a model that doesn't accept a thinking budget gets the call again without it
+          const r = await ask(model, this.thinkingOk).catch((e) => {
+            if (this.thinkingOk && /thinking/i.test(String(e?.message))) { this.thinkingOk = false; return ask(model, false); }
+            throw e;
+          });
+          if (Date.now() - t0 > 20000) console.warn(`[slow] ${req.task} on ${model}: ${Math.round((Date.now() - t0) / 1000)}s`);
+          this.report(r, { model, tier: req.tier, task: req.task });
+          if (!r.text) throw new Error(`empty answer (finish: ${r.candidates?.[0]?.finishReason})`);
+          return JSON.parse(r.text) as T;
+        } catch (e) {
+          lastErr = e;
+          if (!/429|RESOURCE_EXHAUSTED|503|UNAVAILABLE/.test(String((e as Error)?.message))) throw e;
+          console.warn(`[fallback] ${req.task}: ${model} busy`);
+        }
+      }
+      throw lastErr;
     });
   }
 

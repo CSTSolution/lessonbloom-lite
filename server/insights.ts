@@ -66,7 +66,12 @@ export function nextSteps(skills: Skill[], pupilAttempts: Attempt[], pool: { id:
     const lastWrong = atts.slice(-3).some((a) => !a.correct);
     const seen = new Set(atts.filter((a) => a.correct).map((a) => a.exerciseId));
     if (label === 'repeated' || lastWrong) {
-      const ids = pool.filter((e) => e.skill === s.tag && !seen.has(e.id) && e.level !== 'advanced').map((e) => e.id).slice(0, 3);
+      const sameSkill = pool.filter((e) => e.skill === s.tag);
+      // not yet answered right first, then items they slipped on, then anything of the skill
+      const slipped = new Set(atts.filter((a) => !a.correct).map((a) => a.exerciseId));
+      const fresh = sameSkill.filter((e) => !seen.has(e.id) && e.level !== 'advanced');
+      const ranked = fresh.length ? fresh : [...sameSkill.filter((e) => slipped.has(e.id)), ...sameSkill];
+      const ids = [...new Set(ranked.map((e) => e.id))].slice(0, 3);
       if (ids.length) out.push({ kind: 'same', skill: s.tag, skillName: s.name, exerciseIds: ids, reason: topError });
     } else if (label === 'secure' || atts.filter((a) => a.correct).length >= 3) {
       const ids = pool.filter((e) => e.skill === s.tag && e.level === 'advanced' && !seen.has(e.id)).map((e) => e.id).slice(0, 3);

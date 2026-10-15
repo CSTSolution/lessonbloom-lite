@@ -35,9 +35,9 @@ export function TopBar({ teacher, path, onSignOut }: { teacher: Teacher; path: s
       <nav className="nav" aria-label="Main">{nav.map(([p, l]) => <Link key={p} to={p} className={on(p) ? 'on' : ''} aria-current={on(p) ? 'page' : undefined}>{l}</Link>)}</nav>
       <div className="row">
         <LangToggle />
-        {isDemo() && <span className="chip amber" title={u.register}>{u.demo}</span>}
+        {isDemo() && <span className="chip amber hide-sm" title={u.register}>{u.demo}</span>}
         <CreditPill path={path} />
-        <span className="avatar">{teacher.name.replace(/^(Cô|Thầy)\s*/, '').slice(0, 1).toUpperCase()}</span><span>{teacher.name}</span>
+        <span className="avatar" title={teacher.name}>{teacher.name.replace(/^(Cô|Thầy)\s*/, '').slice(0, 1).toUpperCase()}</span><span className="hide-sm">{teacher.name}</span>
         <button className="btn ghost sm" onClick={onSignOut}>{u.signOut}</button>
       </div>
     </header>

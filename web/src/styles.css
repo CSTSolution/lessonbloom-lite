@@ -64,9 +64,11 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--blue-soft);
 .radio-pills label.on { border-color: var(--blue); background: var(--blue-soft); color: var(--blue); }
 
 /* top bar (teacher) */
-.topbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 32px; background: #fff; border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 10; }
+.topbar { display: flex; flex-wrap: nowrap; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 32px; background: #fff; border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 10; }
 .logo { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); font-family: var(--display); font-weight: 700; font-size: 24px; }
-.nav { display: flex; gap: 6px; flex-wrap: wrap; }
+.nav { display: flex; gap: 6px; flex-wrap: nowrap; overflow-x: auto; min-width: 0; scrollbar-width: none; }
+.nav a { white-space: nowrap; }
+.topbar > .row { flex-wrap: nowrap; white-space: nowrap; }
 .nav a { padding: 9px 16px; border-radius: 10px; color: var(--muted); text-decoration: none; font-weight: 500; }
 .nav a.on { background: var(--blue-soft); color: var(--blue); font-weight: 600; }
 .lang { display: flex; padding: 3px; border-radius: 999px; background: var(--chip); }
@@ -95,7 +97,11 @@ table.t td { padding: 10px 12px; border-top: 1px solid var(--line); }
 .pupil-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
 .back { width: 40px; height: 40px; border-radius: 12px; border: 0; background: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 20px; }
 .big-btn { width: 100%; padding: 16px; border-radius: 14px; border: 0; font-size: 18px; font-weight: 700; cursor: pointer; }
+@media (max-width: 1100px) { .topbar { flex-wrap: wrap; } }
 @media (max-width: 720px) {
-  .topbar { padding: 10px 16px; } .page { padding: 20px 16px 48px; } h1 { font-size: 24px; }
+  .hide-sm { display: none !important; }
+  .topbar { padding: 10px 16px; gap: 8px; }
+  .topbar .nav { order: 3; width: 100%; }
+  .topbar .logo { font-size: 20px; } .page { padding: 20px 16px 48px; } h1 { font-size: 24px; }
   .nav a { padding: 7px 10px; font-size: 14px; }
 }

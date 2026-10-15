@@ -39,6 +39,13 @@ export function mark(e: Exercise, given: string): boolean {
   return clean(given) === clean((e as { answer: string }).answer);
 }
 
+// A short cover for the lesson card: a worked example or a calculation, never a long sentence.
+function coverOf(l: Lesson): string {
+  const short = (x?: string) => (x && x.length <= 16 ? x : '');
+  const expr = l.exercises.map((e) => ('expr' in e ? e.expr : '')).find((x) => x && x.length <= 14 && !/max|min/i.test(x));
+  return short(l.slides.find((s) => s.example)?.example) || short(expr) || short(l.flashcards[0]?.front) || l.intake.title.split(/\s+/).slice(0, 3).join(' ');
+}
+
 export function createApp(ai: AI, store: Store) {
   const app = new Hono();
   const spend = new SpendGuard(store);
@@ -179,7 +186,7 @@ export function createApp(ai: AI, store: Store) {
     return c.json(ls.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map((l) => ({
       id: l.id, title: l.intake.title, subject: l.intake.subject, grade: l.intake.grade, status: l.status, createdAt: l.createdAt,
       slides: l.slides.length, exercises: l.exercises.length, flashcards: l.flashcards.length, video: l.video?.status === 'ready',
-      cover: l.slides.find((s) => s.example)?.example || l.exercises[0]?.prompt || '',
+      cover: coverOf(l),
       classes: [...new Set(assigns.filter((a) => a.lessonId === l.id).map((a) => cname.get(a.classId)).filter(Boolean))],
     })));
   });
@@ -264,7 +271,11 @@ export function createApp(ai: AI, store: Store) {
   t.get('/insights', async (c) => {
     const tc = c.get('teacher');
     const lessons = (await store.find<Lesson>('lessons', 'teacherId', tc.id)).filter((l) => l.status === 'ready');
-    const lessonId = c.req.query('lessonId') || lessons.sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]?.id;
+    // default: the lesson most recently assigned (to this class if one is given), else the newest
+    const assigns = (await store.find<Assignment>('assignments', 'teacherId', tc.id)).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const qClass = c.req.query('classId');
+    const lessonId = c.req.query('lessonId') || assigns.find((a) => !qClass || a.classId === qClass)?.lessonId || assigns[0]?.lessonId
+      || lessons.sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]?.id;
     const l = lessons.find((x) => x.id === lessonId);
     if (!l) return c.json({ lessons: [], classes: [], overview: [], detail: null });
     const classes = (await store.find<ClassRoom>('classes', 'teacherId', tc.id)).sort((a, b) => a.name.localeCompare(b.name));

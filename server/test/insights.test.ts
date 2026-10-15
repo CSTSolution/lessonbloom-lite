@@ -42,3 +42,10 @@ test('next steps: same skill after slips, harder when secure', () => {
   assert.equal(s[0].kind, 'same'); assert.equal(s[0].skill, 'carry_1'); assert.ok(!s[0].exerciseIds.includes('e3'));
   assert.equal(s[1].kind, 'harder'); assert.deepEqual(s[1].exerciseIds, ['w3']);
 });
+
+test('next steps still suggest practice when every item was already answered', () => {
+  const pool = [{ id: 'e1', skill: 'carry_1', level: 'basic' }, { id: 'e2', skill: 'carry_1', level: 'good' }];
+  const mine = ['e1', 'e2'].flatMap((id) => [att('p', false, 's1', 'carry', 'carry_1', id), att('p', true, 's1', undefined, 'carry_1', id)]);
+  const s = nextSteps([{ tag: 'carry_1', name: 'Nhớ 1' }], mine, pool, C);
+  assert.equal(s.length, 1); assert.equal(s[0].kind, 'same'); assert.ok(s[0].exerciseIds.length >= 1);
+});
