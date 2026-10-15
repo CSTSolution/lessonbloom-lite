@@ -64,6 +64,17 @@ export class GeminiProvider implements AI {
   }
 
   async image(req: ImageRequest): Promise<Buffer> {
+    // Imagen (generateImages) has its own, larger quota and is cheaper; Gemini image is the default.
+    if (config.models.image.startsWith('imagen')) {
+      return withRetry(`imagen ${req.key}`, async () => {
+        const r = await this.ai.models.generateImages({ model: config.models.image, prompt: req.prompt,
+          config: { numberOfImages: 1, aspectRatio: req.aspect || '4:3', personGeneration: 'allow_all' as never, outputMimeType: 'image/png' } });
+        const b = r.generatedImages?.[0]?.image?.imageBytes;
+        this.onUsage?.({ model: config.models.image, tier: 'image', task: 'image', images: b ? 1 : 0 });
+        if (!b) throw new Error(`no image returned (${r.generatedImages?.[0]?.raiFilteredReason || 'filtered'})`);
+        return Buffer.from(b, 'base64');
+      });
+    }
     const parts: Part[] = [{ text: req.prompt }];
     return withRetry(`image ${req.key}`, async () => {
       const r = await this.ai.models.generateContent({
