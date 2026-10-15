@@ -23,3 +23,15 @@
 }
 .slide16 .s-pending { flex: 1; max-width: 44%; align-self: center; aspect-ratio: 4 / 3; border-radius: 12px; background: var(--blue-soft); display: flex; align-items: center; justify-content: center; font-size: 4cqw; animation: lbpulse 1.4s ease-in-out infinite; }
 @keyframes lbpulse { 50% { opacity: .5; } }
+
+/* phones and small tablets: every two/three-column teacher layout stacks */
+@media (max-width: 760px) {
+  .assign-grid { grid-template-columns: 1fr !important; }
+  .qr-row { flex-wrap: wrap !important; }
+  .hero { flex-direction: column; align-items: stretch !important; }
+  .hero .btn { width: 100%; }
+  .page div[style*="grid-template-columns: minmax(0, 1fr) minmax(0, 1fr)"],
+  .page div[style*="grid-template-columns: repeat(auto-fit, minmax(340px"] { grid-template-columns: 1fr !important; }
+  table.t { font-size: 13px; }
+  table.t th, table.t td { padding: 8px 6px; }
+}

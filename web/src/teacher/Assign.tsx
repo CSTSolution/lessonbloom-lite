@@ -41,7 +41,7 @@ export function Assign({ l, presetClass }: { l: Lesson; presetClass?: string }) 
             <div className="card stack">
               <h3>{t.linkTitle}</h3>
               <div className="row" style={{ flexWrap: 'nowrap' }}><input readOnly value={url} onFocus={(e) => e.target.select()} /><button className="btn primary" onClick={() => { navigator.clipboard?.writeText(url); setCopied(true); }}>{copied ? t.copied : t.copy}</button></div>
-              <div className="row" style={{ alignItems: 'flex-start', flexWrap: 'nowrap' }}>
+              <div className="row qr-row" style={{ alignItems: 'flex-start', flexWrap: 'nowrap' }}>
                 {qr && <img src={qr} alt="QR" width={120} height={120} style={{ borderRadius: 8, border: '1px solid var(--line)' }} />}
                 <div className="stack" style={{ gap: 6 }}><span className="chip blue" style={{ alignSelf: 'flex-start', fontSize: 18, fontWeight: 700 }}>{t.joinCode}: {detail.joinCode}</span><p className="muted small" style={{ margin: 0 }}>{t.qrHelp}</p></div>
               </div>

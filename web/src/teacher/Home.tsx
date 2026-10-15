@@ -26,7 +26,7 @@ export function Home({ teacher }: { teacher: Teacher }) {
   return (
     <main className="page" style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'flex-start' }}>
       <section style={{ flex: '999 1 600px', minWidth: 0 }} className="stack">
-        <div className="row" style={{ alignItems: 'flex-end' }}>
+        <div className="row hero" style={{ alignItems: 'flex-end' }}>
           <div className="grow">
             <h1>{t.hello(teacher.name)}</h1>
             <p className="muted" style={{ margin: '6px 0 0' }}>{t.intro}</p>
