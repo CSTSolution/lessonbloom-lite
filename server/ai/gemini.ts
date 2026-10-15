@@ -30,6 +30,7 @@ export class GeminiProvider implements AI {
   name: string;
   onUsage?: (e: UsageEvent) => void;
   private ai: GoogleGenAI;
+  private imagenAi: GoogleGenAI;        // Imagen is served from regional endpoints only, not "global"
 
   // thinking tokens are billed as output
   private report(r: Meta, e: Omit<UsageEvent, 'inTokens' | 'outTokens'>) {
@@ -39,6 +40,9 @@ export class GeminiProvider implements AI {
 
   constructor() {
     this.ai = new GoogleGenAI({});   // the SDK reads the env vars above
+    this.imagenAi = process.env.GOOGLE_GENAI_USE_VERTEXAI
+      ? new GoogleGenAI({ vertexai: true, project: process.env.GOOGLE_CLOUD_PROJECT, location: process.env.LB_IMAGEN_LOCATION || 'us-central1' })
+      : this.ai;
     this.name = process.env.GOOGLE_GENAI_USE_VERTEXAI ? 'gemini-vertex' : 'gemini-aistudio';
   }
 
@@ -67,7 +71,7 @@ export class GeminiProvider implements AI {
     // Imagen (generateImages) has its own, larger quota and is cheaper; Gemini image is the default.
     if (config.models.image.startsWith('imagen')) {
       return withRetry(`imagen ${req.key}`, async () => {
-        const r = await this.ai.models.generateImages({ model: config.models.image, prompt: req.prompt,
+        const r = await this.imagenAi.models.generateImages({ model: config.models.image, prompt: req.prompt,
           config: { numberOfImages: 1, aspectRatio: req.aspect || '4:3', personGeneration: 'allow_all' as never, outputMimeType: 'image/png' } });
         const b = r.generatedImages?.[0]?.image?.imageBytes;
         this.onUsage?.({ model: config.models.image, tier: 'image', task: 'image', images: b ? 1 : 0 });

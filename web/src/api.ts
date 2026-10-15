@@ -3,13 +3,20 @@
 import type { Assignment, ClassRoom, Criteria, Exercise, Flashcard, Intake, Label, Lesson, Level, MemoryPair, Pupil, Skill, Slide, Teacher } from '../../server/types.ts';
 export type { Assignment, ClassRoom, Criteria, Exercise, Flashcard, Intake, Label, Lesson, Level, MemoryPair, Pupil, Skill, Slide, Teacher };
 
+import { currentUser, idToken } from './auth.ts';
+
 const KEY = 'lb-teacher';
 const getKey = () => { try { return localStorage.getItem(KEY) || ''; } catch { return ''; } };
 
 async function call<T>(method: string, path: string, body?: unknown, teacher = false): Promise<T> {
   const headers: Record<string, string> = {};
   if (body !== undefined) headers['content-type'] = 'application/json';
-  if (teacher) headers['x-teacher'] = getKey();
+  if (teacher) {
+    // signed-in teachers send their Firebase ID token; otherwise the demo workspace key
+    const tok = await idToken();
+    if (tok) { headers.authorization = `Bearer ${tok}`; const n = currentUser()?.displayName; if (n) headers['x-teacher-name'] = encodeURIComponent(n); }
+    else headers['x-teacher'] = getKey();
+  }
   const r = await fetch(path, { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw Object.assign(new Error(j.error || `${r.status}`), { status: r.status });
@@ -17,12 +24,21 @@ async function call<T>(method: string, path: string, body?: unknown, teacher = f
 }
 const tc = <T,>(method: string, path: string, body?: unknown) => call<T>(method, `/api/t${path}`, body, true);
 
-export async function ensureWorkspace(): Promise<Teacher> {
-  if (getKey()) { try { return await tc<Teacher>('GET', '/me'); } catch (e) { if ((e as { status?: number }).status !== 403) throw e; } }
+// Signed in: the account's workspace (created on first visit). Otherwise the demo workspace in
+// this browser, if there is one. Returns null when the visitor should see the sign-in page.
+export async function loadWorkspace(): Promise<Teacher | null> {
+  if (currentUser() || getKey()) {
+    try { return await tc<Teacher>('GET', '/me'); } catch (e) { if ((e as { status?: number }).status !== 403) throw e; }
+  }
+  return null;
+}
+export async function startDemo(): Promise<Teacher> {
   const { teacher, key } = await call<{ teacher: Teacher; key: string }>('POST', '/api/t/me', {});
   try { localStorage.setItem(KEY, key); } catch { /* private mode: workspace lasts this tab */ }
   return teacher;
 }
+export const isDemo = () => !currentUser() && !!getKey();
+export function leaveDemo() { try { localStorage.removeItem(KEY); } catch { /* ok */ } }
 
 export interface LessonCard { id: string; title: string; subject: string; grade: number; status: string; createdAt: string; slides: number; exercises: number; flashcards: number; video: boolean; cover: string; classes: string[] }
 export interface ClassCard extends ClassRoom { pupils: number; joined: number; assignments: number }

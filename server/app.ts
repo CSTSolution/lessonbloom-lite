@@ -4,6 +4,7 @@
 // Pupil routes: join with a class code, tap your name; answers never leave the server, and
 //   nothing a pupil receives contains scores, percentages or labels.
 import { createHash, timingSafeEqual } from 'node:crypto';
+import { isAdminEmail, verify, webConfig } from './auth.ts';
 import { Hono, type Context } from 'hono';
 import type { AI } from './ai/provider.ts';
 import { nextSteps, summarise } from './insights.ts';
@@ -56,8 +57,25 @@ export function createApp(ai: AI, store: Store) {
   });
   t.use('*', async (c, next) => {
     if (c.req.path.endsWith('/me') && c.req.method === 'POST') return next();
-    const key = c.req.header('x-teacher') || '';
-    const teacher = /^[\w]{16,40}$/.test(key) ? await store.get<Teacher>('teachers', key) : null;
+    let teacher: Teacher | null = null;
+    const bearer = /^Bearer (.+)$/.exec(c.req.header('authorization') || '')?.[1];
+    if (bearer) {
+      // signed-in teacher (Firebase): one workspace per account, created on first sign-in
+      const tok = await verify(bearer);
+      if (!tok) return bad(c, 'sign-in expired', 403);
+      const tid = `u_${tok.uid}`;
+      teacher = await store.get<Teacher>('teachers', tid);
+      if (!teacher) {
+        const name = String(c.req.header('x-teacher-name') || tok.name || tok.email?.split('@')[0] || 'Cô giáo').slice(0, 40);
+        teacher = await seedTeacher(store, tid, decodeURIComponent(name));
+        teacher = { ...teacher, email: tok.email, account: true };
+        await store.put('teachers', teacher);
+      }
+    } else {
+      // demo workspace: an unguessable key kept in the browser. Account ids (u_...) are not keys.
+      const key = c.req.header('x-teacher') || '';
+      teacher = /^[A-Za-z0-9]{16,40}$/.test(key) ? await store.get<Teacher>('teachers', key) : null;
+    }
     if (!teacher) return bad(c, 'no workspace', 403);
     c.set('teacher', teacher);
     await next();
@@ -334,12 +352,14 @@ export function createApp(ai: AI, store: Store) {
   });
 
   // ---------- admin (Son): AI usage + spending guard. Off unless LB_ADMIN_KEY is set. ----------
-  const adminOk = (c: Context) => {
+  const adminOk = async (c: Context) => {
+    const bearer = /^Bearer (.+)$/.exec(c.req.header('authorization') || '')?.[1];
+    if (bearer && isAdminEmail(await verify(bearer))) return true;
     const want = (process.env.LB_ADMIN_KEY || '').trim(), got = (c.req.header('x-admin') || '').trim();
     return want.length >= 24 && got.length === want.length && timingSafeEqual(Buffer.from(got), Buffer.from(want));
   };
   app.get('/api/admin/overview', async (c) => {
-    if (!adminOk(c)) return c.json({ error: 'forbidden' }, 403);
+    if (!(await adminOk(c))) return c.json({ error: 'forbidden' }, 403);
     const days = await usage.days(Math.min(90, Number(c.req.query('days') || 31)));
     const project = process.env.GOOGLE_CLOUD_PROJECT || '';
     return c.json({ provider: ai.name, project, prices: PRICE, guard: await spend.status(), days,
@@ -347,6 +367,7 @@ export function createApp(ai: AI, store: Store) {
         run: `https://console.cloud.google.com/run?project=${project}`, vertex: `https://console.cloud.google.com/vertex-ai?project=${project}` } : {} });
   });
 
+  app.get('/api/config', (c) => c.json({ firebase: webConfig() }));
   app.get('/api/health', (c) => c.json({ ok: true, provider: ai.name }));
   app.get('/media/:folder/:name', async (c) => {
     const f = await store.getFile(c.req.param('folder'), c.req.param('name')).catch(() => null);

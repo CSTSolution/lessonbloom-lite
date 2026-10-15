@@ -1,6 +1,7 @@
 // /admin (Son only): AI usage counted from real model responses, the spending guard, and links
 // to the official bill in Cloud Billing. The admin key lives only in this tab (sessionStorage).
 import { useEffect, useState } from 'react';
+import { idToken } from '../auth.ts';
 import { Logo } from '../main.tsx';
 
 interface Model { calls: number; inTokens: number; outTokens: number; images: number; chars: number; usd: number }
@@ -15,12 +16,13 @@ export function Admin() {
   const [data, setData] = useState<Overview | null>(null), [err, setErr] = useState('');
   const load = async (kk = key) => {
     setErr('');
-    const r = await fetch('/api/admin/overview?days=31', { headers: { 'x-admin': kk } });
-    if (!r.ok) { setErr(r.status === 403 ? 'Wrong admin key' : `Error ${r.status}`); setData(null); return; }
+    const tok = await idToken();     // signed in as an admin email works too
+    const r = await fetch('/api/admin/overview?days=31', { headers: { 'x-admin': kk, ...(tok ? { authorization: `Bearer ${tok}` } : {}) } });
+    if (!r.ok) { setErr(kk ? (r.status === 403 ? 'Wrong admin key' : `Error ${r.status}`) : ''); setData(null); return; }
     try { sessionStorage.setItem('lb-admin', kk); } catch { /* ok */ }
     setData(await r.json());
   };
-  useEffect(() => { if (key) load(); }, []);
+  useEffect(() => { load(); }, []);
 
   const totals = new Map<string, Model>();
   const tasks = new Map<string, { calls: number; usd: number }>();
