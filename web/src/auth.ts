@@ -16,9 +16,9 @@ const boot = (async () => {
     const { firebase, authEmulator } = await (await fetch('/api/config')).json();
     if (!firebase?.apiKey) return;
     const [{ initializeApp }, a] = await Promise.all([import('firebase/app'), import('firebase/auth')]);
-    // Session kept in localStorage first: IndexedDB can hang in some in-app browsers (Zalo,
-    // Facebook) and private windows, which would leave the page loading forever.
-    auth = a.initializeAuth(initializeApp(firebase), { persistence: [a.browserLocalPersistence, a.indexedDBLocalPersistence, a.inMemoryPersistence] });
+    // Session kept in localStorage, never IndexedDB: IndexedDB can hang in some in-app browsers
+    // (Zalo, Facebook) and private windows, which would leave the page loading forever.
+    auth = a.initializeAuth(initializeApp(firebase), { persistence: [a.browserLocalPersistence, a.inMemoryPersistence] });
     if (authEmulator) a.connectAuthEmulator(auth, authEmulator, { disableWarnings: true });
     enabled = true;
     // ...and never wait more than 8 s for the saved session: show the sign-in page instead
