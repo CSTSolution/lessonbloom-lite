@@ -5,7 +5,7 @@ import { go, teacherApi, type Lesson, type Slide } from '../api.ts';
 import { useT } from '../i18n.ts';
 import { T } from './dict.ts';
 
-export function SlideView({ s, n, total }: { s: Pick<Slide, 'kind' | 'heading' | 'bullets' | 'example' | 'image'>; n?: number; total?: number }) {
+export function SlideView({ s, n, total, pending }: { s: Pick<Slide, 'kind' | 'heading' | 'bullets' | 'example' | 'image'>; n?: number; total?: number; pending?: boolean }) {
   return (
     <div className={`slide16 k-${s.kind}`}>
       <div className="s-text">
@@ -13,7 +13,7 @@ export function SlideView({ s, n, total }: { s: Pick<Slide, 'kind' | 'heading' |
         {s.bullets.length > 0 && <ul>{s.bullets.map((b, i) => <li key={i}>{b}</li>)}</ul>}
         {s.example && <div className="s-ex display">{s.example}</div>}
       </div>
-      {s.image && <img src={s.image} alt="" />}
+      {s.image ? <img src={s.image} alt="" /> : pending && <div className="s-pending">🎨…</div>}
       {n !== undefined && total && <span className="s-n">Slide {n + 1} / {total}</span>}
     </div>
   );
@@ -46,7 +46,7 @@ export function Slides({ l, onChange }: { l: Lesson; onChange: (l: Lesson) => vo
         ))}
       </ol>
       <section className="stack no-print">
-        <SlideView s={s} n={cur} total={l.slides.length} />
+        <SlideView s={s} n={cur} total={l.slides.length} pending={l.picturesPending} />
         <div className="row">
           <button className="btn sm" disabled={!!busy} onClick={() => act('rewrite')}>{busy === 'rewrite' ? t.busy : t.a1}</button>
           <button className="btn sm" disabled={!!busy} onClick={() => act('simpler')}>{busy === 'simpler' ? t.busy : t.a2}</button>

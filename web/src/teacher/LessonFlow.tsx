@@ -39,7 +39,7 @@ export function LessonFlow({ id, step }: { id: string; step: string }) {
         const x = await teacherApi.lesson(id);
         if (stop) return;
         setL(x);
-        if (x.status === 'working' || x.video?.status === 'working') timer = window.setTimeout(poll, 1500);
+        if (x.status === 'working' || x.video?.status === 'working' || x.picturesPending) timer = window.setTimeout(poll, x.picturesPending ? 4000 : 1500);
       } catch (e) { setErr((e as Error).message); }
     };
     poll();

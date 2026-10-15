@@ -30,7 +30,6 @@ export class GeminiProvider implements AI {
   name: string;
   onUsage?: (e: UsageEvent) => void;
   private ai: GoogleGenAI;
-  private imagenAi: GoogleGenAI;
   private thinkingOk = true;        // Imagen is served from regional endpoints only, not "global"
 
   // thinking tokens are billed as output
@@ -41,9 +40,6 @@ export class GeminiProvider implements AI {
 
   constructor() {
     this.ai = new GoogleGenAI({});   // the SDK reads the env vars above
-    this.imagenAi = process.env.GOOGLE_GENAI_USE_VERTEXAI
-      ? new GoogleGenAI({ vertexai: true, project: process.env.GOOGLE_CLOUD_PROJECT, location: process.env.LB_IMAGEN_LOCATION || 'us-central1' })
-      : this.ai;
     this.name = process.env.GOOGLE_GENAI_USE_VERTEXAI ? 'gemini-vertex' : 'gemini-aistudio';
   }
 
@@ -67,30 +63,28 @@ export class GeminiProvider implements AI {
     return this.generateJson<T>(req, [{ inlineData: { mimeType: 'image/png', data: req.image.toString('base64') } }, { text: req.prompt }]);
   }
 
+  // Pictures: each image model has its own per-minute quota, so on a 429 we move straight to
+  // the next model in the chain; only when every model is busy do we wait and go round again.
   async image(req: ImageRequest): Promise<Buffer> {
-    // Imagen (generateImages) has its own, larger quota and is cheaper; Gemini image is the default.
-    if (config.models.image.startsWith('imagen')) {
-      return withRetry(`imagen ${req.key}`, async () => {
-        const r = await this.imagenAi.models.generateImages({ model: config.models.image, prompt: req.prompt,
-          config: { numberOfImages: 1, aspectRatio: req.aspect || '4:3', personGeneration: 'allow_all' as never, outputMimeType: 'image/png' } });
-        const b = r.generatedImages?.[0]?.image?.imageBytes;
-        this.onUsage?.({ model: config.models.image, tier: 'image', task: 'image', images: b ? 1 : 0 });
-        if (!b) throw new Error(`no image returned (${r.generatedImages?.[0]?.raiFilteredReason || 'filtered'})`);
-        return Buffer.from(b, 'base64');
-      });
+    const chain = [config.models.image, ...config.models.imageFallbacks.filter((m) => m !== config.models.image)];
+    let last = '';
+    for (let round = 0; round < 4; round++) {
+      for (const model of chain) {
+        try {
+          const r = await this.ai.models.generateContent({ model, contents: [{ role: 'user', parts: [{ text: req.prompt }] }],
+            config: { responseModalities: ['IMAGE'], imageConfig: { aspectRatio: req.aspect || '4:3' } } });
+          const img = r.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data);
+          this.report(r, { model, tier: 'image', task: 'image', images: img ? 1 : 0 });
+          if (img?.inlineData?.data) return Buffer.from(img.inlineData.data, 'base64');
+          last = `no image (finish: ${r.candidates?.[0]?.finishReason})`;
+        } catch (e) {
+          last = String((e as Error)?.message || e);
+          if (!/429|RESOURCE_EXHAUSTED|503|UNAVAILABLE/.test(last)) throw new Error(`image ${req.key} failed: ${last}`);
+        }
+      }
+      await new Promise((r) => setTimeout(r, 4000 * 2 ** round));
     }
-    const parts: Part[] = [{ text: req.prompt }];
-    return withRetry(`image ${req.key}`, async () => {
-      const r = await this.ai.models.generateContent({
-        model: config.models.image,
-        contents: [{ role: 'user', parts }],
-        config: { responseModalities: ['IMAGE'], imageConfig: { aspectRatio: req.aspect || '4:3' } },
-      });
-      const img = r.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data);
-      this.report(r, { model: config.models.image, tier: 'image', task: 'image', images: img ? 1 : 0 });
-      if (!img?.inlineData?.data) throw new Error(`no image returned (finish: ${r.candidates?.[0]?.finishReason})`);
-      return Buffer.from(img.inlineData.data, 'base64');
-    });
+    throw new Error(`image ${req.key} failed: ${last.slice(0, 200)}`);
   }
 
   async speak(req: SpeechRequest): Promise<Buffer> {

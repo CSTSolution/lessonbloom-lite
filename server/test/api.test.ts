@@ -33,7 +33,7 @@ test('teacher -> pupil -> learning summary', async () => {
   const it = (await call('POST', '/api/t/intake', { source })).json;
   const { id } = (await call('POST', '/api/t/lessons', { source, intake: it })).json;
   let l!: Lesson;
-  for (let i = 0; i < 300; i++) { l = (await call('GET', `/api/t/lessons/${id}`)).json; if (l.status !== 'working') break; await new Promise((r) => setTimeout(r, 10)); }
+  for (let i = 0; i < 300; i++) { l = (await call('GET', `/api/t/lessons/${id}`)).json; if (l.status !== 'working' && !l.picturesPending) break; await new Promise((r) => setTimeout(r, 10)); }
   assert.equal(l.status, 'ready', l.error ?? '');
   assert.ok(l.flashcards.length && l.pairs.length === 4 && l.skills.length);
   const edited = (await call('POST', `/api/t/lessons/${id}/slides/sl03`, { action: 'simpler' })).json;

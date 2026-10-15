@@ -1,13 +1,14 @@
 // Builds one lesson in the background and saves progress as it goes, so the teacher sees the
-// agent working: slides -> exercises (self-check) -> flashcards & memory pairs -> pictures (vision check).
+// agent working: slides -> exercises (self-check) -> flashcards & memory pairs -> READY, then
+// pictures (vision check) keep arriving in the background while the teacher already reviews.
 // The video is made separately in step 4 (video.ts), once the teacher has seen the slides.
 import type { AI } from '../ai/provider.ts';
+import { config } from '../config.ts';
 import type { Store } from '../store.ts';
 import type { Lesson } from '../types.ts';
 import { makeCards, makeExercises, makeSlides } from './build.ts';
 import { illustrate } from './illustrate.ts';
 import { pool } from './pool.ts';
-import { config } from '../config.ts';
 
 export async function runLesson(ai: AI, store: Store, l: Lesson): Promise<Lesson> {
   const save = () => store.put('lessons', l);
@@ -20,24 +21,29 @@ export async function runLesson(ai: AI, store: Store, l: Lesson): Promise<Lesson
     Object.assign(l, { skills: ex.skills, exercises: ex.exercises, checks: ex.checks });
     await step(`Đã có ${l.exercises.length} câu cho ${l.skills.length} dạng bài; máy đã tự sửa ${l.checks.length} câu. Đang làm thẻ nhớ…`);
     if (l.intake.outputs.includes('flashcards')) Object.assign(l, await makeCards(ai, l.source, l.intake));
-    await step('Đang vẽ hình minh họa và tự kiểm tra từng hình…');
-    // two at a time: image models have low per-minute quotas on new projects
-    let n = 0;
-    // pictures for the title and the teaching slides first, up to maxPictures
-    const order = ['title', 'example', 'concept', 'warmup', 'practice', 'summary'];
-    const pick = [...l.slides].sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind)).slice(0, config.maxPictures);
-    await pool(pick, 2, async (s) => {
-      try {
-        const pic = await illustrate(ai, s, (m) => l.progress.push(m));
-        s.image = await store.putFile(l.id, `${s.id}.${pic.ext}`, pic.image, pic.ext === 'png' ? 'image/png' : 'image/jpeg');
-      } catch (e) { l.progress.push(`${s.id}: chưa vẽ được hình (${String((e as Error).message).slice(0, 80)}), cô có thể bấm "Đổi hình minh họa" sau`); }
-      if (++n % 3 === 0) await save();
-    });
-    l.status = 'ready';
-    await step('Xong! Cô xem lại slide, video và bài tập trước khi giao nhé.');
+    l.status = 'ready'; l.picturesPending = true;
+    await step('Xong phần chữ! Cô xem lại slide và bài tập; hình minh họa đang được vẽ thêm.');
   } catch (e) {
     l.status = 'error'; l.error = (e as Error).message;
     await save();
+    return l;
   }
+
+  // Pictures for the title and teaching slides first, two at a time (image quotas are tight).
+  // Each finished picture is written onto the LATEST copy of the lesson, so edits the teacher
+  // makes meanwhile are never overwritten.
+  const order = ['title', 'example', 'concept', 'warmup', 'practice', 'summary'];
+  const pick = [...l.slides].sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind)).slice(0, config.maxPictures);
+  const patch = async (fn: (x: Lesson) => void) => { const cur = (await store.get<Lesson>('lessons', l.id)) || l; fn(cur); await store.put('lessons', cur); };
+  await pool(pick, 2, async (s) => {
+    try {
+      const pic = await illustrate(ai, s, () => {});
+      const url = await store.putFile(l.id, `${s.id}.${pic.ext}`, pic.image, pic.ext === 'png' ? 'image/png' : 'image/jpeg');
+      await patch((x) => { const t = x.slides.find((y) => y.id === s.id); if (t && !t.image) t.image = url; });
+    } catch (e) {
+      await patch((x) => x.progress.push(`${s.id}: chưa vẽ được hình (${String((e as Error).message).slice(0, 80)}), cô có thể bấm "Đổi hình minh họa"`));
+    }
+  });
+  await patch((x) => { x.picturesPending = false; });
   return l;
 }

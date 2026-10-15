@@ -59,6 +59,7 @@ export interface Lesson {
   teacherId: string;
   createdAt: string;
   status: 'draft' | 'working' | 'ready' | 'error';
+  picturesPending?: boolean;       // ready to review; illustrations still arriving
   progress: string[];
   error?: string;
   source: string;

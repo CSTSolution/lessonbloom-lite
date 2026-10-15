@@ -49,7 +49,9 @@ export function createApp(ai: AI, store: Store) {
   const LIMIT_MSG = { month: 'Bản demo đã dùng hết hạn mức AI của tháng này. / The demo has used this month\'s AI allowance.', day: 'Bản demo đã dùng hết hạn mức AI hôm nay, cô thử lại vào ngày mai nhé. / The demo has used today\'s AI allowance; please try again tomorrow.' };
   // an AI action: the teacher's daily credits first, then the app-wide spending guard
   const guard = async (c: Context, kind: SpendKind & CreditKind) => {
-    const teacher = (c as Context<{ Variables: { teacher: Teacher } }>).get('teacher');
+    const teacher = (c as Context<{ Variables: { teacher: Teacher; unverified?: boolean } }>).get('teacher');
+    if (teacher && (c as Context<{ Variables: { unverified?: boolean } }>).get('unverified') && CREDIT_COST[kind] > 0)
+      return c.json({ error: 'Cô mở email và bấm đường link xác nhận trước khi dùng AI nhé. / Please confirm your email address (link in the email we sent) before using AI.', limit: 'verify' }, 403);
     if (teacher) {
       const r = await credits.charge(teacher, kind);
       if (!r.ok) return c.json({ error: `Hôm nay cô đã dùng ${r.used}/${r.limit} lượt AI của gói ${planOf(teacher) === 'demo' ? 'dùng thử' : 'miễn phí'}. Nâng cấp Pro để tạo không giới hạn. / You have used ${r.used}/${r.limit} AI credits today. Upgrade to Pro for unlimited creation.`, limit: 'credits', used: r.used, max: r.limit }, 429);
@@ -57,7 +59,7 @@ export function createApp(ai: AI, store: Store) {
     const why = await spend.charge(kind);
     return why ? c.json({ error: LIMIT_MSG[why as 'month' | 'day'], limit: why }, 429) : null;
   };
-  type Env = { Variables: { teacher: Teacher } };
+  type Env = { Variables: { teacher: Teacher; unverified?: boolean } };
   const t = new Hono<Env>();
 
   // ---------- teacher workspace ----------
@@ -66,7 +68,7 @@ export function createApp(ai: AI, store: Store) {
     const ip = (c.req.header('x-forwarded-for') || 'local').split(',')[0].trim();
     const ipKey = `demoip-${createHash('sha1').update(ip).digest('hex').slice(0, 16)}-${new Date().toISOString().slice(0, 10)}`;
     const seen = (await store.get<{ id: string; n: number }>('cache', ipKey)) || { id: ipKey, n: 0 };
-    if (seen.n >= config.demoPerIpDay) return c.json({ error: 'Quá nhiều bản dùng thử từ mạng này hôm nay. / Too many demo workspaces from this network today.' }, 429);
+    if (seen.n >= config.demoPerIpDay && !(await adminOk(c))) return c.json({ error: 'Quá nhiều bản dùng thử từ mạng này hôm nay. / Too many demo workspaces from this network today.' }, 429);
     await store.put('cache', { ...seen, n: seen.n + 1 });
     const { name } = await c.req.json<{ name?: string }>().catch(() => ({ name: undefined }));
     const tid = id(24);
@@ -81,6 +83,7 @@ export function createApp(ai: AI, store: Store) {
       // signed-in teacher (Firebase): one workspace per account, created on first sign-in
       const tok = await verify(bearer);
       if (!tok) return bad(c, 'sign-in expired', 403);
+      c.set('unverified', tok.email_verified !== true);
       const tid = `u_${tok.uid}`;
       teacher = await store.get<Teacher>('teachers', tid);
       if (!teacher) {
@@ -383,12 +386,12 @@ export function createApp(ai: AI, store: Store) {
   });
 
   // ---------- admin (Son): AI usage + spending guard. Off unless LB_ADMIN_KEY is set. ----------
-  const adminOk = async (c: Context) => {
+  async function adminOk(c: Context) {
     const bearer = /^Bearer (.+)$/.exec(c.req.header('authorization') || '')?.[1];
     if (bearer && isAdminEmail(await verify(bearer))) return true;
     const want = (process.env.LB_ADMIN_KEY || '').trim(), got = (c.req.header('x-admin') || '').trim();
     return want.length >= 24 && got.length === want.length && timingSafeEqual(Buffer.from(got), Buffer.from(want));
-  };
+  }
   app.get('/api/admin/users', async (c) => {
     if (!(await adminOk(c))) return c.json({ error: 'forbidden' }, 403);
     const month = new Date().toISOString().slice(0, 7), today = new Date().toISOString().slice(0, 10);
