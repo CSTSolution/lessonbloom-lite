@@ -14,7 +14,8 @@ const code = () => Array.from(randomBytes(4)).map((b) => 'ABCDEFGHJKLMNPQRSTUVWX
 export const SAMPLE_SOURCE = 'Bài mẫu do đội LessonBloom tự viết.';
 // Demo data, including workspaces seeded before the sample flag existed (same source text, classes 2A/2B/2C given that lesson)
 export function sampleOf(classes: ClassRoom[], lessons: Lesson[], assigns: Assignment[]) {
-  const ls = lessons.filter((l) => l.sample || (l.sample === undefined && l.source === SAMPLE_SOURCE))   // a copy has sample: false, lids = new Set(ls.map((l) => l.id));
+  // a copy of the sample lesson has sample: false, so only unflagged lessons fall back to the source text
+  const ls = lessons.filter((l) => l.sample || (l.sample === undefined && l.source === SAMPLE_SOURCE)), lids = new Set(ls.map((l) => l.id));
   const ks = classes.filter((k) => k.sample || (['2A', '2B', '2C'].includes(k.name) && assigns.some((a) => a.classId === k.id && lids.has(a.lessonId))));
   return { classes: ks, lessons: ls };
 }

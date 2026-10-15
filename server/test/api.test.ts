@@ -147,3 +147,19 @@ test('classes and pupils can be edited and removed; one pupil’s progress; less
   assert.equal(start.sample, false);
   assert.equal(start.lessons, 1);
 });
+
+test('a teacher’s own class named 2A is not sample data, and the guide state still loads', async () => {
+  const app = createApp(new MockProvider(), new LocalStore(await mkdtemp(join(tmpdir(), 'lb-'))));
+  let key = '';
+  const call = async (method: string, path: string, body?: unknown) => {
+    const r = await app.request(path, { method, headers: { 'content-type': 'application/json', 'x-teacher': key }, body: body ? JSON.stringify(body) : undefined });
+    return { status: r.status, json: await r.json() as any };
+  };
+  key = (await call('POST', '/api/t/me', {})).json.key;
+  assert.equal((await call('POST', '/api/t/sample/clear')).status, 200);
+  assert.equal((await call('POST', '/api/t/classes', { name: '2A', names: ['An'], subject: 'math' })).status, 200);
+  const start = await call('GET', '/api/t/start');
+  assert.equal(start.status, 200);
+  assert.equal(start.json.classes, 1);
+  assert.equal(start.json.sample, false);
+});

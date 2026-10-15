@@ -25,7 +25,8 @@ export const isAdminEmail = (t: DecodedIdToken | null) =>
 // Accounts are created and passwords reset here, after the emailed code checks out, so every
 // account starts with a confirmed email (emailVerified: true) and nobody can reset a password
 // without access to the mailbox.
-const admin = () => { if (!getApps().length) initializeApp({ projectId: process.env.GOOGLE_CLOUD_PROJECT }); return getAuth(); };
+// the Firebase project from the web config (the same project as Google Cloud in production; the emulator's when testing)
+const admin = () => { if (!getApps().length) initializeApp({ projectId: webConfig()?.projectId || process.env.GOOGLE_CLOUD_PROJECT }); return getAuth(); };
 export async function accountExists(email: string): Promise<boolean> {
   try { await admin().getUserByEmail(email); return true; } catch (e) { if ((e as { code?: string }).code === 'auth/user-not-found') return false; throw e; }
 }
