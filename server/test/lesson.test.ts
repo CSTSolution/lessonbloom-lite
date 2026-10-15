@@ -103,3 +103,11 @@ test('maths checks cover what real Gemini writes: sums as options, comparisons',
   assert.equal(checkMath(cmp).ok, true);
   assert.equal(checkMath({ ...cmp, statement: '36 + 27 < 60' } as Exercise).fixedAnswer, 'false');
 });
+
+test('real-run shapes: max() options and a true/false claim left in the prompt', () => {
+  assert.equal(evaluate('max(29 + 39, 45 + 18, 37 + 37)'), 74);
+  const largest = { id: 'm', level: 'advanced', skill: 's', type: 'math_mcq', prompt: 'Phép tính nào lớn nhất?', expr: 'max(29 + 39, 45 + 18, 37 + 37)', options: ['29 + 39', '45 + 18', '37 + 37'], answer: '37 + 37', explain: '' } as Exercise;
+  assert.equal(checkMath(largest).ok, true);
+  const inPrompt = { id: 't', level: 'basic', skill: 's', type: 'math_truefalse', prompt: 'Đúng hay sai: 36 + 27 = 53?', statement: '', answer: 'false', explain: '' } as Exercise;
+  assert.equal(checkMath(inPrompt).ok, true);
+});

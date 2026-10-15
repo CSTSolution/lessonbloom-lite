@@ -2,7 +2,7 @@
 // the server recomputes it. Supports + - × ÷ ( ) and integers, which covers grades 1-5.
 import type { CheckResult, Exercise } from '../types.ts';
 
-const norm = (s: string) => String(s ?? '').replace(/×|x|\*/gi, '*').replace(/÷|:/g, '/').replace(/[−–—]/g, '-').replace(/\s+/g, '');
+const norm = (s: string) => String(s ?? '').replace(/×|\*|(?<=[\d\s)])x(?=[\s\d(])/gi, '*').replace(/÷|:/g, '/').replace(/[−–—]/g, '-').replace(/\s+/g, '');
 
 // Small recursive-descent evaluator, so no eval() on model output.
 export function evaluate(expr: string): number {
@@ -10,6 +10,13 @@ export function evaluate(expr: string): number {
   let i = 0;
   const peek = () => s[i];
   const num = (): number => {
+    const fn = /^(max|min)\(/i.exec(s.slice(i));
+    if (fn) {                                   // "max(29 + 39, 45 + 18)" for "which is largest?"
+      i += fn[0].length; const args = [sum()];
+      while (peek() === ',') { i++; args.push(sum()); }
+      if (s[i++] !== ')') throw new Error(`missing ) in ${expr}`);
+      return fn[1].toLowerCase() === 'max' ? Math.max(...args) : Math.min(...args);
+    }
     if (peek() === '(') { i++; const v = sum(); if (s[i++] !== ')') throw new Error(`missing ) in ${expr}`); return v; }
     if (peek() === '-') { i++; return -num(); }
     const m = /^\d+(\.\d+)?/.exec(s.slice(i));
@@ -66,7 +73,8 @@ export function checkMath(ex: Exercise): CheckResult {
       }
       case 'math_truefalse': {
         // "5 × 4 = 25", or a comparison "36 + 27 > 60"
-        const m = /^(.*?)(<=|>=|≤|≥|=|<|>)(.*)$/.exec(String(ex.statement ?? ''));
+        const claim = /[=<>≤≥]/.test(String(ex.statement ?? '')) ? String(ex.statement) : (/[(\d][\d\s+\-×x*:÷()]*(?:<=|>=|≤|≥|=|<|>)[\d\s+\-×x*:÷()]*[\d)]/.exec(ex.prompt || '')?.[0] ?? '');
+        const m = /^(.*?)(<=|>=|≤|≥|=|<|>)(.*)$/.exec(claim);
         if (!m) return { ok: false, issues: ['statement needs =, <, > or ≤ / ≥'] };
         const [l, r] = [evaluate(m[1]), evaluate(m[3])], op = m[2];
         const holds = op === '=' ? Math.abs(l - r) < 1e-9 : op === '<' ? l < r : op === '>' ? l > r : op === '<=' || op === '≤' ? l <= r : l >= r;

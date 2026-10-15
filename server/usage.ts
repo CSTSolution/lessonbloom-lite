@@ -7,8 +7,8 @@ import type { Store } from './store.ts';
 const env = (k: string, d: number) => Number(process.env[k] || d);
 export const PRICE = {
   // per 1M tokens
-  pro: { in: env('LB_PRICE_PRO_IN', 1.25), out: env('LB_PRICE_PRO_OUT', 10) },
-  fast: { in: env('LB_PRICE_FAST_IN', 0.3), out: env('LB_PRICE_FAST_OUT', 2.5) },
+  pro: { in: env('LB_PRICE_PRO_IN', 0.5), out: env('LB_PRICE_PRO_OUT', 3) },     // flash-class list prices (estimate)
+  fast: { in: env('LB_PRICE_FAST_IN', 0.5), out: env('LB_PRICE_FAST_OUT', 3) },
   image: env('LB_PRICE_IMAGE', 0.039),          // per generated image
   ttsPerM: env('LB_PRICE_TTS', 16),             // per 1M characters
 };

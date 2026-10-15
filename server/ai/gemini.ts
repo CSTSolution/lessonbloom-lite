@@ -30,7 +30,8 @@ export class GeminiProvider implements AI {
   name: string;
   onUsage?: (e: UsageEvent) => void;
   private ai: GoogleGenAI;
-  private imagenAi: GoogleGenAI;        // Imagen is served from regional endpoints only, not "global"
+  private imagenAi: GoogleGenAI;
+  private thinkingOk = true;        // Imagen is served from regional endpoints only, not "global"
 
   // thinking tokens are billed as output
   private report(r: Meta, e: Omit<UsageEvent, 'inTokens' | 'outTokens'>) {
@@ -49,12 +50,11 @@ export class GeminiProvider implements AI {
   private async generateJson<T>(req: TextRequest, parts: Part[]): Promise<T> {
     const model = req.tier === 'pro' ? config.models.pro : config.models.fast;
     return withRetry(`${req.task} (${model})`, async () => {
-      const r = await this.ai.models.generateContent({
-        model,
-        contents: [{ role: 'user', parts }],
-        config: { systemInstruction: req.system, responseMimeType: 'application/json', responseJsonSchema: req.schema, temperature: req.tier === 'pro' ? 0.7 : 0.2,
-          thinkingConfig: { thinkingBudget: req.tier === 'pro' ? 2048 : 512 } },
-      });
+      const base = { systemInstruction: req.system, responseMimeType: 'application/json', responseJsonSchema: req.schema, temperature: req.tier === 'pro' ? 0.7 : 0.2 };
+      const ask = (thinking: boolean) => this.ai.models.generateContent({ model, contents: [{ role: 'user', parts }],
+        config: thinking ? { ...base, thinkingConfig: { thinkingBudget: req.tier === 'pro' ? 2048 : 512 } } : base });
+      // a model that doesn't accept a thinking budget gets the call again without it
+      const r = await ask(this.thinkingOk).catch((e) => { if (this.thinkingOk && /thinking/i.test(String(e?.message))) { this.thinkingOk = false; return ask(false); } throw e; });
       this.report(r, { model, tier: req.tier, task: req.task });
       if (!r.text) throw new Error(`empty answer (finish: ${r.candidates?.[0]?.finishReason})`);
       return JSON.parse(r.text) as T;

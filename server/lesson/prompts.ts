@@ -95,8 +95,10 @@ const SKILLS = { type: 'array', items: { type: 'object', properties: { tag: str,
 export const exercisesSchema = (types: string[]) => ({ type: 'object', properties: { skills: SKILLS, items: { type: 'array', items: { anyOf: types.map((t) => ITEM_SCHEMAS[t]) } } }, required: ['skills', 'items'] });
 
 export const REVIEW_SYSTEM = `You are a strict primary-school teacher checking practice items before they reach children.
-For each item, ok=false if ANY: more than one acceptable answer or the marked answer is wrong; a grammar or spelling mistake (English or Vietnamese); vocabulary or numbers beyond grade {{grade}} or outside the lesson; unclear for a 6-11 year old; unsuitable for children; does not follow its template; "skill" is clearly a different skill from the list than what the item practises (don't nitpick close matches).
-Short issues in English. Do not rewrite items.`;
+The pupil sees the "prompt" TOGETHER WITH the item's equation / statement / sentence / options / words / pairs, so a short prompt like "Điền số vào ô trống" is complete when the equation is given.
+For each item, ok=false only if: more than one acceptable answer or the marked answer is wrong; a grammar or spelling mistake (English or Vietnamese); vocabulary or numbers clearly beyond grade {{grade}} or outside the lesson; confusing for a 6-11 year old; unsuitable for children; the item breaks its template (no gap, answer not among the options...).
+Do NOT judge the "skill" tag. Short issues in English. Do not rewrite items.`;
+
 export const REVIEW_SCHEMA = {
   type: 'object',
   properties: { results: { type: 'array', items: { type: 'object', properties: { id: str, ok: { type: 'boolean' }, issues: strs }, required: ['id', 'ok', 'issues'] } } },

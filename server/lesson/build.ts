@@ -29,7 +29,8 @@ export async function intake(ai: AI, source: string): Promise<Intake> {
   const r = await ai.json<Intake>({ task: 'intake', tier: 'fast', system: INTAKE_SYSTEM, prompt: `DOCUMENT:\n${source}`, schema: INTAKE_SCHEMA, input: { source } });
   const minutes = [15, 25, 35].reduce((b, m) => (Math.abs(m - (r.minutes || 25)) < Math.abs(b - (r.minutes || 25)) ? m : b), 25);
   return { ...r, grade: Math.min(5, Math.max(1, Math.round(r.grade))) as Intake['grade'], minutes, objectives: r.objectives.slice(0, 2),
-    outputs: r.outputs?.length ? r.outputs : ['slides', 'video', 'exercises', 'flashcards'] };
+    // everything ticked by default; the teacher unticks what they don't want (Gemini's guess here was unreliable)
+    outputs: ['slides', 'video', 'exercises', 'flashcards'] };
 }
 
 export const slideCount = (minutes: number) => (minutes <= 15 ? 8 : minutes <= 25 ? 10 : 12);
@@ -80,7 +81,7 @@ export function checkLocal(ex: Exercise): CheckResult {
 
 type RawItem = Record<string, any>;
 const toExercise = (r: RawItem, id: string, skills: Skill[]): Exercise =>
-  ({ ...r, id, level: r.level as Level, skill: skills.some((s) => s.tag === r.skill) ? r.skill : skills[0]?.tag || 'general',
+  ({ ...r, ...(r.type === 'math_truefalse' && !/[=<>≤≥]/.test(String(r.statement ?? '')) ? { statement: /[(\d][\d\s+\-×x*:÷()]*(?:<=|>=|≤|≥|=|<|>)[\d\s+\-×x*:÷()]*[\d)]/.exec(r.prompt || '')?.[0]?.trim() ?? r.statement } : {}), id, level: r.level as Level, skill: skills.some((s) => s.tag === r.skill) ? r.skill : skills[0]?.tag || 'general',
     options: r.options || [], words: r.words || [], pairs: r.pairs || [] } as unknown as Exercise);
 
 export interface ExerciseResult { skills: Skill[]; exercises: Exercise[]; checks: CheckLog[] }
