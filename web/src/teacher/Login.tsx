@@ -107,7 +107,7 @@ export function Login({ onReady }: { onReady: (t: Teacher) => void }) {
           <p className="auth-lead">{t.lead}</p>
           <div className="auth-tiles" aria-hidden="true">
             {t.tiles.map(([big, label], i) => (
-              <div key={label} className="auth-tile"><div className={`auth-tile-face ${['blue', 'amber', 'green'][i]}`}>{big}</div><span>{label}</span></div>
+              <div key={label} className="auth-tile"><div className={`auth-tile-face ${['blue', 'amber', 'green'][i]}`}>{/^\p{Extended_Pictographic}/u.test(big) ? <><span>{big.split(' ')[0]}</span><span>{big.split(' ').slice(1).join(' ')}</span></> : big}</div><span>{label}</span></div>
             ))}
           </div>
           <p className="muted small auth-privacy">{t.privacy}</p>
@@ -165,7 +165,7 @@ export function Login({ onReady }: { onReady: (t: Teacher) => void }) {
           )}
         </section>
       </main>
-      <footer className="auth-pupil"><span>🎒 {t.pupil}</span> <a href="/learn">{t.pupilGo}</a></footer>
+      <footer className="auth-pupil"><span aria-hidden="true">🎒</span><span>{t.pupil}</span><a href="/learn">{t.pupilGo}</a></footer>
     </div>
   );
 }
