@@ -9,7 +9,7 @@ import { sendCode } from './mail.ts';
 import { Otp, type Purpose } from './otp.ts';
 import { Hono, type Context } from 'hono';
 import type { AI } from './ai/provider.ts';
-import { nextSteps, summarise } from './insights.ts';
+import { nextSteps, readableAnswer, summarise } from './insights.ts';
 import { cleanCard, draftComments, editSlide, intake, tagError } from './lesson/build.ts';
 import { illustrate } from './lesson/illustrate.ts';
 import { runLesson } from './lesson/job.ts';
@@ -299,7 +299,7 @@ export function createApp(ai: AI, store: Store) {
         answered: mine.length, sessions: new Set(mine.map((t) => t.session)).size, lastAt: mine.map((t) => t.at).sort().pop() || null,
         mood: moods.filter((m) => m.assignmentId === a.id).sort((p, q) => q.at.localeCompare(p.at))[0]?.mood || null,
         skills: l.skills.map((s) => { const ps = summarise(s, [x.p], mine, tc.criteria).pupils[0]; return { skill: s.tag, name: s.name, label: ps.label, right: ps.right, total: ps.total, topError: ps.topError, enough: ps.enough }; }).filter((s) => s.total > 0),
-        mistakes: mine.filter((t) => !t.correct && t.errorType).slice(-5).reverse().map((t) => ({ errorType: t.errorType, exercise: l.exercises.find((e) => e.id === t.exerciseId)?.prompt || '', answer: t.answer, at: t.at })),
+        mistakes: mine.filter((t) => !t.correct && t.errorType).slice(-5).reverse().map((t) => ({ errorType: t.errorType, exercise: l.exercises.find((e) => e.id === t.exerciseId)?.prompt || '', answer: readableAnswer(t.answer), at: t.at })),
       };
     }));
     return c.json({ pupil: x.p, className: x.k.name, classId: x.k.id, lessons: lessons.filter(Boolean) });

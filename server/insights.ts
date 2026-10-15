@@ -30,6 +30,12 @@ export function pupilLabel(atts: Attempt[], c: Criteria): Omit<PupilSkill, 'pupi
   return { label, right, total, topError: top?.[0], enough };
 }
 
+// a pupil's answer as a person reads it: a word-picture match is stored as JSON
+export function readableAnswer(answer: string): string {
+  if (!answer.startsWith('{')) return answer;
+  try { return Object.entries(JSON.parse(answer) as Record<string, string>).map(([w, e]) => `${w} → ${e}`).join(', '); } catch { return answer; }
+}
+
 export function summarise(skill: Skill, pupils: Pupil[], attempts: Attempt[], c: Criteria): SkillSummary {
   const mine = attempts.filter((a) => a.skill === skill.tag);
   const ps: PupilSkill[] = pupils
@@ -44,7 +50,7 @@ export function summarise(skill: Skill, pupils: Pupil[], attempts: Attempt[], c:
   const errMap = new Map<string, { count: number; pupils: Set<string>; example?: string; exampleExercise?: string }>();
   for (const a of mine) if (!a.correct && a.errorType) {
     const e = errMap.get(a.errorType) || { count: 0, pupils: new Set<string>() };
-    e.count++; e.pupils.add(a.pupilId); if (!e.example) { e.example = a.answer; e.exampleExercise = a.exerciseId; } errMap.set(a.errorType, e);
+    e.count++; e.pupils.add(a.pupilId); if (!e.example) { e.example = readableAnswer(a.answer); e.exampleExercise = a.exerciseId; } errMap.set(a.errorType, e);
   }
   const nameOf = new Map(pupils.map((p) => [p.id, p.displayName]));
   const errors = [...errMap].map(([errorType, e]) => ({ errorType, count: e.count, pupils: [...e.pupils].map((id) => nameOf.get(id) || '?'), example: e.example, exampleExercise: e.exampleExercise }))

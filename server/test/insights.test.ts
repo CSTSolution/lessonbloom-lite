@@ -2,7 +2,7 @@
 // same error type >= 3 times across >= 2 sessions; class repeated if >= 30% of pupils are.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { nextSteps, pupilLabel, summarise } from '../insights.ts';
+import { nextSteps, pupilLabel, readableAnswer, summarise } from '../insights.ts';
 import { type Attempt, DEFAULT_CRITERIA as C } from '../types.ts';
 
 let n = 0;
@@ -48,4 +48,9 @@ test('next steps still suggest practice when every item was already answered', (
   const mine = ['e1', 'e2'].flatMap((id) => [att('p', false, 's1', 'carry', 'carry_1', id), att('p', true, 's1', undefined, 'carry_1', id)]);
   const s = nextSteps([{ tag: 'carry_1', name: 'Nhớ 1' }], mine, pool, C);
   assert.equal(s.length, 1); assert.equal(s[0].kind, 'same'); assert.ok(s[0].exerciseIds.length >= 1);
+});
+
+test('answers read as a person would: matches as word → picture', () => {
+  assert.equal(readableAnswer('{"red":"🔵","blue":"🟡"}'), 'red → 🔵, blue → 🟡');
+  assert.equal(readableAnswer('44'), '44');
 });
