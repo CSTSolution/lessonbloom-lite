@@ -138,13 +138,20 @@ export async function makeExercises(ai: AI, source: string, it: Intake, slides: 
   return { skills: skills.filter((s) => used.has(s.tag)), exercises: items, checks: [...history].map(([exercise, issues]) => ({ exercise, attempts: tries.get(exercise) || 1, issues })) };
 }
 
+// The card shows its emoji on its own, so drop any copy of it inside the word ("red 🔴").
+// Also applied when serving lessons saved before this fix.
+export function cleanCard<C extends { front: string; emoji?: string }>(c: C): C {
+  if (!c.emoji) return c;
+  const front = c.front.replace(/\p{Extended_Pictographic}\uFE0F?/gu, '').replace(/\s{2,}/g, ' ').trim();
+  return front && front !== c.front ? { ...c, front } : c;
+}
+
 export async function makeCards(ai: AI, source: string, it: Intake): Promise<{ flashcards: Flashcard[]; pairs: MemoryPair[] }> {
   const r = await ai.json<{ flashcards: Omit<Flashcard, 'id'>[]; pairs: Omit<MemoryPair, 'id'>[] }>({ task: 'cards', tier: 'fast',
     system: fill(CARDS_SYSTEM, { nCards: 8, grade: it.grade }), prompt: `SETUP:\n${JSON.stringify(it)}\n\nDOCUMENT:\n${source}`, schema: CARDS_SCHEMA, input: { intake: it } });
   const sides = new Set<string>();
   const pairs = (r.pairs || []).filter((p) => p.a && p.b && p.a !== p.b && !sides.has(p.a) && !sides.has(p.b) && !!sides.add(p.a) && !!sides.add(p.b)).slice(0, 4);
-  const noEmoji = (t: string) => t.replace(/\p{Extended_Pictographic}\uFE0F?/gu, '').replace(/\s{2,}/g, ' ').trim();
-  return { flashcards: (r.flashcards || []).slice(0, 12).map((c, i) => ({ ...c, front: c.emoji ? noEmoji(c.front) || c.front : c.front, id: `fc${pad(i + 1)}` })), pairs: pairs.map((p, i) => ({ ...p, id: `mp${i + 1}` })) };
+  return { flashcards: (r.flashcards || []).slice(0, 12).map((c, i) => cleanCard({ ...c, id: `fc${pad(i + 1)}` })), pairs: pairs.map((p, i) => ({ ...p, id: `mp${i + 1}` })) };
 }
 
 export async function tagError(ai: AI, ex: Exercise, given: string, grade: number, known: string[]): Promise<{ errorType: string; hint: string }> {

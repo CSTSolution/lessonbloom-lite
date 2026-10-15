@@ -8,7 +8,7 @@ import { isAdminEmail, verify, webConfig } from './auth.ts';
 import { Hono, type Context } from 'hono';
 import type { AI } from './ai/provider.ts';
 import { nextSteps, summarise } from './insights.ts';
-import { draftComments, editSlide, intake, tagError } from './lesson/build.ts';
+import { cleanCard, draftComments, editSlide, intake, tagError } from './lesson/build.ts';
 import { illustrate } from './lesson/illustrate.ts';
 import { runLesson } from './lesson/job.ts';
 import { makeVideo } from './lesson/video.ts';
@@ -214,7 +214,7 @@ export function createApp(ai: AI, store: Store) {
     void runLesson(ai, store, l);                // background; the page polls GET /lessons/:id
     return c.json({ id: l.id }, 202);
   });
-  t.get('/lessons/:id', async (c) => { const l = await myLesson(c); return l ? c.json(l) : bad(c, 'not found', 404); });
+  t.get('/lessons/:id', async (c) => { const l = await myLesson(c); return l ? c.json({ ...l, flashcards: l.flashcards.map(cleanCard) }) : bad(c, 'not found', 404); });
   t.put('/lessons/:id', async (c) => {
     const l = await myLesson(c);
     if (!l) return bad(c, 'not found', 404);
@@ -360,7 +360,7 @@ export function createApp(ai: AI, store: Store) {
       reminder: lastErr?.errorType || null,
       lesson: { title: l.intake.title, subject: l.intake.subject, grade: l.intake.grade, lang: l.intake.lang, skills: l.skills,
         slides: l.slides.map(({ notes: _n, source: _s, imagePrompt: _i, ...s }) => s), video: l.video?.status === 'ready' ? l.video.url : null, videoSeconds: l.video?.seconds,
-        exercises: l.exercises.map(forPupil), flashcards: l.flashcards, pairs: l.pairs },
+        exercises: l.exercises.map(forPupil), flashcards: l.flashcards.map(cleanCard), pairs: l.pairs },
       done: [...doneHere],
     });
   });

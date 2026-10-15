@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import { MockProvider } from '../ai/mock.ts';
-import { checkLocal, intake, makeCards, makeExercises, makeSlides } from '../lesson/build.ts';
+import { checkLocal, cleanCard, intake, makeCards, makeExercises, makeSlides } from '../lesson/build.ts';
 import { illustrate } from '../lesson/illustrate.ts';
 import { checkMath, evaluate, solveBlank } from '../lesson/mathcheck.ts';
 import type { Exercise } from '../types.ts';
@@ -110,4 +110,12 @@ test('real-run shapes: max() options and a true/false claim left in the prompt',
   assert.equal(checkMath(largest).ok, true);
   const inPrompt = { id: 't', level: 'basic', skill: 's', type: 'math_truefalse', prompt: 'Đúng hay sai: 36 + 27 = 53?', statement: '', answer: 'false', explain: '' } as Exercise;
   assert.equal(checkMath(inPrompt).ok, true);
+});
+
+test('flashcard words never repeat their emoji, before or after the word', () => {
+  assert.equal(cleanCard({ front: 'red 🔴', emoji: '🔴' }).front, 'red');
+  assert.equal(cleanCard({ front: '❤️ heart', emoji: '❤️' }).front, 'heart');
+  assert.equal(cleanCard({ front: 'blue', emoji: '🔵' }).front, 'blue');
+  assert.equal(cleanCard({ front: '🔴', emoji: '🔴' }).front, '🔴');
+  assert.equal(cleanCard({ front: 'red 🔴' }).front, 'red 🔴');
 });
