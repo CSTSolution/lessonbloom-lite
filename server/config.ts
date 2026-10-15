@@ -12,6 +12,9 @@ export const config = {
   voices: { vi: env('LB_VOICE_VI', 'Aoede'), en: env('LB_VOICE_EN', 'Aoede') },
   maxFixRounds: 2,            // self-check: regenerate failing items up to N times
   maxImageTries: 3,
+  monthUsd: Number(env('LB_MONTH_USD', '40')),     // in-app spending guard (Google budgets only alert)
+  dayUsd: Number(env('LB_DAY_USD', '8')),
+  lessonsPerWorkspaceDay: Number(env('LB_WORKSPACE_LESSONS_DAY', '5')),
   port: Number(env('PORT', '8080')),
   dataDir: env('LB_DATA_DIR', 'data'),
   chromium: env('CHROMIUM_PATH', `${process.env.HOME}/Library/Caches/ms-playwright/chromium-1148/chrome-mac/Chromium.app/Contents/MacOS/Chromium`),

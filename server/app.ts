@@ -12,6 +12,8 @@ import { illustrate } from './lesson/illustrate.ts';
 import { runLesson } from './lesson/job.ts';
 import { makeVideo } from './lesson/video.ts';
 import { id, seedTeacher } from './seed.ts';
+import { SpendGuard, type SpendKind } from './spend.ts';
+import { config } from './config.ts';
 import type { Store } from './store.ts';
 import type { Assignment, Attempt, ClassRoom, Criteria, Exercise, Intake, Lesson, Pupil, SelfCheck, Slide, Teacher } from './types.ts';
 
@@ -36,6 +38,9 @@ export function mark(e: Exercise, given: string): boolean {
 
 export function createApp(ai: AI, store: Store) {
   const app = new Hono();
+  const spend = new SpendGuard(store);
+  const LIMIT_MSG = { month: 'Bản demo đã dùng hết hạn mức AI của tháng này. / The demo has used this month\'s AI allowance.', day: 'Bản demo đã dùng hết hạn mức AI hôm nay, cô thử lại vào ngày mai nhé. / The demo has used today\'s AI allowance; please try again tomorrow.' };
+  const guard = async (c: Context, kind: SpendKind) => { const why = await spend.charge(kind); return why ? c.json({ error: LIMIT_MSG[why as 'month' | 'day'], limit: why }, 429) : null; };
   type Env = { Variables: { teacher: Teacher } };
   const t = new Hono<Env>();
 
@@ -55,6 +60,7 @@ export function createApp(ai: AI, store: Store) {
     await next();
   });
   t.get('/me', (c) => c.json(c.get('teacher')));
+  t.get('/spend', async (c) => c.json(await spend.status()));
   t.put('/me/criteria', async (c) => {
     const tc = c.get('teacher'), body = await c.req.json<Partial<Criteria>>();
     for (const [k, v] of Object.entries(body)) if (k in tc.criteria && Number.isFinite(v) && (v as number) >= 0 && (v as number) <= 100) (tc.criteria as unknown as Record<string, number>)[k] = Number(v);
@@ -125,11 +131,16 @@ export function createApp(ai: AI, store: Store) {
   t.post('/intake', async (c) => {
     const { source } = await c.req.json<{ source: string }>();
     if (!source?.trim() || source.trim().length < 30) return bad(c, 'Cô dán nội dung bài học (ít nhất vài câu) nhé.');
+    const stop = await guard(c, 'intake'); if (stop) return stop;
     return c.json(await intake(ai, source.slice(0, MAX_SOURCE)));
   });
   t.post('/lessons', async (c) => {
     const { source, intake: it } = await c.req.json<{ source: string; intake: Intake }>();
     if (!source?.trim() || !it?.subject) return bad(c, 'missing source or intake');
+    const today = new Date().toISOString().slice(0, 10);
+    const mineToday = (await store.find<Lesson>('lessons', 'teacherId', c.get('teacher').id)).filter((x) => x.createdAt.startsWith(today) && x.source !== 'Bài mẫu do đội LessonBloom tự viết.').length;
+    if (mineToday >= config.lessonsPerWorkspaceDay) return c.json({ error: `Mỗi ngày bản demo cho tạo ${config.lessonsPerWorkspaceDay} bài. / The demo allows ${config.lessonsPerWorkspaceDay} new lessons per day.` }, 429);
+    const stop = await guard(c, 'lesson'); if (stop) return stop;
     const l: Lesson = { id: id(), teacherId: c.get('teacher').id, createdAt: new Date().toISOString(), status: 'working', progress: [], source: source.slice(0, MAX_SOURCE),
       intake: { ...it, title: String(it.title).slice(0, 120) }, skills: [], slides: [], exercises: [], flashcards: [], pairs: [], checks: [] };
     await store.put('lessons', l);
@@ -150,6 +161,7 @@ export function createApp(ai: AI, store: Store) {
     const i = l ? l.slides.findIndex((s) => s.id === c.req.param('sid')) : -1;
     if (!l || i < 0) return bad(c, 'not found', 404);
     const { action } = await c.req.json<{ action: 'rewrite' | 'simpler' | 'image' }>();
+    const stop = await guard(c, action === 'image' ? 'slideImage' : 'slideEdit'); if (stop) return stop;
     let s: Slide = l.slides[i];
     if (action === 'image') {
       const pic = await illustrate(ai, { ...s, imagePrompt: `${s.imagePrompt} (a different composition)` });
@@ -164,6 +176,7 @@ export function createApp(ai: AI, store: Store) {
     if (!l || l.status !== 'ready') return bad(c, 'lesson not ready', 409);
     if (l.video?.status === 'working') return c.json(l.video, 202);
     const o = await c.req.json<{ speed?: number; subtitles?: boolean; voice?: string }>().catch(() => ({} as { speed?: number; subtitles?: boolean; voice?: string }));
+    const stop = await guard(c, 'video'); if (stop) return stop;
     l.video = { status: 'working', speed: o.speed ?? 0.9, subtitles: o.subtitles ?? true, voice: o.voice };
     await store.put('lessons', l);
     void (async () => {
@@ -225,6 +238,7 @@ export function createApp(ai: AI, store: Store) {
     if (!l || l.teacherId !== tc.id || !k) return bad(c, 'not found', 404);
     const pupils = await store.find<Pupil>('pupils', 'classId', k.id);
     const atts = (await store.find<Attempt>('attempts', 'lessonId', l.id)).filter((a) => a.classId === k.id);
+    const stop = await guard(c, 'comments'); if (stop) return stop;
     const rows = l.skills.flatMap((s) => summarise(s, pupils, atts, tc.criteria).pupils.filter((p) => p.label !== 'practising')
       .map((p) => ({ pupilId: p.pupilId, name: p.name, skill: s.name, label: p.label, error: p.topError })));
     return c.json(await draftComments(ai, l.intake.title, rows.slice(0, 30)));
@@ -291,7 +305,8 @@ export function createApp(ai: AI, store: Store) {
       let tag = await store.get<{ id: string; errorType: string; hint: string }>('cache', key);
       if (!tag) {
         const known = [...new Set((await store.find<Attempt>('attempts', 'lessonId', x.l.id)).map((a) => a.errorType).filter(Boolean) as string[])].slice(0, 12);
-        try { tag = { id: key, ...(await tagError(ai, e, answer, x.l.intake.grade, known)) }; await store.put('cache', tag); } catch { tag = { id: key, errorType: '', hint: '' }; }
+        const allowed = !(await spend.charge('errorTag'));
+        try { tag = allowed ? { id: key, ...(await tagError(ai, e, answer, x.l.intake.grade, known)) } : { id: key, errorType: '', hint: '' }; if (allowed) await store.put('cache', tag); } catch { tag = { id: key, errorType: '', hint: '' }; }
       }
       errorType = tag.errorType || undefined; hint = tag.hint || undefined;
     }
