@@ -5,7 +5,7 @@ import { config } from './config.ts';
 import type { Store } from './store.ts';
 
 export const COST_USD = {
-  lesson: 0.7,          // Gemini Pro slides + exercises (+ self-check redo), cards, ~10 images with critic
+  lesson: 0.35,         // measured 2026-10-15: $0.22-0.29 per lesson incl. 6 pictures + critic (kept on the high side)
   video: 0.06,          // Text-to-Speech for all slides
   slideImage: 0.06,     // one new illustration + critic
   slideEdit: 0.01,

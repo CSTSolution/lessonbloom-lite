@@ -16,7 +16,7 @@ export const config = {
   maxImageTries: Number(env('LB_IMAGE_TRIES', '2')),
   maxPictures: Number(env('LB_MAX_PICTURES', '6')),   // slides with an illustration (image quotas are tight)
   monthUsd: Number(env('LB_MONTH_USD', '40')),     // in-app spending guard (Google budgets only alert)
-  dayUsd: Number(env('LB_DAY_USD', '8')),
+  dayUsd: Number(env('LB_DAY_USD', '10')),
   creditsDemo: Number(env('LB_CREDITS_DEMO', '20')),    // per day; a new lesson costs 10
   creditsFree: Number(env('LB_CREDITS_FREE', '30')),
   demoPerIpDay: Number(env('LB_DEMO_PER_IP_DAY', '5')),  // new demo workspaces per IP per day

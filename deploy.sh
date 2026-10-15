@@ -49,6 +49,6 @@ echo "== Deploy (Cloud Build from source)"
 # --no-cpu-throttling: lessons are generated in the background after the request returns.
 gcloud run deploy "$SERVICE" --source . --region "$REGION" --service-account "$SA" --allow-unauthenticated \
   --cpu 2 --memory 2Gi --timeout 900 --concurrency 20 --min-instances 0 --max-instances 3 --no-cpu-throttling \
-  --set-secrets "LB_ADMIN_KEY=lb-admin-key:latest" --set-env-vars "^|^GOOGLE_GENAI_USE_VERTEXAI=true|GOOGLE_CLOUD_PROJECT=$PROJECT|GOOGLE_CLOUD_LOCATION=global|LB_BUCKET=$BUCKET|LB_MONTH_USD=${MONTH_USD:-40}|LB_DAY_USD=${DAY_USD:-8}|LB_MODEL_IMAGE=${IMAGE_MODEL:-gemini-3.1-flash-image}${FB_ENV}"
+  --set-secrets "LB_ADMIN_KEY=lb-admin-key:latest" --set-env-vars "^|^GOOGLE_GENAI_USE_VERTEXAI=true|GOOGLE_CLOUD_PROJECT=$PROJECT|GOOGLE_CLOUD_LOCATION=global|LB_BUCKET=$BUCKET|LB_MONTH_USD=${MONTH_USD:-40}|LB_DAY_USD=${DAY_USD:-10}|LB_MODEL_IMAGE=${IMAGE_MODEL:-gemini-3.1-flash-image}${FB_ENV}"
 
 gcloud run services describe "$SERVICE" --region "$REGION" --format 'value(status.url)'
