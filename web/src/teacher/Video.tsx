@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { go, teacherApi, type Lesson } from '../api.ts';
 import { useT } from '../i18n.ts';
 import { fmtTime, T } from './dict.ts';
+import { ErrorNote } from './ErrorNote.tsx';
 
 export function Video({ l, onChange, onStarted }: { l: Lesson; onChange: (l: Lesson) => void; onStarted: () => void }) {
   const t = useT(T);
@@ -31,7 +32,7 @@ export function Video({ l, onChange, onStarted }: { l: Lesson; onChange: (l: Les
             <p className="muted">{working ? `${t.vWorking} ⏳` : v?.status === 'error' ? `${t.failed}: ${v.error}` : t.vNone}</p>
           </div>
         )}
-        {err && <p className="error">{err}</p>}
+        <ErrorNote text={err} />
       </section>
       <aside className="stack">
         <div className="card stack">

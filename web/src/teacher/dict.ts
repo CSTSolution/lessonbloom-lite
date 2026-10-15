@@ -1,6 +1,6 @@
 // Teacher-side wording, VI from Chi's canvas (docs/design/canvas/*.dc.html), EN to match.
 export const T = {
-  vi: {
+  vi: { loading: 'Đang tải…',
     navLessons: 'Bài giảng', navClasses: 'Lớp học', navInsights: 'Tóm tắt học tập', navCriteria: 'Tiêu chí tóm tắt',
     hello: (n: string) => `Chào ${n.toLowerCase().startsWith('cô') ? n.replace(/^Cô/, 'cô') : n}!`, intro: 'Tải một tài liệu, LessonBloom soạn slide, video và bài tập trong vài phút.',
     newLesson: 'Tạo bài giảng mới', allClasses: 'Tất cả các lớp', cls: 'Lớp', sent: 'Đã giao', draft: 'Bản nháp', working: 'Đang soạn…', failed: 'Có lỗi',
@@ -50,7 +50,7 @@ export const T = {
     uQ: 'câu', uS: 'buổi', uP: '% số em', colRule: 'Quy tắc', colValue: 'Giá trị',
     crNote: 'Mức mặc định (80 / 50 / 3 lần / 30% / 70%) phù hợp với tiểu học. Tiêu chí lưu theo từng cô giáo, áp dụng cho tất cả các lớp cô dạy.',
   },
-  en: {
+  en: { loading: 'Loading…',
     navLessons: 'Lessons', navClasses: 'Classes', navInsights: 'Learning insights', navCriteria: 'Insight criteria',
     hello: (n: string) => `Hello, ${n.replace(/^Cô /, 'Ms. ')}!`, intro: 'Upload one document and LessonBloom prepares slides, a video and exercises in minutes.',
     newLesson: 'Create a new lesson', allClasses: 'All classes', cls: 'Class', sent: 'Assigned', draft: 'Draft', working: 'Preparing…', failed: 'Error',

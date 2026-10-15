@@ -3,7 +3,8 @@
 import type { Assignment, ClassRoom, Criteria, Exercise, Flashcard, Intake, Label, Lesson, Level, MemoryPair, Pupil, Skill, Slide, Teacher } from '../../server/types.ts';
 export type { Assignment, ClassRoom, Criteria, Exercise, Flashcard, Intake, Label, Lesson, Level, MemoryPair, Pupil, Skill, Slide, Teacher };
 
-import { currentUser, idToken } from './auth.ts';
+import { currentUser, displayName, idToken } from './auth.ts';
+import { getLang } from './i18n.ts';
 
 const KEY = 'lb-teacher';
 const getKey = () => { try { return localStorage.getItem(KEY) || ''; } catch { return ''; } };
@@ -14,12 +15,19 @@ async function call<T>(method: string, path: string, body?: unknown, teacher = f
   if (teacher) {
     // signed-in teachers send their Firebase ID token; otherwise the demo workspace key
     const tok = await idToken();
-    if (tok) { headers.authorization = `Bearer ${tok}`; const n = currentUser()?.displayName; if (n) headers['x-teacher-name'] = encodeURIComponent(n); }
+    if (tok) { headers.authorization = `Bearer ${tok}`; const n = displayName(); if (n) headers['x-teacher-name'] = encodeURIComponent(n); }
     else headers['x-teacher'] = getKey();
   }
-  const r = await fetch(path, { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined });
+  const en = getLang() === 'en';
+  let r: Response;
+  try { r = await fetch(path, { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined }); }
+  catch { throw Object.assign(new Error(en ? 'No connection. Please check the network and try again.' : 'Mất kết nối mạng. Cô kiểm tra mạng rồi thử lại nhé.'), { status: 0 }); }
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw Object.assign(new Error(j.error || `${r.status}`), { status: r.status });
+  if (!r.ok) {
+    // the server sends both languages: error (VI) and errorEn
+    const msg = (en ? j.errorEn || j.error : j.error) || (en ? `The server could not finish this (error ${r.status}). Please try again.` : `Máy chủ chưa làm xong việc này (lỗi ${r.status}). Cô thử lại nhé.`);
+    throw Object.assign(new Error(msg), { status: r.status, code: j.code as string | undefined, limit: j.limit as string | undefined });
+  }
   return j as T;
 }
 const tc = <T,>(method: string, path: string, body?: unknown) => call<T>(method, `/api/t${path}`, body, true);

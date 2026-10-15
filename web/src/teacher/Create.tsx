@@ -6,6 +6,7 @@ import { useT } from '../i18n.ts';
 import { T } from './dict.ts';
 import { Stepper } from './LessonFlow.tsx';
 import { Link } from './TeacherRoutes.tsx';
+import { ErrorNote } from './ErrorNote.tsx';
 
 const SAMPLES = {
   math: `Toán lớp 2 – Phép cộng có nhớ trong phạm vi 100
@@ -129,7 +130,7 @@ export function Create() {
             <div className="row"><button className="btn" onClick={() => setStep(1)}>{t.back}</button><div className="grow" /><button className="btn primary lg" disabled={busy} onClick={build}>{t.create}</button></div>
           </>
         )}
-        {err && <p className="error">{err}</p>}
+        <ErrorNote text={err} />
       </main>
     </>
   );

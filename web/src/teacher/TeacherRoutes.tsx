@@ -1,8 +1,8 @@
 // Teacher app: top bar + routes. The first visit creates this browser's demo workspace.
 import { useEffect, useState } from 'react';
 import { go, isDemo, leaveDemo, loadWorkspace, type Teacher } from '../api.ts';
-import { refreshUser, resendVerification, signOut, useAuth } from '../auth.ts';
-import { useT } from '../i18n.ts';
+import { authError, refreshUser, resendVerification, signOut, useAuth } from '../auth.ts';
+import { useLang, useT } from '../i18n.ts';
 import { LangToggle, Logo } from '../main.tsx';
 import { Classes } from './Classes.tsx';
 import { Create } from './Create.tsx';
@@ -21,8 +21,14 @@ export function Link({ to, children, className, ...rest }: { to: string; childre
 }
 
 const U = {
-  vi: { signOut: 'Đăng xuất', demo: 'Bản dùng thử', register: 'Đăng ký để lưu bài của cô', verify: 'Cô mở email để xác nhận địa chỉ nhé.', resend: 'Gửi lại email', done: 'Tôi đã xác nhận', sent: 'Đã gửi' },
-  en: { signOut: 'Sign out', demo: 'Demo', register: 'Register to keep your lessons', verify: 'Please confirm your email address from the email we sent.', resend: 'Resend email', done: 'I have confirmed', sent: 'Sent' },
+  vi: { signOut: 'Đăng xuất', demo: 'Bản dùng thử', register: 'Đăng ký để lưu bài của cô',
+    verify: (e: string) => `Cô mở email gửi tới ${e} và bấm đường link xác nhận (xem cả mục Spam) để dùng AI.`, resend: 'Gửi lại email', done: 'Tôi đã xác nhận', sent: 'Đã gửi lại',
+    notYet: 'Chưa thấy xác nhận. Cô bấm đường link trong email rồi bấm lại nút này nhé.', verified: 'Đã xác nhận email! Cô dùng AI được rồi.', checking: 'Đang kiểm tra…',
+    loadErr: 'Chưa tải được trang.', retry: 'Thử lại', loading: 'Đang tải…' },
+  en: { signOut: 'Sign out', demo: 'Demo', register: 'Register to keep your lessons',
+    verify: (e: string) => `Open the email we sent to ${e} and click the confirmation link (check Spam too) to use AI.`, resend: 'Resend email', done: 'I have confirmed', sent: 'Sent again',
+    notYet: 'Not confirmed yet. Click the link in the email, then press this button again.', verified: 'Email confirmed! You can use AI now.', checking: 'Checking…',
+    loadErr: 'The page could not load.', retry: 'Try again', loading: 'Loading…' },
 };
 
 export function TopBar({ teacher, path, onSignOut }: { teacher: Teacher; path: string; onSignOut: () => void }) {
@@ -53,15 +59,27 @@ function CreditPill({ path }: { path: string }) {
 }
 
 function VerifyBanner() {
-  const u = useT(U);
+  const u = useT(U), lang = useLang();
   const { user } = useAuth();
-  const [sent, setSent] = useState(false);
+  const [state, setState] = useState<'' | 'sent' | 'checking' | 'notYet' | 'verified'>('');
+  const [err, setErr] = useState<unknown>(null);
+  const check = async () => { setState('checking'); setErr(null); try { setState((await refreshUser()) ? 'verified' : 'notYet'); } catch (e) { setErr(e); setState(''); } };
+  // back from the confirmation link (?verified=1) while signed in: check straight away
+  useEffect(() => {
+    if (new URLSearchParams(location.search).has('verified')) { history.replaceState(null, '', location.pathname); if (user) check(); }
+  }, []);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (state === 'verified') { const id = setTimeout(() => setState(''), 6000); return () => clearTimeout(id); } }, [state]);
+  if (state === 'verified') return <div className="ok-note" role="status" style={{ borderRadius: 0, textAlign: 'center' }}>✓ {u.verified}</div>;
   if (!user || user.emailVerified) return null;
   return (
-    <div className="note row" style={{ borderRadius: 0, justifyContent: 'center' }}>
-      ✉️ {u.verify}
-      <button className="btn sm" disabled={sent} onClick={async () => { await resendVerification(); setSent(true); }}>{sent ? u.sent : u.resend}</button>
-      <button className="btn ghost sm" onClick={() => refreshUser()}>{u.done}</button>
+    <div className="note verify-banner" role="status">
+      <span>✉️ {u.verify(user.email || '')}</span>
+      <span className="row" style={{ gap: 8 }}>
+        <button className="btn sm" disabled={state === 'sent'} onClick={async () => { setErr(null); try { await resendVerification(); setState('sent'); } catch (e) { setErr(e); } }}>{state === 'sent' ? u.sent : u.resend}</button>
+        <button className="btn primary sm" disabled={state === 'checking'} onClick={check}>{state === 'checking' ? u.checking : u.done}</button>
+      </span>
+      {state === 'notYet' && <span className="small" style={{ color: 'var(--amber)', width: '100%' }}>{u.notYet}</span>}
+      {!!err && <span className="small error" style={{ width: '100%' }}>{authError(err, lang)}</span>}
     </div>
   );
 }
@@ -69,10 +87,16 @@ function VerifyBanner() {
 export function TeacherRoutes({ path }: { path: string }) {
   const { ready, user } = useAuth();
   const [teacher, setTeacher] = useState<Teacher | null | undefined>(undefined);
-  const [err, setErr] = useState('');
-  useEffect(() => { if (ready) loadWorkspace().then(setTeacher).catch((e) => setErr(String(e.message || e))); }, [ready, user?.uid]);
-  if (err) return <p className="page error">{err}</p>;
-  if (!ready || teacher === undefined) return <p className="page muted">…</p>;
+  const u = useT(U);
+  const [err, setErr] = useState(''), [tries, setTries] = useState(0);
+  useEffect(() => { if (ready) { setErr(''); loadWorkspace().then(setTeacher).catch((e) => setErr(String(e.message || e))); } }, [ready, user?.uid, tries]);
+  if (err) return (
+    <main className="page narrow"><div className="card stack" style={{ alignItems: 'flex-start' }}>
+      <h2>{u.loadErr}</h2><p className="error" style={{ margin: 0 }}>{err}</p>
+      <button className="btn primary" onClick={() => { setTeacher(undefined); setTries(tries + 1); }}>{u.retry}</button>
+    </div></main>
+  );
+  if (!ready || teacher === undefined) return <p className="page muted" role="status">{u.loading}</p>;
   if (!teacher) return <Login onReady={setTeacher} />;
   const out = async () => { if (user) await signOut(); else leaveDemo(); setTeacher(null); go('/'); };
   const m = /^\/lesson\/(\w+)(?:\/(\w+))?/.exec(path);

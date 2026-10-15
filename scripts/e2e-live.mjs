@@ -53,7 +53,7 @@ async function run(subject) {
   check(`${subject}: skills >= 2`, l.skills?.length >= 2, (l.skills || []).map((s) => s.name).join(', '));
   check(`${subject}: 3 levels`, ['basic', 'good', 'advanced'].every((lv) => l.exercises?.some((e) => e.level === lv)));
   check(`${subject}: flashcards + 4 pairs`, l.flashcards?.length >= 4 && l.pairs?.length === 4, `${l.flashcards?.length} cards`);
-  const dropped = (l.progress || []).find((m) => /bỏ \d+ câu/.test(m));
+  const dropped = (l.progress || []).map((m) => (typeof m === 'string' ? m : m.vi)).find((m) => /bỏ \d+ câu/i.test(m));
   if (dropped) console.log(`   note: ${dropped}`);
   for (const c of (l.checks || []).slice(0, 4)) console.log(`   self-check ${c.exercise} (try ${c.attempts}): ${String(c.issues[0]).slice(0, 110)}`);
 

@@ -9,20 +9,21 @@ import type { Lesson } from '../types.ts';
 import { makeCards, makeExercises, makeSlides } from './build.ts';
 import { illustrate } from './illustrate.ts';
 import { pool } from './pool.ts';
+import { MSG, type Msg } from '../messages.ts';
 
 export async function runLesson(ai: AI, store: Store, l: Lesson): Promise<Lesson> {
   const save = () => store.put('lessons', l);
-  const step = async (m: string) => { l.progress.push(m); await save(); };
+  const step = async (m: Msg) => { l.progress.push(m); await save(); };
   try {
-    await step('Đang đọc tài liệu và soạn slide…');
+    await step(MSG.pReading);
     l.slides = await makeSlides(ai, l.source, l.intake);
-    await step(`Đã có ${l.slides.length} slide. Đang soạn bài tập theo mẫu và tự kiểm tra đáp án…`);
+    await step(MSG.pSlides(l.slides.length));
     const ex = await makeExercises(ai, l.source, l.intake, l.slides, (m) => l.progress.push(m));
     Object.assign(l, { skills: ex.skills, exercises: ex.exercises, checks: ex.checks });
-    await step(`Đã có ${l.exercises.length} câu cho ${l.skills.length} dạng bài; máy đã tự sửa ${l.checks.length} câu. Đang làm thẻ nhớ…`);
+    await step(MSG.pExercises(l.exercises.length, l.skills.length, l.checks.length));
     if (l.intake.outputs.includes('flashcards')) Object.assign(l, await makeCards(ai, l.source, l.intake));
     l.status = 'ready'; l.picturesPending = true;
-    await step('Xong phần chữ! Cô xem lại slide và bài tập; hình minh họa đang được vẽ thêm.');
+    await step(MSG.pDone);
   } catch (e) {
     l.status = 'error'; l.error = (e as Error).message;
     await save();
@@ -41,7 +42,8 @@ export async function runLesson(ai: AI, store: Store, l: Lesson): Promise<Lesson
       const url = await store.putFile(l.id, `${s.id}.${pic.ext}`, pic.image, pic.ext === 'png' ? 'image/png' : 'image/jpeg');
       await patch((x) => { const t = x.slides.find((y) => y.id === s.id); if (t && !t.image) t.image = url; });
     } catch (e) {
-      await patch((x) => x.progress.push(`${s.id}: chưa vẽ được hình (${String((e as Error).message).slice(0, 80)}), cô có thể bấm "Đổi hình minh họa"`));
+      console.warn(`[picture] ${l.id}/${s.id}: ${String((e as Error).message).slice(0, 200)}`);
+      await patch((x) => x.progress.push(MSG.pNoPicture(x.slides.findIndex((y) => y.id === s.id) + 1)));
     }
   });
   await patch((x) => { x.picturesPending = false; });

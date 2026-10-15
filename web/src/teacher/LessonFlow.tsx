@@ -2,7 +2,7 @@
 // preparing your lesson" view while the agent works. The step bar stays on top of every screen.
 import { useEffect, useState } from 'react';
 import { teacherApi, type Lesson } from '../api.ts';
-import { useT } from '../i18n.ts';
+import { pick, useLang, useT } from '../i18n.ts';
 import { Assign } from './Assign.tsx';
 import { T } from './dict.ts';
 import { Exercises } from './Exercises.tsx';
@@ -29,7 +29,7 @@ export function Stepper({ current, lessonId }: { current: number; lessonId?: str
 }
 
 export function LessonFlow({ id, step }: { id: string; step: string }) {
-  const t = useT(T);
+  const t = useT(T), lang = useLang();
   const [l, setL] = useState<Lesson | null>(null);
   const [err, setErr] = useState('');
   useEffect(() => {
@@ -40,14 +40,18 @@ export function LessonFlow({ id, step }: { id: string; step: string }) {
         if (stop) return;
         setL(x);
         if (x.status === 'working' || x.video?.status === 'working' || x.picturesPending) timer = window.setTimeout(poll, x.picturesPending ? 4000 : 1500);
-      } catch (e) { setErr((e as Error).message); }
+      } catch (e) {
+        const st = (e as { status?: number }).status ?? 0;
+        if (!stop && (st === 0 || st >= 500)) timer = window.setTimeout(poll, 4000);   // network or server hiccup: keep trying
+        else setErr((e as Error).message);
+      }
     };
     poll();
     return () => { stop = true; clearTimeout(timer); };
   }, [id, step]);
 
   if (err) return <p className="page error">{err}</p>;
-  if (!l) return <p className="page muted">…</p>;
+  if (!l) return <p className="page muted" role="status">{t.loading}</p>;
   if (l.status !== 'ready') {
     return (
       <>
@@ -58,7 +62,7 @@ export function LessonFlow({ id, step }: { id: string; step: string }) {
             <h2>{l.status === 'error' ? t.failed : t.buildTitle}</h2>
             <p className="muted" style={{ margin: 0 }}>{t.buildSub}</p>
             <ol style={{ margin: 0, paddingLeft: 20, lineHeight: 1.8 }}>
-              {l.progress.map((m, i) => <li key={i} style={{ color: i === l.progress.length - 1 && l.status === 'working' ? 'var(--blue)' : undefined }}>{m}{i === l.progress.length - 1 && l.status === 'working' ? ' ⏳' : ''}</li>)}
+              {l.progress.map((m, i) => <li key={i} style={{ color: i === l.progress.length - 1 && l.status === 'working' ? 'var(--blue)' : undefined }}>{pick(m, lang)}{i === l.progress.length - 1 && l.status === 'working' ? ' ⏳' : ''}</li>)}
             </ol>
             {l.error && <p className="error">{l.error}</p>}
           </div>

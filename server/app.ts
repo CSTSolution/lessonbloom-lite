@@ -17,11 +17,14 @@ import { SpendGuard, type SpendKind } from './spend.ts';
 import { costOf, PRICE, UsageLog } from './usage.ts';
 import { CREDIT_COST, Credits, ctx, dailyLimit, planOf, type CreditKind } from './credits.ts';
 import { config } from './config.ts';
+import { errorBody, MSG, type Msg } from './messages.ts';
 import type { Store } from './store.ts';
 import type { Assignment, Attempt, ClassRoom, Criteria, Exercise, Intake, Lesson, Pupil, SelfCheck, Slide, Teacher } from './types.ts';
 
 const MAX_SOURCE = 20000;
-const bad = (c: Context, msg: string, code: 400 | 403 | 404 | 409 = 400) => c.json({ error: msg }, code);
+// API errors carry Vietnamese and English (messages.ts); the browser shows the chosen language
+const bad = (c: Context, key: keyof typeof MSG & string, status: 400 | 403 | 404 | 409 | 429 = 400, m: Msg = MSG[key] as Msg, extra: Record<string, unknown> = {}) =>
+  c.json(errorBody(m, key, extra), status);
 
 // What a pupil's browser gets for an exercise: enough to render, no answers or maths expressions.
 export function forPupil(e: Exercise) {
@@ -53,23 +56,23 @@ function coverOf(l: Lesson): string {
 
 export function createApp(ai: AI, store: Store) {
   const app = new Hono();
+  app.onError((e, c) => { console.error(`[error] ${c.req.method} ${c.req.path}: ${(e as Error).stack || e}`); return c.json(errorBody(MSG.server, 'server'), 500); });
   const spend = new SpendGuard(store);
   const usage = new UsageLog(store);
   const credits = new Credits(store);
   // every model call: app-wide usage log + the real cost on the teacher whose request made it
   ai.onUsage = (e) => { usage.record(e); const tid = ctx.getStore()?.teacherId; if (tid) credits.addCost(tid, costOf(e)); };
-  const LIMIT_MSG = { month: 'Bản demo đã dùng hết hạn mức AI của tháng này. / The demo has used this month\'s AI allowance.', day: 'Bản demo đã dùng hết hạn mức AI hôm nay, cô thử lại vào ngày mai nhé. / The demo has used today\'s AI allowance; please try again tomorrow.' };
   // an AI action: the teacher's daily credits first, then the app-wide spending guard
   const guard = async (c: Context, kind: SpendKind & CreditKind) => {
     const teacher = (c as Context<{ Variables: { teacher: Teacher; unverified?: boolean } }>).get('teacher');
     if (teacher && (c as Context<{ Variables: { unverified?: boolean } }>).get('unverified') && CREDIT_COST[kind] > 0)
-      return c.json({ error: 'Cô mở email và bấm đường link xác nhận trước khi dùng AI nhé. / Please confirm your email address (link in the email we sent) before using AI.', limit: 'verify' }, 403);
+      return bad(c, 'verify', 403, MSG.verify, { limit: 'verify' });
     if (teacher) {
       const r = await credits.charge(teacher, kind);
-      if (!r.ok) return c.json({ error: `Hôm nay cô đã dùng ${r.used}/${r.limit} lượt AI của gói ${planOf(teacher) === 'demo' ? 'dùng thử' : 'miễn phí'}. Nâng cấp Pro để tạo không giới hạn. / You have used ${r.used}/${r.limit} AI credits today. Upgrade to Pro for unlimited creation.`, limit: 'credits', used: r.used, max: r.limit }, 429);
+      if (!r.ok) return bad(c, 'credits', 429, MSG.credits(r.used, r.limit, planOf(teacher) === 'demo'), { limit: 'credits', used: r.used, max: r.limit });
     }
     const why = await spend.charge(kind);
-    return why ? c.json({ error: LIMIT_MSG[why as 'month' | 'day'], limit: why }, 429) : null;
+    return why ? bad(c, why as 'month' | 'day', 429, undefined, { limit: why }) : null;
   };
   type Env = { Variables: { teacher: Teacher; unverified?: boolean } };
   const t = new Hono<Env>();
@@ -80,7 +83,7 @@ export function createApp(ai: AI, store: Store) {
     const ip = (c.req.header('x-forwarded-for') || 'local').split(',')[0].trim();
     const ipKey = `demoip-${createHash('sha1').update(ip).digest('hex').slice(0, 16)}-${new Date().toISOString().slice(0, 10)}`;
     const seen = (await store.get<{ id: string; n: number }>('cache', ipKey)) || { id: ipKey, n: 0 };
-    if (seen.n >= config.demoPerIpDay && !(await adminOk(c))) return c.json({ error: 'Quá nhiều bản dùng thử từ mạng này hôm nay. / Too many demo workspaces from this network today.' }, 429);
+    if (seen.n >= config.demoPerIpDay && !(await adminOk(c))) return bad(c, 'demoPerIp', 429);
     await store.put('cache', { ...seen, n: seen.n + 1 });
     const { name } = await c.req.json<{ name?: string }>().catch(() => ({ name: undefined }));
     const tid = id(24);
@@ -94,7 +97,7 @@ export function createApp(ai: AI, store: Store) {
     if (bearer) {
       // signed-in teacher (Firebase): one workspace per account, created on first sign-in
       const tok = await verify(bearer);
-      if (!tok) return bad(c, 'sign-in expired', 403);
+      if (!tok) return bad(c, 'signInExpired', 403);
       c.set('unverified', tok.email_verified !== true);
       const tid = `u_${tok.uid}`;
       teacher = await store.get<Teacher>('teachers', tid);
@@ -109,7 +112,7 @@ export function createApp(ai: AI, store: Store) {
       const key = c.req.header('x-teacher') || '';
       teacher = /^[A-Za-z0-9]{16,40}$/.test(key) ? await store.get<Teacher>('teachers', key) : null;
     }
-    if (!teacher) return bad(c, 'no workspace', 403);
+    if (!teacher) return bad(c, 'noWorkspace', 403);
     c.set('teacher', teacher);
     await ctx.run({ teacherId: teacher.id }, next);     // background work started here keeps the teacher id
   });
@@ -123,7 +126,7 @@ export function createApp(ai: AI, store: Store) {
   });
   t.post('/pro-request', async (c) => {
     const tc = c.get('teacher');
-    if (!tc.account) return bad(c, 'Cô đăng ký tài khoản trước nhé. / Please register an account first.');
+    if (!tc.account) return bad(c, 'needAccount');
     tc.proRequestedAt ||= new Date().toISOString();
     await store.put('teachers', tc);
     return c.json({ proRequestedAt: tc.proRequestedAt });
@@ -156,7 +159,7 @@ export function createApp(ai: AI, store: Store) {
   });
   t.post('/classes', async (c) => {
     const { name, names } = await c.req.json<{ name: string; names?: string[] }>();
-    if (!name?.trim()) return bad(c, 'name');
+    if (!name?.trim()) return bad(c, 'className');
     const k: ClassRoom = { id: id(), teacherId: c.get('teacher').id, name: name.trim().slice(0, 12), joinCode: `${name.trim().slice(0, 4).replace(/\W/g, '').toUpperCase()}-${id(4).toUpperCase()}` };
     await store.put('classes', k);
     await store.putMany('pupils', (names || []).map((n) => n.trim()).filter(Boolean).slice(0, 60).map((n) => ({ id: id(), classId: k.id, displayName: n.slice(0, 30) })));
@@ -164,7 +167,7 @@ export function createApp(ai: AI, store: Store) {
   });
   t.get('/classes/:cid', async (c) => {
     const k = await myClass(c, c.req.param('cid'));
-    if (!k) return bad(c, 'not found', 404);
+    if (!k) return bad(c, 'notFound', 404);
     const pupils = await store.find<Pupil>('pupils', 'classId', k.id);
     const assigns = await store.find<Assignment>('assignments', 'classId', k.id);
     const rows = await Promise.all(assigns.map(async (a) => {
@@ -176,7 +179,7 @@ export function createApp(ai: AI, store: Store) {
   });
   t.post('/classes/:cid/pupils', async (c) => {
     const k = await myClass(c, c.req.param('cid'));
-    if (!k) return bad(c, 'not found', 404);
+    if (!k) return bad(c, 'notFound', 404);
     const { names } = await c.req.json<{ names: string[] }>();
     const ps = (names || []).map((n) => n.trim()).filter(Boolean).slice(0, 60).map((n) => ({ id: id(), classId: k.id, displayName: n.slice(0, 30) }));
     await store.putMany('pupils', ps);
@@ -197,16 +200,16 @@ export function createApp(ai: AI, store: Store) {
   });
   t.post('/intake', async (c) => {
     const { source } = await c.req.json<{ source: string }>();
-    if (!source?.trim() || source.trim().length < 30) return bad(c, 'Cô dán nội dung bài học (ít nhất vài câu) nhé.');
+    if (!source?.trim() || source.trim().length < 30) return bad(c, 'sourceShort');
     const stop = await guard(c, 'intake'); if (stop) return stop;
     return c.json(await intake(ai, source.slice(0, MAX_SOURCE)));
   });
   t.post('/lessons', async (c) => {
     const { source, intake: it } = await c.req.json<{ source: string; intake: Intake }>();
-    if (!source?.trim() || !it?.subject) return bad(c, 'missing source or intake');
+    if (!source?.trim() || !it?.subject) return bad(c, 'missingSource');
     const today = new Date().toISOString().slice(0, 10);
     const mineToday = (await store.find<Lesson>('lessons', 'teacherId', c.get('teacher').id)).filter((x) => x.createdAt.startsWith(today) && x.source !== 'Bài mẫu do đội LessonBloom tự viết.').length;
-    if (mineToday >= config.lessonsPerWorkspaceDay) return c.json({ error: `Mỗi ngày bản demo cho tạo ${config.lessonsPerWorkspaceDay} bài. / The demo allows ${config.lessonsPerWorkspaceDay} new lessons per day.` }, 429);
+    if (mineToday >= config.lessonsPerWorkspaceDay) return bad(c, 'demoLessons', 429, MSG.demoLessons(config.lessonsPerWorkspaceDay));
     const stop = await guard(c, 'lesson'); if (stop) return stop;
     const l: Lesson = { id: id(), teacherId: c.get('teacher').id, createdAt: new Date().toISOString(), status: 'working', progress: [], source: source.slice(0, MAX_SOURCE),
       intake: { ...it, title: String(it.title).slice(0, 120) }, skills: [], slides: [], exercises: [], flashcards: [], pairs: [], checks: [] };
@@ -214,10 +217,10 @@ export function createApp(ai: AI, store: Store) {
     void runLesson(ai, store, l);                // background; the page polls GET /lessons/:id
     return c.json({ id: l.id }, 202);
   });
-  t.get('/lessons/:id', async (c) => { const l = await myLesson(c); return l ? c.json({ ...l, flashcards: l.flashcards.map(cleanCard) }) : bad(c, 'not found', 404); });
+  t.get('/lessons/:id', async (c) => { const l = await myLesson(c); return l ? c.json({ ...l, flashcards: l.flashcards.map(cleanCard) }) : bad(c, 'notFound', 404); });
   t.put('/lessons/:id', async (c) => {
     const l = await myLesson(c);
-    if (!l) return bad(c, 'not found', 404);
+    if (!l) return bad(c, 'notFound', 404);
     const body = await c.req.json<Partial<Pick<Lesson, 'slides' | 'exercises' | 'flashcards' | 'pairs'>>>();
     for (const k of ['slides', 'exercises', 'flashcards', 'pairs'] as const) if (Array.isArray(body[k])) (l as unknown as Record<string, unknown>)[k] = body[k];
     await store.put('lessons', l);
@@ -226,7 +229,7 @@ export function createApp(ai: AI, store: Store) {
   t.post('/lessons/:id/slides/:sid', async (c) => {
     const l = await myLesson(c);
     const i = l ? l.slides.findIndex((s) => s.id === c.req.param('sid')) : -1;
-    if (!l || i < 0) return bad(c, 'not found', 404);
+    if (!l || i < 0) return bad(c, 'notFound', 404);
     const { action } = await c.req.json<{ action: 'rewrite' | 'simpler' | 'image' }>();
     const stop = await guard(c, action === 'image' ? 'slideImage' : 'slideEdit'); if (stop) return stop;
     let s: Slide = l.slides[i];
@@ -240,7 +243,7 @@ export function createApp(ai: AI, store: Store) {
   });
   t.post('/lessons/:id/video', async (c) => {
     const l = await myLesson(c);
-    if (!l || l.status !== 'ready') return bad(c, 'lesson not ready', 409);
+    if (!l || l.status !== 'ready') return bad(c, 'notReady', 409);
     if (l.video?.status === 'working') return c.json(l.video, 202);
     const o = await c.req.json<{ speed?: number; subtitles?: boolean; voice?: string }>().catch(() => ({} as { speed?: number; subtitles?: boolean; voice?: string }));
     const stop = await guard(c, 'video'); if (stop) return stop;
@@ -265,8 +268,8 @@ export function createApp(ai: AI, store: Store) {
   t.post('/assignments', async (c) => {
     const b = await c.req.json<{ lessonId: string; classId: string; dueAt?: string; allowRetry?: boolean; autoSuggest?: boolean }>();
     const l = await store.get<Lesson>('lessons', b.lessonId), k = await myClass(c, b.classId);
-    if (!l || l.teacherId !== c.get('teacher').id || !k) return bad(c, 'not found', 404);
-    if (l.status !== 'ready') return bad(c, 'lesson not ready', 409);
+    if (!l || l.teacherId !== c.get('teacher').id || !k) return bad(c, 'notFound', 404);
+    if (l.status !== 'ready') return bad(c, 'notReady', 409);
     const a: Assignment = { id: id(), teacherId: c.get('teacher').id, lessonId: l.id, classId: k.id, dueAt: b.dueAt, allowRetry: b.allowRetry !== false, autoSuggest: b.autoSuggest !== false, createdAt: new Date().toISOString() };
     await store.put('assignments', a);
     return c.json({ ...a, joinCode: k.joinCode });
@@ -306,7 +309,7 @@ export function createApp(ai: AI, store: Store) {
   t.post('/insights/comments', async (c) => {
     const { lessonId, classId } = await c.req.json<{ lessonId: string; classId: string }>();
     const tc = c.get('teacher'), l = await store.get<Lesson>('lessons', lessonId), k = await myClass(c, classId);
-    if (!l || l.teacherId !== tc.id || !k) return bad(c, 'not found', 404);
+    if (!l || l.teacherId !== tc.id || !k) return bad(c, 'notFound', 404);
     const pupils = await store.find<Pupil>('pupils', 'classId', k.id);
     const atts = (await store.find<Attempt>('attempts', 'lessonId', l.id)).filter((a) => a.classId === k.id);
     const stop = await guard(c, 'comments'); if (stop) return stop;
@@ -320,14 +323,14 @@ export function createApp(ai: AI, store: Store) {
   const findClass = async (code: string) => (await store.find<ClassRoom>('classes', 'joinCode', code.trim().toUpperCase()))[0] || null;
   app.get('/api/join/:code', async (c) => {
     const k = await findClass(c.req.param('code'));
-    if (!k) return bad(c, 'Không tìm thấy mã lớp. Con hỏi cô giáo nhé.', 404);
+    if (!k) return bad(c, 'codeNotFound', 404);
     const pupils = await store.find<Pupil>('pupils', 'classId', k.id);
     return c.json({ className: k.name, pupils: pupils.map((p) => ({ id: p.id, name: p.displayName })).sort((a, b) => a.name.localeCompare(b.name, 'vi')) });
   });
   app.post('/api/join', async (c) => {
     const { code, pupilId } = await c.req.json<{ code: string; pupilId: string }>();
     const k = await findClass(code || ''), p = await store.get<Pupil>('pupils', pupilId || '');
-    if (!k || !p || p.classId !== k.id) return bad(c, 'not found', 404);
+    if (!k || !p || p.classId !== k.id) return bad(c, 'notFound', 404);
     if (!p.joinedAt) { p.joinedAt = new Date().toISOString(); await store.put('pupils', p); }
     return c.json({ pupilId: p.id, name: p.displayName, className: k.name });
   });
@@ -344,7 +347,7 @@ export function createApp(ai: AI, store: Store) {
   };
   app.get('/api/learn/:pid', async (c) => {
     const x = await pupilCtx(c.req.param('pid'));
-    if (!x) return bad(c, 'not found', 404);
+    if (!x) return bad(c, 'notFound', 404);
     if (!x.a || !x.l) return c.json({ name: x.p.displayName, className: x.k.name, lesson: null });
     const mine = (await store.find<Attempt>('attempts', 'pupilId', x.p.id)).sort((a, b) => a.at.localeCompare(b.at));
     // remind the pupil of the slip they make most often lately (not just the latest one)
@@ -367,9 +370,9 @@ export function createApp(ai: AI, store: Store) {
   app.post('/api/learn/:pid/answer', async (c) => {
     const x = await pupilCtx(c.req.param('pid'));
     const b = await c.req.json<{ assignmentId: string; exerciseId: string; answer: string; session: string }>();
-    if (!x || !x.l || !x.a || b.assignmentId !== x.a.id) return bad(c, 'not found', 404);
+    if (!x || !x.l || !x.a || b.assignmentId !== x.a.id) return bad(c, 'notFound', 404);
     const e = x.l.exercises.find((q) => q.id === b.exerciseId);
-    if (!e) return bad(c, 'not found', 404);
+    if (!e) return bad(c, 'notFound', 404);
     const answer = String(b.answer ?? '').slice(0, 300), correct = mark(e, answer);
     let errorType: string | undefined, hint: string | undefined;
     if (!correct) {
@@ -398,7 +401,7 @@ export function createApp(ai: AI, store: Store) {
   app.post('/api/learn/:pid/selfcheck', async (c) => {
     const x = await pupilCtx(c.req.param('pid'));
     const { mood } = await c.req.json<{ mood: SelfCheck['mood'] }>();
-    if (!x || !x.a || !['easy', 'ok', 'hard'].includes(mood)) return bad(c, 'bad request');
+    if (!x || !x.a || !['easy', 'ok', 'hard'].includes(mood)) return bad(c, 'badRequest');
     await store.put('selfchecks', { id: id(12), assignmentId: x.a.id, pupilId: x.p.id, mood, at: new Date().toISOString() } satisfies SelfCheck);
     return c.json({ ok: true });
   });
@@ -411,7 +414,7 @@ export function createApp(ai: AI, store: Store) {
     return want.length >= 24 && got.length === want.length && timingSafeEqual(Buffer.from(got), Buffer.from(want));
   }
   app.get('/api/admin/users', async (c) => {
-    if (!(await adminOk(c))) return c.json({ error: 'forbidden' }, 403);
+    if (!(await adminOk(c))) return bad(c, 'forbidden', 403);
     const month = new Date().toISOString().slice(0, 7), today = new Date().toISOString().slice(0, 10);
     const teachers = await store.list<Teacher>('teachers', 2000);
     const rows = await Promise.all(teachers.map(async (t) => {
@@ -424,16 +427,16 @@ export function createApp(ai: AI, store: Store) {
     return c.json(rows.sort((a, b) => (b.proRequestedAt ? 1 : 0) - (a.proRequestedAt ? 1 : 0) || b.usdMonth - a.usdMonth || b.createdAt.localeCompare(a.createdAt)));
   });
   app.post('/api/admin/users/:id/plan', async (c) => {
-    if (!(await adminOk(c))) return c.json({ error: 'forbidden' }, 403);
+    if (!(await adminOk(c))) return bad(c, 'forbidden', 403);
     const { plan } = await c.req.json<{ plan: 'free' | 'pro' | 'demo' }>();
     const t = await store.get<Teacher>('teachers', c.req.param('id'));
-    if (!t || !['free', 'pro', 'demo'].includes(plan)) return bad(c, 'not found', 404);
+    if (!t || !['free', 'pro', 'demo'].includes(plan)) return bad(c, 'notFound', 404);
     t.plan = plan; if (plan === 'pro') delete t.proRequestedAt;
     await store.put('teachers', t);
     return c.json({ id: t.id, plan });
   });
   app.get('/api/admin/overview', async (c) => {
-    if (!(await adminOk(c))) return c.json({ error: 'forbidden' }, 403);
+    if (!(await adminOk(c))) return bad(c, 'forbidden', 403);
     const days = await usage.days(Math.min(90, Number(c.req.query('days') || 31)));
     const project = process.env.GOOGLE_CLOUD_PROJECT || '';
     return c.json({ provider: ai.name, project, prices: PRICE, guard: await spend.status(), days,
@@ -441,7 +444,8 @@ export function createApp(ai: AI, store: Store) {
         run: `https://console.cloud.google.com/run?project=${project}`, vertex: `https://console.cloud.google.com/vertex-ai?project=${project}` } : {} });
   });
 
-  app.get('/api/config', (c) => c.json({ firebase: webConfig() }));
+  // local testing only: FIREBASE_AUTH_EMULATOR_HOST points the browser (and firebase-admin) at the Auth emulator
+  app.get('/api/config', (c) => c.json({ firebase: webConfig(), authEmulator: process.env.FIREBASE_AUTH_EMULATOR_HOST ? `http://${process.env.FIREBASE_AUTH_EMULATOR_HOST}` : undefined }));
   app.get('/api/health', (c) => c.json({ ok: true, provider: ai.name }));
   app.get('/media/:folder/:name', async (c) => {
     const f = await store.getFile(c.req.param('folder'), c.req.param('name')).catch(() => null);

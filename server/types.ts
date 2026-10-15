@@ -60,7 +60,7 @@ export interface Lesson {
   createdAt: string;
   status: 'draft' | 'working' | 'ready' | 'error';
   picturesPending?: boolean;       // ready to review; illustrations still arriving
-  progress: string[];
+  progress: (string | { vi: string; en: string })[];   // plain strings in lessons made before VI/EN progress
   error?: string;
   source: string;
   intake: Intake;

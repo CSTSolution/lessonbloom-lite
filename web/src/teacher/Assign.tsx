@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { teacherApi, type ClassCard, type ClassDetail, type Lesson } from '../api.ts';
 import { useT } from '../i18n.ts';
 import { T } from './dict.ts';
+import { ErrorNote } from './ErrorNote.tsx';
 
 export function Assign({ l, presetClass }: { l: Lesson; presetClass?: string }) {
   const t = useT(T);
@@ -53,7 +54,7 @@ export function Assign({ l, presetClass }: { l: Lesson; presetClass?: string }) 
             </div>
             {done ? <div className="ok-note">✓ {t.assigned} {t.cls} {detail.name} · {t.joinCode}: <strong>{detail.joinCode}</strong></div>
               : <button className="btn primary lg" onClick={assign}>{already ? `${t.assign} ✓` : t.assign}</button>}
-            {err && <p className="error">{err}</p>}
+            <ErrorNote text={err} />
           </section>
           <section className="card stack">
             <h3>{t.pupilsH(detail.name)}</h3>

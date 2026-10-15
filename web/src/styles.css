@@ -50,15 +50,18 @@ h1 { font-size: 28px; line-height: 1.25; } h2 { font-size: 20px; } h3 { font-siz
 .note { background: var(--blue-soft); color: var(--ink-2); border-radius: 12px; padding: 12px 16px; font-size: 14px; }
 .ok-note { background: var(--green-soft); color: var(--green-ink); border-radius: 12px; padding: 10px 14px; font-size: 14px; }
 .error { color: var(--red); }
+.error-note { margin: 0; padding: 12px 14px; border-radius: 12px; background: var(--red-soft); color: var(--red); font-size: 14px; line-height: 1.45; }
 .pills { display: flex; gap: 8px; flex-wrap: wrap; }
 .pill { padding: 9px 18px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); cursor: pointer; font-weight: 500; }
 .pill.on { background: var(--blue); border-color: var(--blue); color: #fff; }
 
 /* forms */
 label.field { display: flex; flex-direction: column; gap: 6px; font-weight: 600; font-size: 14px; }
-input[type=text], input[type=number], input[type=date], input:not([type]), select, textarea {
+input[type=text], input[type=number], input[type=date], input[type=email], input[type=password], input:not([type]), select, textarea {
   width: 100%; border: 1px solid var(--line-2); border-radius: 10px; padding: 10px 12px; background: #fff; font-weight: 400; }
-input:focus, select:focus, textarea:focus { outline: 2px solid var(--blue-soft); border-color: var(--blue); }
+input:focus, select:focus, textarea:focus { outline: 3px solid var(--blue-soft); border-color: var(--blue); }
+input::placeholder, textarea::placeholder { color: #8A94A6; }
+:focus-visible { outline: 3px solid rgba(29, 95, 168, .35); outline-offset: 2px; }
 .radio-pills { display: flex; gap: 8px; flex-wrap: wrap; }
 .radio-pills label { display: flex; align-items: center; gap: 8px; padding: 8px 14px; border: 1px solid var(--line-2); border-radius: 999px; font-weight: 500; cursor: pointer; }
 .radio-pills label.on { border-color: var(--blue); background: var(--blue-soft); color: var(--blue); }
@@ -85,6 +88,8 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--blue-soft);
 .stepper .done .n { background: var(--green); color: #fff; } .stepper .cur { background: var(--blue-soft); color: var(--blue); font-weight: 600; } .stepper .cur .n { background: var(--blue); color: #fff; }
 
 /* tables */
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.table-scroll table.t { min-width: 640px; }
 table.t { width: 100%; border-collapse: collapse; font-size: 14px; }
 table.t th { text-align: left; font-weight: 600; color: var(--muted); padding: 10px 12px; background: var(--bg); }
 table.t td { padding: 10px 12px; border-top: 1px solid var(--line); }

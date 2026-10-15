@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { go, teacherApi, type Lesson, type Slide } from '../api.ts';
 import { useT } from '../i18n.ts';
 import { T } from './dict.ts';
+import { ErrorNote } from './ErrorNote.tsx';
 
 export function SlideView({ s, n, total, pending }: { s: Pick<Slide, 'kind' | 'heading' | 'bullets' | 'example' | 'image'>; n?: number; total?: number; pending?: boolean }) {
   return (
@@ -55,7 +56,7 @@ export function Slides({ l, onChange }: { l: Lesson; onChange: (l: Lesson) => vo
           <div className="grow" />
           <button className="btn sm" onClick={() => print()}>{t.pdf}</button>
         </div>
-        {err && <p className="error">{err}</p>}
+        <ErrorNote text={err} />
         {edit && (
           <div className="card stack">
             <input value={edit.heading} onChange={(e) => setEdit({ ...edit, heading: e.target.value })} />

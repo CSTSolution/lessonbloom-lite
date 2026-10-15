@@ -12,6 +12,11 @@ export function setLang(l: UiLang) {
   document.documentElement.lang = l;
   subs.forEach((f) => f());
 }
+export const getLang = () => lang;
+// server text that comes in both languages (API errors, lesson progress); old data is a plain string
+export type Bi = string | { vi: string; en: string };
+export const pick = (m: Bi, l: UiLang = lang) => (typeof m === 'string' ? m : m[l] || m.vi);
+
 export function useLang(): UiLang {
   return useSyncExternalStore((f) => { subs.add(f); return () => subs.delete(f); }, () => lang);
 }

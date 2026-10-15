@@ -22,7 +22,7 @@ export function Insights() {
   const [comments, setComments] = useState<{ pupilId: string; text: string }[] | null>(null);
   const [drafting, setDrafting] = useState(false), [copied, setCopied] = useState('');
   useEffect(() => { teacherApi.insights(lessonId, classId).then((x) => { setD(x); setComments(null); }); }, [lessonId, classId]);
-  if (!d) return <p className="page muted">…</p>;
+  if (!d) return <p className="page muted" role="status">{t.loading}</p>;
   if (!d.lessons.length) return <main className="page"><h1>{t.inTitle}</h1><p className="muted">{t.noData}</p></main>;
   const cname = d.classes.find((k) => k.id === d.classId)?.name || '';
   const repeated = (d.detail || []).filter((s) => s.classLabel === 'repeated' || s.errors.length);

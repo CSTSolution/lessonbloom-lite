@@ -22,7 +22,7 @@ const it = await intake(ai, source);
 log(`intake: ${it.subject}, grade ${it.grade}, "${it.title}", ${it.minutes} min, ${it.lang}`);
 const slides = await makeSlides(ai, source, it);
 log(`slides: ${slides.length}`);
-const ex = await makeExercises(ai, source, it, slides, log);
+const ex = await makeExercises(ai, source, it, slides, (m) => log(m.en));
 log(`exercises: ${ex.exercises.length} kept, ${ex.checks.length} caught by the self-check`);
 for (const c of ex.checks) log(`  ${c.exercise} (try ${c.attempts}): ${c.issues.join('; ')}`);
 

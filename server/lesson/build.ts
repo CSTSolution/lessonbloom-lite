@@ -11,6 +11,7 @@ import type { AI } from '../ai/provider.ts';
 import { config } from '../config.ts';
 import type { CheckLog, CheckResult, Exercise, Flashcard, Intake, Level, MemoryPair, Skill, Slide } from '../types.ts';
 import { checkMath } from './mathcheck.ts';
+import { MSG, type Msg } from '../messages.ts';
 import {
   CARDS_SCHEMA, CARDS_SYSTEM, COMMENT_SCHEMA, COMMENT_SYSTEM, ENG_TYPES, ERROR_SCHEMA, ERROR_SYSTEM, exercisesSchema, EXERCISES_SYSTEM, fill,
   INTAKE_SCHEMA, INTAKE_SYSTEM, LESSON_SCHEMA, LESSON_SYSTEM, MATH_TYPES, REVIEW_SCHEMA, REVIEW_SYSTEM, SLIDE_EDIT_SYSTEM, SLIDE_SCHEMA,
@@ -86,7 +87,7 @@ const toExercise = (r: RawItem, id: string, skills: Skill[]): Exercise =>
 
 export interface ExerciseResult { skills: Skill[]; exercises: Exercise[]; checks: CheckLog[] }
 
-export async function makeExercises(ai: AI, source: string, it: Intake, slides: Slide[], log: (m: string) => void = () => {}, perLevel = 4): Promise<ExerciseResult> {
+export async function makeExercises(ai: AI, source: string, it: Intake, slides: Slide[], log: (m: Msg) => void = () => {}, perLevel = 4): Promise<ExerciseResult> {
   const types = it.subject === 'math' ? MATH_TYPES : ENG_TYPES;
   const system = fill(EXERCISES_SYSTEM, { templates: types.map((t) => `- ${TEMPLATE_HELP[t]}`).join('\n'), perLevel, grade: it.grade, langName: LANG_NAME[it.lang], note: noteLine(it) });
   const lesson = `SETUP:\n${JSON.stringify(it)}\n\nLESSON SLIDES:\n${JSON.stringify(slides.map(({ heading, bullets, example }) => ({ heading, bullets, example })))}\n\nDOCUMENT:\n${source}`;
@@ -121,9 +122,9 @@ export async function makeExercises(ai: AI, source: string, it: Intake, slides: 
     }
     for (const [id, iss] of failing) history.set(id, [...(history.get(id) || []), ...iss]);
     if (!failing.size) break;
-    if (round >= config.maxFixRounds) { log(`bỏ ${failing.size} câu vẫn chưa đạt sau ${round} lượt sửa`); items = items.filter((e) => !failing.has(e.id)); break; }
+    if (round >= config.maxFixRounds) { log(MSG.pDropped(failing.size, round)); items = items.filter((e) => !failing.has(e.id)); break; }
     // 3. regenerate only the failing items, telling the model what was wrong
-    log(`tự kiểm tra lượt ${round + 1}: viết lại ${failing.size} câu`);
+    log(MSG.pRewrite(round + 1, failing.size));
     const bad = items.filter((e) => failing.has(e.id));
     const redo = await gen(`${lesson}\n\nREWRITE these ${bad.length} items, same template and level, fixing the issues (you may switch "skill" to a better-matching tag from SKILLS: ${skills.map((k) => k.tag).join(', ')}). Return the same skills and exactly ${bad.length} items in the same order.\n${JSON.stringify(bad.map((e) => ({ item: e, issues: failing.get(e.id) })))}`,
       { redo: bad, issues: Object.fromEntries(failing) });

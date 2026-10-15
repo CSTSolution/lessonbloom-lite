@@ -7,6 +7,7 @@ import { useT } from '../i18n.ts';
 
 const D = {
   vi: {
+    loading: 'Đang tải…',
     title: 'Lượt dùng AI', sub: 'Mỗi việc AI làm cho cô dùng một số lượt. Lượt được làm mới mỗi ngày.',
     plan: 'Gói của cô', plans: { demo: 'Dùng thử', free: 'Miễn phí', pro: 'Pro' }, today: 'Hôm nay', of: 'trên', unlimited: 'Không giới hạn',
     costs: 'Mỗi việc dùng bao nhiêu lượt', kinds: { lesson: 'Tạo bài giảng mới (slide, bài tập, thẻ nhớ, hình)', video: 'Tạo video có giọng đọc', slideImage: 'Đổi hình minh họa', slideEdit: 'Viết lại / đơn giản hơn một slide', comments: 'Soạn gợi ý lời nhận xét', intake: 'AI đọc tài liệu' } as Record<string, string>,
@@ -16,6 +17,7 @@ const D = {
     proNote: 'Bản dự thi: Pro được mở miễn phí theo yêu cầu, chưa thu phí.',
   },
   en: {
+    loading: 'Loading…',
     title: 'AI usage', sub: 'Each AI task uses some credits. Credits refresh every day.',
     plan: 'Your plan', plans: { demo: 'Demo', free: 'Free', pro: 'Pro' }, today: 'Today', of: 'of', unlimited: 'Unlimited',
     costs: 'Credits per task', kinds: { lesson: 'New lesson (slides, exercises, flashcards, pictures)', video: 'Narrated video', slideImage: 'New illustration', slideEdit: 'Rewrite / simplify a slide', comments: 'Draft comments', intake: 'AI reads the document' } as Record<string, string>,
@@ -32,7 +34,7 @@ export function Usage() {
   const load = () => teacherApi.usage().then(setU).catch((e) => setErr(e.message));
   useEffect(() => { load(); }, []);
   if (err) return <p className="page error">{err}</p>;
-  if (!u) return <p className="page muted">…</p>;
+  if (!u) return <p className="page muted" role="status">{t.loading}</p>;
   const pct = u.limit ? Math.min(100, (100 * u.usedToday) / u.limit) : 0;
   return (
     <main className="page" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 340px)', gap: 24, alignItems: 'start' }}>
