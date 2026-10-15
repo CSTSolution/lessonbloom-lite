@@ -1,6 +1,6 @@
 // Screens 05-06 · steps 1-2: upload or paste the document, then check the questions Gemini
 // pre-filled (goal, length, class level, outputs, an optional note), then build.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { go, teacherApi, type Intake } from '../api.ts';
 import { useT } from '../i18n.ts';
 import { T } from './dict.ts';
@@ -52,8 +52,11 @@ async function readFileText(f: File): Promise<string> {
 export function Create() {
   const t = useT(T);
   const [step, setStep] = useState<1 | 2>(1);
-  const [subject, setSubject] = useState<'math' | 'english'>('math');
-  const [source, setSource] = useState('');
+  // the draft (subject + text) survives a reload in this tab, e.g. the automatic one after a new version
+  const draft = (() => { try { return JSON.parse(sessionStorage.getItem('lb-draft') || '{}') as { subject?: 'math' | 'english'; source?: string }; } catch { return {}; } })();
+  const [subject, setSubject] = useState<'math' | 'english'>(draft.subject || 'math');
+  const [source, setSource] = useState(draft.source || '');
+  useEffect(() => { try { sessionStorage.setItem('lb-draft', JSON.stringify({ subject, source })); } catch { /* private mode */ } }, [subject, source]);
   const [it, setIt] = useState<Intake | null>(null);
   const [busy, setBusy] = useState(false), [err, setErr] = useState(''), [over, setOver] = useState(false);
   const words = source.trim() ? source.trim().split(/\s+/).length : 0;
@@ -66,7 +69,7 @@ export function Create() {
   const build = async () => {
     if (!it) return;
     setBusy(true); setErr('');
-    try { const { id } = await teacherApi.create(source, it); go(`/lesson/${id}/build`); } catch (e) { setErr((e as Error).message); setBusy(false); }
+    try { const { id } = await teacherApi.create(source, it); try { sessionStorage.removeItem('lb-draft'); } catch { /* ok */ } go(`/lesson/${id}/build`); } catch (e) { setErr((e as Error).message); setBusy(false); }
   };
   const set = <K extends keyof Intake>(k: K, v: Intake[K]) => setIt((p) => (p ? { ...p, [k]: v } : p));
 

@@ -16,6 +16,7 @@ export interface Store {
   list<T>(coll: Coll, limit?: number): Promise<T[]>;
   putFile(folder: string, name: string, data: Buffer, type: string): Promise<string>;   // returns a /media URL
   getFile(folder: string, name: string): Promise<Buffer | null>;
+  hasFile(folder: string, name: string): Promise<boolean>;
 }
 
 const safe = (s: string) => { if (!/^[\w.-]{1,120}$/.test(s)) throw new Error(`bad name: ${s}`); return s; };
@@ -61,4 +62,5 @@ export class LocalStore implements Store {
     const f = join(this.root, 'media', safe(folder), safe(name));
     return existsSync(f) ? readFile(f) : null;
   }
+  async hasFile(folder: string, name: string) { return existsSync(join(this.root, 'media', safe(folder), safe(name))); }
 }

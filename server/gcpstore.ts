@@ -38,6 +38,7 @@ export class GcpStore implements Store {
     await this.bucket.file(`${folder}/${name}`).save(data, { contentType: type, resumable: false });
     return `/media/${folder}/${name}`;
   }
+  async hasFile(folder: string, name: string) { return (await this.bucket.file(`${folder}/${name}`).exists())[0]; }
   async getFile(folder: string, name: string) {
     const f = this.bucket.file(`${folder}/${name}`);
     const [exists] = await f.exists();

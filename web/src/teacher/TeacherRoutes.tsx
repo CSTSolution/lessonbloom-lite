@@ -25,12 +25,12 @@ const U = {
     verify: (e: string) => `Xác nhận email ${e} để dùng AI.`, send: 'Gửi mã xác nhận', sentTo: (e: string) => `Đã gửi mã 6 số tới ${e} (xem cả mục Spam).`,
     codePh: 'Mã 6 số', confirm: 'Xác nhận', resend: 'Gửi lại mã', resendIn: (s: number) => `Gửi lại sau ${s} giây`, codeShort: 'Cô nhập đủ 6 số nhé.',
     verified: 'Đã xác nhận email! Cô dùng AI được rồi.', busy: 'Đang gửi…', checking: 'Đang xác nhận…',
-    loadErr: 'Chưa tải được trang.', retry: 'Thử lại', loading: 'Đang tải…' },
+    updated: 'LessonBloom vừa có phiên bản mới nên trang đã tải lại. Nội dung cô đã dán vẫn còn; nếu cô đang chọn file, hãy chọn lại nhé.', loadErr: 'Chưa tải được trang.', retry: 'Thử lại', loading: 'Đang tải…' },
   en: { signOut: 'Sign out', demo: 'Demo', register: 'Register to keep your lessons',
     verify: (e: string) => `Confirm ${e} to use AI.`, send: 'Send verification code', sentTo: (e: string) => `A 6-digit code was sent to ${e} (check Spam too).`,
     codePh: '6-digit code', confirm: 'Confirm', resend: 'Send a new code', resendIn: (s: number) => `New code in ${s} s`, codeShort: 'Please enter all 6 digits.',
     verified: 'Email confirmed! You can use AI now.', busy: 'Sending…', checking: 'Checking…',
-    loadErr: 'The page could not load.', retry: 'Try again', loading: 'Loading…' },
+    updated: 'LessonBloom has just been updated, so the page reloaded. Text you pasted is still there; if you were picking a file, please pick it again.', loadErr: 'The page could not load.', retry: 'Try again', loading: 'Loading…' },
 };
 
 export function TopBar({ teacher, path, onSignOut }: { teacher: Teacher; path: string; onSignOut: () => void }) {
@@ -98,6 +98,14 @@ function VerifyBanner() {
   );
 }
 
+// after the automatic reload for a new version (main.tsx)
+function UpdatedNote() {
+  const u = useT(U);
+  const [on, setOn] = useState(() => { try { const v = sessionStorage.getItem('lb-updated') === '1'; sessionStorage.removeItem('lb-updated'); return v; } catch { return false; } });
+  if (!on) return null;
+  return <div className="note row" role="status" style={{ borderRadius: 0, justifyContent: 'center' }}><span>↻ {u.updated}</span><button className="link-btn" onClick={() => setOn(false)}>✕</button></div>;
+}
+
 export function TeacherRoutes({ path }: { path: string }) {
   const { ready, user } = useAuth();
   const [teacher, setTeacher] = useState<Teacher | null | undefined>(undefined);
@@ -122,5 +130,5 @@ export function TeacherRoutes({ path }: { path: string }) {
   else if (path.startsWith('/usage')) body = <Usage />;
   else if (path.startsWith('/criteria')) body = <Criteria teacher={teacher} onSaved={setTeacher} />;
   else body = <Home teacher={teacher} />;
-  return <><TopBar teacher={teacher} path={path} onSignOut={out} /><VerifyBanner />{body}</>;
+  return <><TopBar teacher={teacher} path={path} onSignOut={out} /><VerifyBanner /><UpdatedNote />{body}</>;
 }

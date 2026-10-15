@@ -6,6 +6,17 @@ import { PupilRoutes } from './pupil/PupilRoutes.tsx';
 import { TeacherRoutes } from './teacher/TeacherRoutes.tsx';
 import './styles.css';
 
+// A tab opened before a deploy asks for code files the new version no longer has (e.g. the .docx
+// reader): reload once to get the new version. TeacherRoutes then says the app was updated.
+addEventListener('vite:preloadError', (e) => {
+  try {
+    if (Date.now() - Number(sessionStorage.getItem('lb-reloaded') || 0) < 60_000) return;   // never loop
+    sessionStorage.setItem('lb-reloaded', String(Date.now())); sessionStorage.setItem('lb-updated', '1');
+  } catch { return; }
+  e.preventDefault();
+  location.reload();
+});
+
 // Routes. Teacher: / (lessons), /classes, /insights, /criteria, /new, /lesson/:id/:step.
 // Pupil: /learn (join with class code), /learn/:pupilId[/practice|/cards|/memory|/video|/done].
 export function usePath() {
