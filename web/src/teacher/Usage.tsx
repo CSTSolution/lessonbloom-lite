@@ -49,9 +49,9 @@ export function Usage() {
         <div className="card stack">
           <h3>{t.history}</h3>
           {u.days.length ? (
-            <table className="t"><thead><tr><th>{t.day}</th><th>{t.credits}</th><th>{t.actions}</th><th>{t.cost}</th></tr></thead>
+            <div className="table-scroll"><table className="t history"><thead><tr><th>{t.day}</th><th>{t.credits}</th><th>{t.actions}</th><th>{t.cost}</th></tr></thead>
               <tbody>{u.days.map((d) => <tr key={d.day}><td>{d.day.split('-').reverse().join('/')}</td><td>{d.credits}</td>
-                <td className="small">{Object.entries(d.actions).map(([k, n]) => `${t.kinds[k]?.split(' (')[0] || k} ×${n}`).join(' · ')}</td><td>${d.usd.toFixed(3)}</td></tr>)}</tbody></table>
+                <td className="small">{Object.entries(d.actions).map(([k, n]) => `${t.kinds[k]?.split(' (')[0] || k} ×${n}`).join(' · ')}</td><td>${d.usd.toFixed(3)}</td></tr>)}</tbody></table></div>
           ) : <p className="muted">{t.none}</p>}
         </div>
         <div className="card stack">

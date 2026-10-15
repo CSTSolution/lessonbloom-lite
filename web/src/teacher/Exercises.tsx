@@ -61,7 +61,7 @@ export function Exercises({ l, onChange }: { l: Lesson; onChange: (l: Lesson) =>
       </aside>
       <section className="stack">
         <div className="row">
-          <h1 className="grow" style={{ fontSize: 24 }}>{t.tpl[tab]}{tab !== 'cards' && tab !== 'memory' ? ` · ${list.length} ${t.q.toLowerCase()}` : ''}</h1>
+          <h1 className="grow" style={{ fontSize: 24, minWidth: 200 }}>{t.tpl[tab]}{tab !== 'cards' && tab !== 'memory' ? ` · ${list.length} ${t.q.toLowerCase()}` : ''}</h1>
           {tab !== 'cards' && tab !== 'memory' && (
             <div className="lang no-print" role="group" aria-label="level">{(['basic', 'good', 'advanced'] as Level[]).map((lv) => <button key={lv} className={level === lv ? 'on' : ''} onClick={() => setLevel(lv)}>{t[lv]}</button>)}</div>
           )}

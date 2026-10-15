@@ -19,6 +19,7 @@ const app = createApp(ai, store);
 const longCache = async (c: Context, next: Next) => { await next(); if (c.res.ok) c.header('Cache-Control', 'public, max-age=31536000, immutable'); };
 app.use('/assets/*', longCache, serveStatic({ root: './web/dist' }));
 app.use('/fonts/*', longCache, serveStatic({ root: './web/dist' }));
-app.get('*', serveStatic({ path: './web/dist/index.html' }));   // single-page app routes (/, /lesson/:id, /s/:share)
+// the page itself is always revalidated, so a new deploy's bundle names are picked up at once
+app.get('*', async (c, next) => { await next(); c.header('Cache-Control', 'no-cache'); }, serveStatic({ path: './web/dist/index.html' }));   // single-page app routes (/, /lesson/:id, /s/:share)
 
 serve({ fetch: app.fetch, port: config.port }, (i) => console.log(`LessonBloom on :${i.port} (${ai.name}, ${process.env.LB_BUCKET ? 'firestore+gcs' : 'local files'})`));

@@ -36,8 +36,8 @@ export function Insights() {
     <main className="page stack" style={{ gap: 18 }}>
       <h1>{t.inTitle}</h1>
       <div className="card row" style={{ gap: 16 }}>
-        <label className="row" style={{ gap: 8, flexWrap: 'nowrap' }}><span className="muted">{t.lessonLabel}</span>
-          <select value={d.lessonId} onChange={(e) => setLessonId(e.target.value)} style={{ minWidth: 260 }}>{d.lessons.map((x) => <option key={x.id} value={x.id}>{x.title}</option>)}</select></label>
+        <label className="row lesson-pick" style={{ gap: 8, flexWrap: 'nowrap' }}><span className="muted" style={{ whiteSpace: 'nowrap' }}>{t.lessonLabel}</span>
+          <select value={d.lessonId} onChange={(e) => setLessonId(e.target.value)} style={{ minWidth: 0, maxWidth: 420 }}>{d.lessons.map((x) => <option key={x.id} value={x.id}>{x.title}</option>)}</select></label>
         <span className="muted">{t.cls}</span>
         <div className="pills">{d.classes.map((k) => <button key={k.id} className={`pill ${d.classId === k.id ? 'on' : ''}`} onClick={() => setClassId(k.id)}>{t.cls} {k.name}</button>)}</div>
       </div>
@@ -45,10 +45,10 @@ export function Insights() {
 
       <div className="card stack">
         <h2>{t.overview}</h2>
-        <table className="t">
+        <div className="table-scroll"><table className="t overview">
           <thead><tr><th>{t.colSkill}</th>{d.classes.map((k) => <th key={k.id}>{t.cls} {k.name}</th>)}</tr></thead>
           <tbody>{d.overview.map((o) => <tr key={o.skill}><td>{o.name}</td>{d.classes.map((k) => <td key={k.id}><LabelChip l={o.byClass[k.id]} /></td>)}</tr>)}</tbody>
-        </table>
+        </table></div>
         <div className="row small muted" style={{ gap: 16 }}>
           <span><LabelChip l="repeated" />: {t.tagRd}</span><span><LabelChip l="practising" />: {t.tagPd}</span><span><LabelChip l="secure" />: {t.tagMd}</span>
           <span className="grow" /><Link to="/criteria">{t.editCriteria}</Link>

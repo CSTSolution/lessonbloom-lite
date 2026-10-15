@@ -89,3 +89,8 @@
 }
 
 .verify-banner { border-radius: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 14px; text-align: center; }
+
+/* learning summary: label chips stay on one line; on phones the overview table scrolls sideways */
+table.t .chip { white-space: nowrap; }
+.table-scroll table.t.overview, .table-scroll table.t.history { min-width: 0; }
+@media (max-width: 760px) { .table-scroll table.t.overview { min-width: 480px; } .table-scroll table.t.history { min-width: 520px; } .lesson-pick { width: 100%; } .lesson-pick select { flex: 1; } }
