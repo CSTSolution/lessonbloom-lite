@@ -40,6 +40,10 @@ export const currentUser = () => user;
 export async function idToken(): Promise<string | null> { await boot; return user ? user.getIdToken() : null; }
 
 const fa = () => import('firebase/auth');
+// A Firebase call that never answers (broken browser storage in some in-app browsers) ends
+// after 20 s with a message, instead of a button that spins forever.
+const limit = <T,>(p: Promise<T>, ms = 20000) =>
+  Promise.race([p, new Promise<never>((_, no) => setTimeout(() => no(Object.assign(new Error('timeout'), { code: 'auth/timeout' })), ms))]);
 // Firebase writes the emails in the language the teacher is using, and the link in them comes
 // back to LessonBloom (?verified=1 / ?reset=1) after Firebase's confirmation page.
 const mailSetup = (back: string) => { auth!.languageCode = getLang(); return { url: `${location.origin}/?${back}=1` }; };
@@ -50,19 +54,19 @@ export const displayName = () => user?.displayName || pendingName || '';
 export async function signUp(name: string, email: string, password: string) {
   const a = await fa();
   pendingName = name;
-  const cred = await a.createUserWithEmailAndPassword(auth!, email, password);
+  const cred = await limit(a.createUserWithEmailAndPassword(auth!, email, password));
   await a.updateProfile(cred.user, { displayName: name });
   user = cred.user; emit();
   await a.sendEmailVerification(cred.user, mailSetup('verified')).catch(() => { /* the banner offers "Resend" */ });
 }
-export async function signIn(email: string, password: string) { const a = await fa(); user = (await a.signInWithEmailAndPassword(auth!, email, password)).user; emit(); }
-export async function resetPassword(email: string) { const a = await fa(); await a.sendPasswordResetEmail(auth!, email, mailSetup('reset')); }
-export async function resendVerification() { const a = await fa(); if (user) await a.sendEmailVerification(user, mailSetup('verified')); }
+export async function signIn(email: string, password: string) { const a = await fa(); user = (await limit(a.signInWithEmailAndPassword(auth!, email, password))).user; emit(); }
+export async function resetPassword(email: string) { const a = await fa(); await limit(a.sendPasswordResetEmail(auth!, email, mailSetup('reset'))); }
+export async function resendVerification() { const a = await fa(); if (user) await limit(a.sendEmailVerification(user, mailSetup('verified'))); }
 // After the teacher clicks the link: reload the account and get a fresh ID token, so the
 // server sees email_verified = true straight away (an old token would say false for up to an hour).
 export async function refreshUser(): Promise<boolean> {
   if (!user) return false;
-  await user.reload();
+  await limit(user.reload());
   user = auth!.currentUser;
   if (user?.emailVerified) await user.getIdToken(true);
   emit();
@@ -87,6 +91,7 @@ export function authError(e: unknown, lang: 'vi' | 'en'): string {
     'auth/network-request-failed': ['Mất kết nối mạng. Cô kiểm tra mạng rồi thử lại nhé.', 'No connection. Please check the network and try again.'],
     'auth/quota-exceeded': ['Hôm nay đã gửi quá nhiều email. Cô thử lại sau nhé.', 'Too many emails sent today. Please try again later.'],
     'auth/operation-not-allowed': ['Đăng nhập bằng email đang tạm tắt.', 'Email sign-in is turned off for now.'],
+    'auth/timeout': ['Đăng nhập chưa phản hồi. Cô tải lại trang, hoặc mở LessonBloom bằng Chrome hay Safari nhé.', 'Sign-in is not responding. Reload the page, or open LessonBloom in Chrome or Safari.'],
     'auth/requires-recent-login': ['Cô đăng nhập lại rồi thử lại nhé.', 'Please sign in again and retry.'],
   };
   const fallback: [string, string] = ['Chưa làm được, cô thử lại nhé.', 'That did not work. Please try again.'];
