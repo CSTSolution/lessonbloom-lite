@@ -14,3 +14,6 @@ service-account*.json
 *-key.json
 firebase-web.json
 admin-key
+
+# demo video is large; kept out of git (see scripts/media/README.md)
+submission/*.mp4
