@@ -95,3 +95,11 @@ test('illustration critic rejects and regenerates', async () => {
   assert.match(pic.tries[1].prompt, /no numbers/);
   assert.equal((await illustrate(ai, slides[2])).tries.length, 1);
 });
+
+test('maths checks cover what real Gemini writes: sums as options, comparisons', () => {
+  const sums = { id: 'x', level: 'good', skill: 's', type: 'math_mcq', prompt: 'Phép tính nào bằng 71?', expr: '54 + 17', options: ['54 + 17', '44 + 17', '54 + 7'], answer: '54 + 17', explain: '' } as Exercise;
+  assert.equal(checkMath(sums).ok, true);
+  const cmp = { id: 'y', level: 'good', skill: 's', type: 'math_truefalse', prompt: '', statement: '36 + 27 > 60', answer: 'true', explain: '' } as Exercise;
+  assert.equal(checkMath(cmp).ok, true);
+  assert.equal(checkMath({ ...cmp, statement: '36 + 27 < 60' } as Exercise).fixedAnswer, 'false');
+});

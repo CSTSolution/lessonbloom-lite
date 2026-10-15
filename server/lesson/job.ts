@@ -7,6 +7,7 @@ import type { Lesson } from '../types.ts';
 import { makeCards, makeExercises, makeSlides } from './build.ts';
 import { illustrate } from './illustrate.ts';
 import { pool } from './pool.ts';
+import { config } from '../config.ts';
 
 export async function runLesson(ai: AI, store: Store, l: Lesson): Promise<Lesson> {
   const save = () => store.put('lessons', l);
@@ -22,7 +23,10 @@ export async function runLesson(ai: AI, store: Store, l: Lesson): Promise<Lesson
     await step('Đang vẽ hình minh họa và tự kiểm tra từng hình…');
     // two at a time: image models have low per-minute quotas on new projects
     let n = 0;
-    await pool(l.slides, 2, async (s) => {
+    // pictures for the title and the teaching slides first, up to maxPictures
+    const order = ['title', 'example', 'concept', 'warmup', 'practice', 'summary'];
+    const pick = [...l.slides].sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind)).slice(0, config.maxPictures);
+    await pool(pick, 2, async (s) => {
       try {
         const pic = await illustrate(ai, s, (m) => l.progress.push(m));
         s.image = await store.putFile(l.id, `${s.id}.${pic.ext}`, pic.image, pic.ext === 'png' ? 'image/png' : 'image/jpeg');

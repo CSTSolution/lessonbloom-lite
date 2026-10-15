@@ -21,8 +21,10 @@ export async function illustrate(ai: AI, slide: Slide, log: (m: string) => void 
   for (let n = 1; n <= config.maxImageTries; n++) {
     const img = await ai.image({ prompt, key: `${slide.id}#${n}`, aspect: '4:3' });
     const verdict: Verdict = imageType(img)
-      ? await ai.see<Verdict>({ task: 'image-critic', tier: 'fast', system: IMAGE_CRITIC_SYSTEM, schema: IMAGE_CRITIC_SCHEMA, image: img,
+      ? await ai.see<Verdict & { hasText?: boolean; unsafe?: boolean; broken?: boolean; offTopic?: boolean }>({ task: 'image-critic', tier: 'fast', system: IMAGE_CRITIC_SYSTEM, schema: IMAGE_CRITIC_SCHEMA, image: img,
           prompt: `SLIDE: ${slide.heading}\nREQUESTED SCENE: ${slide.imagePrompt}\nPROMPT USED:\n${prompt}`, input: { slide: slide.id, attempt: n, prompt } })
+          // pass/fail is decided here from the flags, not by the model's mood
+          .then((v) => ({ ...v, pass: 'hasText' in v ? !(v.hasText || v.unsafe || v.broken || v.offTopic) : v.pass, score: Math.max(v.score ?? 0, 'hasText' in v && !(v.hasText || v.unsafe || v.broken || v.offTopic) ? 7 : 0) }))
       : { pass: false, score: 0, issues: ['not a PNG or JPEG'] };
     tries.push({ prompt, verdict }); imgs.push(img);
     if (verdict.pass && verdict.score >= 7) { log(`${slide.id}: picture accepted on try ${n}`); break; }

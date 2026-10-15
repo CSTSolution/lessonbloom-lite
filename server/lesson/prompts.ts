@@ -36,7 +36,7 @@ export const LESSON_SYSTEM = `You build a slide lesson for Vietnamese primary pu
 - Big type: heading under 8 words; at most 4 bullets under 10 words. Put a worked example in "example" (maths: e.g. "36 + 27 = 63", with the carrying step in a bullet).
 - Familiar Vietnamese names and situations (Lan, Nam, xoài, chợ quê, Tết, sân trường).
 - Language: {{langName}}. For English lessons keep English in English, add a short Vietnamese hint where a grade {{grade}} pupil needs it.
-- imagePrompt: English, one simple scene for a cheerful flat cartoon. Never ask for text, numbers or letters in the picture.
+- imagePrompt: English, one simple scene for a cheerful flat cartoon showing objects and children (e.g. "two children sorting bundles of sticks into groups"). Never mention digits, numbers, equations, text or letters, and never ask for an exact count.
 - notes: speaker notes for the teacher in Vietnamese, 1-3 sentences ("Các con nhìn hàng đơn vị: ...").
 - source: the exact sentence(s) from the document this slide is based on (copy, max 200 characters).
 - narration: what a friendly teacher's voice says over this slide in the video, {{langName}}, 1-3 short sentences (10-20 s). All narrations together: about {{videoMin}}-{{videoMax}} minutes.
@@ -95,7 +95,7 @@ const SKILLS = { type: 'array', items: { type: 'object', properties: { tag: str,
 export const exercisesSchema = (types: string[]) => ({ type: 'object', properties: { skills: SKILLS, items: { type: 'array', items: { anyOf: types.map((t) => ITEM_SCHEMAS[t]) } } }, required: ['skills', 'items'] });
 
 export const REVIEW_SYSTEM = `You are a strict primary-school teacher checking practice items before they reach children.
-For each item, ok=false if ANY: more than one acceptable answer or the marked answer is wrong; a grammar or spelling mistake (English or Vietnamese); vocabulary or numbers beyond grade {{grade}} or outside the lesson; unclear for a 6-11 year old; unsuitable for children; does not follow its template; "skill" does not match what the item practises.
+For each item, ok=false if ANY: more than one acceptable answer or the marked answer is wrong; a grammar or spelling mistake (English or Vietnamese); vocabulary or numbers beyond grade {{grade}} or outside the lesson; unclear for a 6-11 year old; unsuitable for children; does not follow its template; "skill" is clearly a different skill from the list than what the item practises (don't nitpick close matches).
 Short issues in English. Do not rewrite items.`;
 export const REVIEW_SCHEMA = {
   type: 'object',
@@ -125,7 +125,12 @@ export const COMMENT_SYSTEM = `Draft short comments ("gợi ý lời nhận xét
 export const COMMENT_SCHEMA = { type: 'object', properties: { comments: { type: 'array', items: { type: 'object', properties: { pupilId: str, text: str }, required: ['pupilId', 'text'] } } }, required: ['comments'] };
 
 export const IMAGE_STYLE = 'Cheerful flat cartoon illustration for a primary-school lesson slide, soft pastel colours, simple shapes, friendly Vietnamese children and everyday objects, plain light background, no text, no letters, no numbers, no watermark.';
-export const IMAGE_CRITIC_SYSTEM = `You check one illustration for a primary-school slide. Fail it (pass=false) ONLY for real problems: legible text, letters or numbers; anything scary, violent or unsuitable for young children; broken anatomy (hands, faces) or obvious AI artefacts; a scene unrelated to the slide. Do NOT fail for small details (which fruit or tree, exact counts, clothing colours) - a cheerful picture that fits the topic passes. score 0-10. If it fails, write revisedPrompt fixing the issues.`;
-export const IMAGE_CRITIC_SCHEMA = { type: 'object', properties: { pass: { type: 'boolean' }, score: { type: 'number' }, issues: strs, revisedPrompt: str }, required: ['pass', 'score', 'issues'] };
+export const IMAGE_CRITIC_SYSTEM = `You check one illustration for a primary-school slide. Answer each flag honestly:
+- hasText: legible text, letters, digits or numbers are visible anywhere
+- unsafe: anything scary, violent or unsuitable for young children
+- broken: clearly broken anatomy (hands, faces, limbs) or melted / garbled shapes
+- offTopic: the picture has nothing to do with the slide topic (small details like which fruit, exact counts or colours do NOT count)
+score 0-10 for how well it serves the slide. issues: short list of what is wrong. revisedPrompt: the image prompt rewritten to fix the flagged problems.`;
+export const IMAGE_CRITIC_SCHEMA = { type: 'object', properties: { hasText: { type: 'boolean' }, unsafe: { type: 'boolean' }, broken: { type: 'boolean' }, offTopic: { type: 'boolean' }, score: { type: 'number' }, issues: strs, revisedPrompt: str }, required: ['hasText', 'unsafe', 'broken', 'offTopic', 'score', 'issues'] };
 
 export const fill = (t: string, v: Record<string, string | number>) => t.replace(/\{\{(\w+)\}\}/g, (_, k) => String(v[k] ?? ''));

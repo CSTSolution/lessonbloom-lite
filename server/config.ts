@@ -11,7 +11,8 @@ export const config = {
   },
   voices: { vi: env('LB_VOICE_VI', 'Aoede'), en: env('LB_VOICE_EN', 'Aoede') },
   maxFixRounds: 2,            // self-check: regenerate failing items up to N times
-  maxImageTries: 3,
+  maxImageTries: Number(env('LB_IMAGE_TRIES', '2')),
+  maxPictures: Number(env('LB_MAX_PICTURES', '6')),   // slides with an illustration (image quotas are tight)
   monthUsd: Number(env('LB_MONTH_USD', '40')),     // in-app spending guard (Google budgets only alert)
   dayUsd: Number(env('LB_DAY_USD', '8')),
   lessonsPerWorkspaceDay: Number(env('LB_WORKSPACE_LESSONS_DAY', '5')),

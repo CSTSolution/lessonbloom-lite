@@ -124,11 +124,12 @@ export async function makeExercises(ai: AI, source: string, it: Intake, slides: 
     // 3. regenerate only the failing items, telling the model what was wrong
     log(`tự kiểm tra lượt ${round + 1}: viết lại ${failing.size} câu`);
     const bad = items.filter((e) => failing.has(e.id));
-    const redo = await gen(`${lesson}\n\nREWRITE these ${bad.length} items, same template, level and skill, fixing the issues. Return the same skills and exactly ${bad.length} items in the same order.\n${JSON.stringify(bad.map((e) => ({ item: e, issues: failing.get(e.id) })))}`,
+    const redo = await gen(`${lesson}\n\nREWRITE these ${bad.length} items, same template and level, fixing the issues (you may switch "skill" to a better-matching tag from SKILLS: ${skills.map((k) => k.tag).join(', ')}). Return the same skills and exactly ${bad.length} items in the same order.\n${JSON.stringify(bad.map((e) => ({ item: e, issues: failing.get(e.id) })))}`,
       { redo: bad, issues: Object.fromEntries(failing) });
     bad.forEach((e, k) => {
       if (!redo.items[k]) return;
-      items[items.findIndex((x) => x.id === e.id)] = toExercise({ ...redo.items[k], level: e.level, skill: e.skill }, e.id, skills);
+      const sk = skills.some((x) => x.tag === redo.items[k].skill) ? redo.items[k].skill : e.skill;
+      items[items.findIndex((x) => x.id === e.id)] = toExercise({ ...redo.items[k], level: e.level, skill: sk }, e.id, skills);
       tries.set(e.id, (tries.get(e.id) || 1) + 1);
     });
   }

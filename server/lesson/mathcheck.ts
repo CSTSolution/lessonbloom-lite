@@ -50,10 +50,13 @@ export function checkMath(ex: Exercise): CheckResult {
   try {
     switch (ex.type) {
       case 'math_mcq': {
-        const v = evaluate(ex.expr), right = ex.options.filter((o) => asNum(o) === v);
+        // options may be numbers ("63") or calculations ("54 + 17"); exactly one must equal expr
+        const v = evaluate(ex.expr);
+        const val = (o: string) => { const n = asNum(o); if (/^\s*-?\d+([.,]\d+)?\s*$/.test(o)) return n; try { return evaluate(o); } catch { return NaN; } };
+        const right = ex.options.filter((o) => val(o) === v);
         const issues: string[] = [];
         if (right.length !== 1) issues.push(`${right.length} options equal ${fmt(v)}`);
-        if (asNum(ex.answer) !== v) issues.push(`answer ${ex.answer} but ${ex.expr} = ${fmt(v)}`);
+        else if (String(ex.answer).trim() !== right[0].trim() && val(String(ex.answer)) !== v) issues.push(`answer ${ex.answer} but the right option is ${right[0]}`);
         return { ok: !issues.length, issues, fixedAnswer: right.length === 1 ? right[0] : undefined };
       }
       case 'math_fill': {
@@ -62,9 +65,12 @@ export function checkMath(ex: Exercise): CheckResult {
         return asNum(ex.answer) === xs[0] ? { ok: true, issues: [] } : { ok: false, issues: [`answer ${ex.answer} but the blank is ${xs[0]}`], fixedAnswer: fmt(xs[0]) };
       }
       case 'math_truefalse': {
-        const [l, r] = ex.statement.split('=');
-        if (r === undefined) return { ok: false, issues: ['statement has no "="'] };
-        const truth = Math.abs(evaluate(l) - evaluate(r)) < 1e-9 ? 'true' : 'false';
+        // "5 × 4 = 25", or a comparison "36 + 27 > 60"
+        const m = /^(.*?)(<=|>=|≤|≥|=|<|>)(.*)$/.exec(String(ex.statement ?? ''));
+        if (!m) return { ok: false, issues: ['statement needs =, <, > or ≤ / ≥'] };
+        const [l, r] = [evaluate(m[1]), evaluate(m[3])], op = m[2];
+        const holds = op === '=' ? Math.abs(l - r) < 1e-9 : op === '<' ? l < r : op === '>' ? l > r : op === '<=' || op === '≤' ? l <= r : l >= r;
+        const truth = holds ? 'true' : 'false';
         return truth === ex.answer ? { ok: true, issues: [] } : { ok: false, issues: [`answer ${ex.answer} but "${ex.statement}" is ${truth}`], fixedAnswer: truth };
       }
       case 'math_word': {
