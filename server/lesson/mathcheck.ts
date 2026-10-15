@@ -2,7 +2,7 @@
 // the server recomputes it. Supports + - × ÷ ( ) and integers, which covers grades 1-5.
 import type { CheckResult, Exercise } from '../types.ts';
 
-const norm = (s: string) => s.replace(/×|x|\*/gi, '*').replace(/÷|:/g, '/').replace(/[−–—]/g, '-').replace(/\s+/g, '');
+const norm = (s: string) => String(s ?? '').replace(/×|x|\*/gi, '*').replace(/÷|:/g, '/').replace(/[−–—]/g, '-').replace(/\s+/g, '');
 
 // Small recursive-descent evaluator, so no eval() on model output.
 export function evaluate(expr: string): number {

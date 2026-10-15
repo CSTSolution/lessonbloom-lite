@@ -11,7 +11,7 @@ import type { AI, ImageRequest, SpeechRequest, TextRequest, VisionRequest } from
 
 type Meta = { usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number } };
 
-const RETRIES = 3;
+const RETRIES = 5;
 
 async function withRetry<T>(what: string, fn: () => Promise<T>): Promise<T> {
   let last: unknown;
@@ -20,7 +20,7 @@ async function withRetry<T>(what: string, fn: () => Promise<T>): Promise<T> {
       last = e;
       const msg = String((e as Error)?.message || e);
       if (!/429|500|503|UNAVAILABLE|RESOURCE_EXHAUSTED|deadline/i.test(msg)) break;   // only retry transient errors
-      await new Promise((r) => setTimeout(r, 2000 * 2 ** i));
+      await new Promise((r) => setTimeout(r, (/429|RESOURCE_EXHAUSTED/.test(msg) ? 6000 : 2000) * 2 ** i));
     }
   }
   throw new Error(`${what} failed: ${(last as Error)?.message || last}`);
@@ -48,7 +48,8 @@ export class GeminiProvider implements AI {
       const r = await this.ai.models.generateContent({
         model,
         contents: [{ role: 'user', parts }],
-        config: { systemInstruction: req.system, responseMimeType: 'application/json', responseJsonSchema: req.schema, temperature: req.tier === 'pro' ? 0.7 : 0.2 },
+        config: { systemInstruction: req.system, responseMimeType: 'application/json', responseJsonSchema: req.schema, temperature: req.tier === 'pro' ? 0.7 : 0.2,
+          thinkingConfig: { thinkingBudget: req.tier === 'pro' ? 2048 : 512 } },
       });
       this.report(r, { model, tier: req.tier, task: req.task });
       if (!r.text) throw new Error(`empty answer (finish: ${r.candidates?.[0]?.finishReason})`);

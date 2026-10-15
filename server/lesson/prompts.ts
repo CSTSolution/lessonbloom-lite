@@ -76,18 +76,23 @@ Machine-checked fields (the server recomputes maths; be exact):
 - eng_order: "words" = shuffled words of one short sentence; "answer" = the sentence with capital letter and full stop.
 {{note}}`;
 
-const ITEM = {
-  type: 'object',
-  properties: {
-    type: str, level: { type: 'string', enum: LEVELS }, skill: str, prompt: str, explain: str,
-    expr: str, options: strs, answer: str, equation: str, statement: str, unit: str,
-    pairs: { type: 'array', items: { type: 'object', properties: { word: str, emoji: str }, required: ['word', 'emoji'] } },
-    sentence: str, say: str, words: strs,
-  },
-  required: ['type', 'level', 'skill', 'prompt', 'explain'],
+// One schema per template, every field the server checks is required, so Gemini can't omit them.
+const BASE = { level: { type: 'string', enum: LEVELS }, skill: str, prompt: str, explain: str };
+const BASE_REQ = ['type', 'level', 'skill', 'prompt', 'explain'];
+const tpl = (type: string, props: Record<string, object>, req: string[]) =>
+  ({ type: 'object', properties: { type: { type: 'string', enum: [type] }, ...BASE, ...props }, required: [...BASE_REQ, ...req] });
+export const ITEM_SCHEMAS: Record<string, object> = {
+  math_mcq: tpl('math_mcq', { expr: str, options: strs, answer: str }, ['expr', 'options', 'answer']),
+  math_fill: tpl('math_fill', { equation: str, answer: str }, ['equation', 'answer']),
+  math_truefalse: tpl('math_truefalse', { statement: str, answer: { type: 'string', enum: ['true', 'false'] } }, ['statement', 'answer']),
+  math_word: tpl('math_word', { expr: str, answer: str, unit: str }, ['expr', 'answer']),
+  eng_match: tpl('eng_match', { pairs: { type: 'array', items: { type: 'object', properties: { word: str, emoji: str }, required: ['word', 'emoji'] } } }, ['pairs']),
+  eng_fill: tpl('eng_fill', { sentence: str, options: strs, answer: str }, ['sentence', 'options', 'answer']),
+  eng_listen: tpl('eng_listen', { say: str, options: strs, answer: str }, ['say', 'options', 'answer']),
+  eng_order: tpl('eng_order', { words: strs, answer: str }, ['words', 'answer']),
 };
 const SKILLS = { type: 'array', items: { type: 'object', properties: { tag: str, name: str }, required: ['tag', 'name'] } };
-export const EXERCISES_SCHEMA = { type: 'object', properties: { skills: SKILLS, items: { type: 'array', items: ITEM } }, required: ['skills', 'items'] };
+export const exercisesSchema = (types: string[]) => ({ type: 'object', properties: { skills: SKILLS, items: { type: 'array', items: { anyOf: types.map((t) => ITEM_SCHEMAS[t]) } } }, required: ['skills', 'items'] });
 
 export const REVIEW_SYSTEM = `You are a strict primary-school teacher checking practice items before they reach children.
 For each item, ok=false if ANY: more than one acceptable answer or the marked answer is wrong; a grammar or spelling mistake (English or Vietnamese); vocabulary or numbers beyond grade {{grade}} or outside the lesson; unclear for a 6-11 year old; unsuitable for children; does not follow its template; "skill" does not match what the item practises.
@@ -120,7 +125,7 @@ export const COMMENT_SYSTEM = `Draft short comments ("gợi ý lời nhận xét
 export const COMMENT_SCHEMA = { type: 'object', properties: { comments: { type: 'array', items: { type: 'object', properties: { pupilId: str, text: str }, required: ['pupilId', 'text'] } } }, required: ['comments'] };
 
 export const IMAGE_STYLE = 'Cheerful flat cartoon illustration for a primary-school lesson slide, soft pastel colours, simple shapes, friendly Vietnamese children and everyday objects, plain light background, no text, no letters, no numbers, no watermark.';
-export const IMAGE_CRITIC_SYSTEM = `You check one illustration for a primary-school slide. Fail it (pass=false) if: any text, letters or numbers are visible; anything scary, violent or unsuitable for young children; broken anatomy or AI artefacts; it does not show the requested scene. score 0-10. If it fails, write revisedPrompt fixing every issue.`;
+export const IMAGE_CRITIC_SYSTEM = `You check one illustration for a primary-school slide. Fail it (pass=false) ONLY for real problems: legible text, letters or numbers; anything scary, violent or unsuitable for young children; broken anatomy (hands, faces) or obvious AI artefacts; a scene unrelated to the slide. Do NOT fail for small details (which fruit or tree, exact counts, clothing colours) - a cheerful picture that fits the topic passes. score 0-10. If it fails, write revisedPrompt fixing the issues.`;
 export const IMAGE_CRITIC_SCHEMA = { type: 'object', properties: { pass: { type: 'boolean' }, score: { type: 'number' }, issues: strs, revisedPrompt: str }, required: ['pass', 'score', 'issues'] };
 
 export const fill = (t: string, v: Record<string, string | number>) => t.replace(/\{\{(\w+)\}\}/g, (_, k) => String(v[k] ?? ''));

@@ -6,6 +6,7 @@ import type { Store } from '../store.ts';
 import type { Lesson } from '../types.ts';
 import { makeCards, makeExercises, makeSlides } from './build.ts';
 import { illustrate } from './illustrate.ts';
+import { pool } from './pool.ts';
 
 export async function runLesson(ai: AI, store: Store, l: Lesson): Promise<Lesson> {
   const save = () => store.put('lessons', l);
@@ -19,12 +20,15 @@ export async function runLesson(ai: AI, store: Store, l: Lesson): Promise<Lesson
     await step(`Đã có ${l.exercises.length} câu cho ${l.skills.length} dạng bài; máy đã tự sửa ${l.checks.length} câu. Đang làm thẻ nhớ…`);
     if (l.intake.outputs.includes('flashcards')) Object.assign(l, await makeCards(ai, l.source, l.intake));
     await step('Đang vẽ hình minh họa và tự kiểm tra từng hình…');
+    // two at a time: image models have low per-minute quotas on new projects
     let n = 0;
-    await Promise.all(l.slides.map(async (s) => {
-      const pic = await illustrate(ai, s, (m) => l.progress.push(m));
-      s.image = await store.putFile(l.id, `${s.id}.${pic.ext}`, pic.image, pic.ext === 'png' ? 'image/png' : 'image/jpeg');
-      if (++n % 4 === 0) await save();
-    }));
+    await pool(l.slides, 2, async (s) => {
+      try {
+        const pic = await illustrate(ai, s, (m) => l.progress.push(m));
+        s.image = await store.putFile(l.id, `${s.id}.${pic.ext}`, pic.image, pic.ext === 'png' ? 'image/png' : 'image/jpeg');
+      } catch (e) { l.progress.push(`${s.id}: chưa vẽ được hình (${String((e as Error).message).slice(0, 80)}), cô có thể bấm "Đổi hình minh họa" sau`); }
+      if (++n % 3 === 0) await save();
+    });
     l.status = 'ready';
     await step('Xong! Cô xem lại slide, video và bài tập trước khi giao nhé.');
   } catch (e) {

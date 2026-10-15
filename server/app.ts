@@ -335,7 +335,7 @@ export function createApp(ai: AI, store: Store) {
 
   // ---------- admin (Son): AI usage + spending guard. Off unless LB_ADMIN_KEY is set. ----------
   const adminOk = (c: Context) => {
-    const want = process.env.LB_ADMIN_KEY || '', got = c.req.header('x-admin') || '';
+    const want = (process.env.LB_ADMIN_KEY || '').trim(), got = (c.req.header('x-admin') || '').trim();
     return want.length >= 24 && got.length === want.length && timingSafeEqual(Buffer.from(got), Buffer.from(want));
   };
   app.get('/api/admin/overview', async (c) => {

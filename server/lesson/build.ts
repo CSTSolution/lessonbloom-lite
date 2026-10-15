@@ -12,7 +12,7 @@ import { config } from '../config.ts';
 import type { CheckLog, CheckResult, Exercise, Flashcard, Intake, Level, MemoryPair, Skill, Slide } from '../types.ts';
 import { checkMath } from './mathcheck.ts';
 import {
-  CARDS_SCHEMA, CARDS_SYSTEM, COMMENT_SCHEMA, COMMENT_SYSTEM, ENG_TYPES, ERROR_SCHEMA, ERROR_SYSTEM, EXERCISES_SCHEMA, EXERCISES_SYSTEM, fill,
+  CARDS_SCHEMA, CARDS_SYSTEM, COMMENT_SCHEMA, COMMENT_SYSTEM, ENG_TYPES, ERROR_SCHEMA, ERROR_SYSTEM, exercisesSchema, EXERCISES_SYSTEM, fill,
   INTAKE_SCHEMA, INTAKE_SYSTEM, LESSON_SCHEMA, LESSON_SYSTEM, MATH_TYPES, REVIEW_SCHEMA, REVIEW_SYSTEM, SLIDE_EDIT_SYSTEM, SLIDE_SCHEMA,
 } from './prompts.ts';
 
@@ -90,7 +90,7 @@ export async function makeExercises(ai: AI, source: string, it: Intake, slides: 
   const system = fill(EXERCISES_SYSTEM, { templates: types.map((t) => `- ${TEMPLATE_HELP[t]}`).join('\n'), perLevel, grade: it.grade, langName: LANG_NAME[it.lang], note: noteLine(it) });
   const lesson = `SETUP:\n${JSON.stringify(it)}\n\nLESSON SLIDES:\n${JSON.stringify(slides.map(({ heading, bullets, example }) => ({ heading, bullets, example })))}\n\nDOCUMENT:\n${source}`;
   const gen = async (prompt: string, input: unknown) => {
-    const r = await ai.json<{ skills: Skill[]; items: RawItem[] }>({ task: 'exercises', tier: 'pro', system, prompt, schema: EXERCISES_SCHEMA, input });
+    const r = await ai.json<{ skills: Skill[]; items: RawItem[] }>({ task: 'exercises', tier: (input as { redo?: unknown }).redo ? 'fast' : 'pro', system, prompt, schema: exercisesSchema(types), input });
     return { skills: r.skills || [], items: (r.items || []).filter((x) => types.includes(x.type)) };
   };
 
