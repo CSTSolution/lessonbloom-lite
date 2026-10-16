@@ -1,0 +1,8 @@
+# What Cloud Build gets for ./deploy.sh: the app only (the image needs package*.json, server/, web/)
+.gcloudignore
+.git
+.gitignore
+#!include:.gitignore
+docs/
+submission/
+scripts/
