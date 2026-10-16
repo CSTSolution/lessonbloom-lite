@@ -239,3 +239,23 @@ test('the teacher sees every pupil of the class; reaching "all done" marks a pup
   assert.equal(row.mood, 'hard');
   assert.equal((await call('POST', `/api/learn/${idle.pupilId}/selfcheck`, { mood: 'great' })).status, 400);
 });
+
+test('the 5-lessons-a-day cap is for demo workspaces only; a Pro workspace keeps creating', async () => {
+  const store = new LocalStore(await mkdtemp(join(tmpdir(), 'lb-')));
+  const app = createApp(new MockProvider(), store);
+  let key = '';
+  const call = async (method: string, path: string, body?: unknown) => {
+    const r = await app.request(path, { method, headers: { 'content-type': 'application/json', 'x-teacher': key }, body: body ? JSON.stringify(body) : undefined });
+    return { status: r.status, json: await r.json() as any };
+  };
+  key = (await call('POST', '/api/t/me', {})).json.key;
+  const t = await store.get<any>('teachers', key);
+  await store.put('teachers', { ...t, plan: 'pro' });
+  const source = 'Toán lớp 2: phép cộng có nhớ trong phạm vi 100. Ví dụ 36 + 27 = 63, nhớ 1 sang hàng chục.';
+  const intake = (await call('POST', '/api/t/intake', { source })).json;
+  for (let i = 0; i < 6; i++) assert.equal((await call('POST', '/api/t/lessons', { source, intake })).status, 202, `pro lesson ${i + 1}`);
+  await store.put('teachers', { ...(await store.get<any>('teachers', key)), plan: 'demo' });
+  const r = await call('POST', '/api/t/lessons', { source, intake });
+  assert.equal(r.status, 429);
+  assert.equal(r.json.code, 'demoLessons');
+});

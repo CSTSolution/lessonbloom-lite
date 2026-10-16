@@ -364,7 +364,8 @@ export function createApp(ai: AI, store: Store) {
     if (!source?.trim() || !it?.subject) return bad(c, 'missingSource');
     const today = new Date().toISOString().slice(0, 10);
     const mineToday = (await store.find<Lesson>('lessons', 'teacherId', c.get('teacher').id)).filter((x) => x.createdAt.startsWith(today) && !x.sample && x.source !== SAMPLE_SOURCE).length;
-    if (mineToday >= config.lessonsPerWorkspaceDay) return bad(c, 'demoLessons', 429, MSG.demoLessons(config.lessonsPerWorkspaceDay));
+    // demo workspaces only: accounts are limited by their daily credits (Free) or not at all (Pro)
+    if (planOf(c.get('teacher')) === 'demo' && mineToday >= config.lessonsPerWorkspaceDay) return bad(c, 'demoLessons', 429, MSG.demoLessons(config.lessonsPerWorkspaceDay));
     const stop = await guard(c, 'lesson'); if (stop) return stop;
     const l: Lesson = { id: id(), teacherId: c.get('teacher').id, createdAt: new Date().toISOString(), status: 'working', progress: [], source: source.slice(0, MAX_SOURCE),
       files: Array.isArray(files) ? files.filter((f): f is string => typeof f === 'string').slice(0, 10).map((f) => f.slice(0, 120)) : [],
