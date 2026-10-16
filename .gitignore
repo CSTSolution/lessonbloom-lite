@@ -17,3 +17,4 @@ admin-key
 
 # demo video is large; kept out of git (see scripts/media/README.md)
 submission/*.mp4
+submission/*.zip
