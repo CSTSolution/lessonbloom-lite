@@ -12,7 +12,7 @@ export type Plan = 'demo' | 'free' | 'pro';
 export const CREDIT_COST = { lesson: 10, video: 2, slideImage: 1, slideEdit: 1, comments: 1, intake: 0, ocr: 1 } as const;
 export type CreditKind = keyof typeof CREDIT_COST;
 // photos that can be read into one lesson's text (step 1)
-export const PHOTOS_PER_LESSON: Record<Plan, number> = { demo: 3, free: 3, pro: 5 };
+export const PHOTOS_PER_LESSON: Record<Plan, number> = { demo: 5, free: 5, pro: 5 }   // 5 for every plan (Chi, 16 Oct);
 export const planOf = (t: Teacher): Plan => t.plan || (t.account ? 'free' : 'demo');
 export const dailyLimit = (p: Plan) => (p === 'pro' ? Infinity : p === 'free' ? config.creditsFree : config.creditsDemo);
 

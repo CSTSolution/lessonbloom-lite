@@ -61,10 +61,10 @@ const DM = {
 
 const PH = {
   vi: { photos: (n: number, max: number) => `Ảnh đã dùng: ${n}/${max}`, reading: (n: number) => `AI đang đọc ${n} ảnh…`, check: 'AI đã chép chữ từ ảnh vào ô bên dưới. Cô đọc lại và sửa chỗ sai trước khi tiếp tục nhé.',
-    tooMany: (max: number, left: number) => left > 0 ? `Mỗi bài dùng tối đa ${max} ảnh, nên LessonBloom chỉ đọc ${left} ảnh đầu cô chọn.` : `Bài này đã dùng đủ ${max} ảnh.${max < 5 ? ' Gói Pro dùng được 5 ảnh.' : ''}`,
+    tooMany: (max: number, left: number) => left > 0 ? `Mỗi bài dùng tối đa ${max} ảnh, nên LessonBloom chỉ đọc ${left} ảnh đầu cô chọn.` : `Bài này đã dùng đủ ${max} ảnh.`,
     cantRead: (n: string) => `Không mở được ảnh ${n}. Cô chụp lại bằng JPG hoặc PNG nhé (ảnh HEIC của iPhone: chọn từ ứng dụng Ảnh trên điện thoại).` },
   en: { photos: (n: number, max: number) => `Photos used: ${n}/${max}`, reading: (n: number) => `The AI is reading ${n} photo(s)…`, check: 'The AI copied the text from the photos into the box below. Please read it and fix any mistakes before continuing.',
-    tooMany: (max: number, left: number) => left > 0 ? `A lesson can use up to ${max} photos, so only the first ${left} you chose were read.` : `This lesson already uses ${max} photos.${max < 5 ? ' Pro allows 5.' : ''}`,
+    tooMany: (max: number, left: number) => left > 0 ? `A lesson can use up to ${max} photos, so only the first ${left} you chose were read.` : `This lesson already uses ${max} photos.`,
     cantRead: (n: string) => `Could not open the photo ${n}. Please use JPG or PNG (for iPhone HEIC photos, pick them from the Photos app on the phone).` },
 };
 
@@ -85,7 +85,7 @@ export function Create({ teacher }: { teacher?: Teacher }) {
   const [subject, setSubject] = useState<'math' | 'english'>(draft.subject || (teacher?.subject === 'english' ? 'english' : 'math'));
   const [source, setSource] = useState(draft.source || '');
   const [files, setFiles] = useState<string[]>(draft.files || []);   // shown later on the read-only Document step
-  const [maxPhotos, setMaxPhotos] = useState(3), [photoNote, setPhotoNote] = useState(''), [reading, setReading] = useState(0);
+  const [maxPhotos, setMaxPhotos] = useState(5), [photoNote, setPhotoNote] = useState(''), [reading, setReading] = useState(0);
   const [usage, setUsage] = useState<Usage | null>(null), [errCode, setErrCode] = useState('');
   useEffect(() => { teacherApi.usage().then((u) => { setUsage(u); if (u.photos) setMaxPhotos(u.photos); }).catch(() => {}); }, []);
   const photosUsed = files.filter((f) => f.startsWith('📷 ')).length;

@@ -355,7 +355,7 @@ export function createApp(ai: AI, store: Store) {
     try { return c.json(await intake(ai, source.slice(0, MAX_SOURCE))); }
     catch (e) { if (e instanceof NotALesson) return bad(c, 'notLesson'); throw e; }
   });
-  // step 1 by photo: up to 3 photos per lesson (5 on Pro), downscaled in the browser; Gemini copies out the text
+  // step 1 by photo: up to 5 photos per lesson, downscaled in the browser; Gemini copies out the text
   t.post('/ocr', async (c) => {
     const { images } = await c.req.json<{ images?: { data?: string; type?: string }[] }>().catch(() => ({ images: undefined }));
     const max = PHOTOS_PER_LESSON[planOf(c.get('teacher'))];

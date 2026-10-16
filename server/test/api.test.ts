@@ -194,7 +194,7 @@ test('display name can be changed, blank names are refused; a lesson keeps its f
   assert.deepEqual((await call('GET', `/api/t/lessons/${id}`)).json.files, ['bai-1.docx']);
 });
 
-test('photos of a lesson are read into text, at most 3 per lesson on the demo, bad files refused', async () => {
+test('photos of a lesson are read into text, at most 5 per lesson, bad files refused', async () => {
   const app = createApp(new MockProvider(), new LocalStore(await mkdtemp(join(tmpdir(), 'lb-'))));
   let key = '';
   const call = async (method: string, path: string, body?: unknown) => {
@@ -202,15 +202,15 @@ test('photos of a lesson are read into text, at most 3 per lesson on the demo, b
     return { status: r.status, json: await r.json() as any };
   };
   key = (await call('POST', '/api/t/me', {})).json.key;
-  assert.equal((await call('GET', '/api/t/usage')).json.photos, 3);
+  assert.equal((await call('GET', '/api/t/usage')).json.photos, 5);
   const pic = { type: 'image/jpeg', data: Buffer.alloc(2000, 7).toString('base64') };
   const two = await call('POST', '/api/t/ocr', { images: [pic, pic] });
   assert.equal(two.status, 200);
   assert.match(two.json.text, /Trang 1:[\s\S]*Trang 2:/);
-  const four = await call('POST', '/api/t/ocr', { images: [pic, pic, pic, pic] });
-  assert.equal(four.status, 400);
-  assert.equal(four.json.code, 'tooManyPhotos');
-  assert.ok(four.json.error.includes('3') && four.json.errorEn.includes('3'));
+  const six = await call('POST', '/api/t/ocr', { images: [pic, pic, pic, pic, pic, pic] });
+  assert.equal(six.status, 400);
+  assert.equal(six.json.code, 'tooManyPhotos');
+  assert.ok(six.json.error.includes('5') && six.json.errorEn.includes('5'));
   assert.equal((await call('POST', '/api/t/ocr', { images: [{ type: 'application/pdf', data: pic.data }] })).json.code, 'photoBad');
   assert.equal((await call('POST', '/api/t/ocr', { images: [] })).json.code, 'noPhotos');
 });

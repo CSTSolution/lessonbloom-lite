@@ -19,7 +19,7 @@ export const MSG = {
   className: { vi: 'Cô nhập tên lớp nhé.', en: 'Please enter a class name.' },
   notFound: { vi: 'Không tìm thấy mục này (có thể đã bị xoá).', en: 'Not found (it may have been deleted).' },
   noPhotos: { vi: 'Cô chọn ít nhất một ảnh nhé.', en: 'Please choose at least one photo.' },
-  tooManyPhotos: (n: number): Msg => ({ vi: `Mỗi bài dùng tối đa ${n} ảnh. Cô bỏ bớt ảnh${n < 5 ? ' (gói Pro dùng được 5 ảnh)' : ''} nhé.`, en: `A lesson can use up to ${n} photos. Please remove some${n < 5 ? ' (Pro allows 5)' : ''}.` }),
+  tooManyPhotos: (n: number): Msg => ({ vi: `Mỗi bài dùng tối đa ${n} ảnh. Cô bỏ bớt ảnh nhé.`, en: `A lesson can use up to ${n} photos. Please remove some.` }),
   photoBad: { vi: 'Ảnh này chưa đọc được (chỉ nhận JPG, PNG, WEBP, mỗi ảnh dưới 4 MB). Cô chụp lại hoặc chọn ảnh khác nhé.', en: 'This photo could not be read (JPG, PNG or WEBP only, under 4 MB each). Please retake it or pick another.' },
   photoNoText: { vi: 'AI chưa thấy chữ của bài học trong ảnh. Cô chụp rõ trang sách hoặc giáo án, đủ sáng, không bị nghiêng nhé.', en: 'The AI could not find lesson text in the photo. Take a clear, well-lit, straight photo of the page or notes.' },
   notLesson: { vi: 'Nội dung này chưa giống một bài học (ví dụ chỉ có số, chữ ngẫu nhiên hoặc vài từ rời rạc). Cô dán nội dung bài có ý nghĩa: tên bài, kiến thức cần học, ví dụ, bài tập nhé.', en: 'This does not look like a lesson yet (only numbers, random letters or a few unrelated words). Please paste real lesson content: the topic, what pupils learn, examples, exercises.' },
