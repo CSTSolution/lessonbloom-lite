@@ -259,3 +259,26 @@ test('the 5-lessons-a-day cap is for demo workspaces only; a Pro workspace keeps
   assert.equal(r.status, 429);
   assert.equal(r.json.code, 'demoLessons');
 });
+
+test('copies are numbered instead of stacking "(bản sao)", and do not count toward the demo lesson cap', async () => {
+  const store = new LocalStore(await mkdtemp(join(tmpdir(), 'lb-')));
+  const app = createApp(new MockProvider(), store);
+  let key = '';
+  const call = async (method: string, path: string, body?: unknown) => {
+    const r = await app.request(path, { method, headers: { 'content-type': 'application/json', 'x-teacher': key }, body: body ? JSON.stringify(body) : undefined });
+    return { status: r.status, json: await r.json() as any };
+  };
+  key = (await call('POST', '/api/t/me', {})).json.key;
+  const demo = (await call('GET', '/api/t/lessons')).json[0];
+  const t = (id: string) => store.get<any>('lessons', id).then((l) => l.intake.title);
+  const a = (await call('POST', `/api/t/lessons/${demo.id}/copy`, { lang: 'vi' })).json.id;
+  const b = (await call('POST', `/api/t/lessons/${a}/copy`, { lang: 'vi' })).json.id;
+  const c = (await call('POST', `/api/t/lessons/${b}/copy`, { lang: 'vi' })).json.id;
+  const base = await t(demo.id);
+  assert.deepEqual([await t(a), await t(b), await t(c)], [`${base} (bản sao)`, `${base} (bản sao 2)`, `${base} (bản sao 3)`]);
+  assert.equal((await store.get<any>('lessons', c)).copyOf, demo.id);
+  for (let i = 0; i < 4; i++) await call('POST', `/api/t/lessons/${demo.id}/copy`, { lang: 'vi' });
+  const source = 'Toán lớp 2: phép cộng có nhớ trong phạm vi 100. Ví dụ 36 + 27 = 63, nhớ 1 sang hàng chục.';
+  const intake = (await call('POST', '/api/t/intake', { source })).json;
+  assert.equal((await call('POST', '/api/t/lessons', { source, intake })).status, 202, '7 copies today, still allowed to make a lesson');
+});

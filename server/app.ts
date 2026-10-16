@@ -24,6 +24,7 @@ import type { Store } from './store.ts';
 import type { Assignment, Attempt, ClassRoom, Criteria, Exercise, Intake, Lesson, Pupil, SelfCheck, Slide, Teacher } from './types.ts';
 
 const MAX_SOURCE = 20000;
+const COPY_TAIL = /(\s*\((bản sao|copy)( \d+)?\))+$/i;   // what "Nhân bản" adds to a title
 // API errors carry Vietnamese and English (messages.ts); the browser shows the chosen language
 const bad = (c: Context, key: keyof typeof MSG & string, status: 400 | 403 | 404 | 409 | 429 = 400, m: Msg = MSG[key] as Msg, extra: Record<string, unknown> = {}) =>
   c.json(errorBody(m, key, extra), status);
@@ -363,7 +364,7 @@ export function createApp(ai: AI, store: Store) {
     const { source, intake: it, files } = await c.req.json<{ source: string; intake: Intake; files?: unknown }>();
     if (!source?.trim() || !it?.subject) return bad(c, 'missingSource');
     const today = new Date().toISOString().slice(0, 10);
-    const mineToday = (await store.find<Lesson>('lessons', 'teacherId', c.get('teacher').id)).filter((x) => x.createdAt.startsWith(today) && !x.sample && x.source !== SAMPLE_SOURCE).length;
+    const mineToday = (await store.find<Lesson>('lessons', 'teacherId', c.get('teacher').id)).filter((x) => x.createdAt.startsWith(today) && !x.sample && !x.copyOf && !COPY_TAIL.test(x.intake.title) && x.source !== SAMPLE_SOURCE).length;
     // demo workspaces only: accounts are limited by their daily credits (Free) or not at all (Pro)
     if (planOf(c.get('teacher')) === 'demo' && mineToday >= config.lessonsPerWorkspaceDay) return bad(c, 'demoLessons', 429, MSG.demoLessons(config.lessonsPerWorkspaceDay));
     const stop = await guard(c, 'lesson'); if (stop) return stop;
@@ -397,8 +398,13 @@ export function createApp(ai: AI, store: Store) {
     if (!l) return bad(c, 'notFound', 404);
     if (l.status !== 'ready') return bad(c, 'notReady', 409);
     const { lang } = await c.req.json<{ lang?: string }>().catch(() => ({ lang: 'vi' }));
+    // "Bài X (bản sao)", then "(bản sao 2)", "(bản sao 3)"…: a copy of a copy never stacks the words
+    const base = l.intake.title.replace(COPY_TAIL, '').trim(), word = lang === 'en' ? 'copy' : 'bản sao';
+    const titles = new Set((await store.find<Lesson>('lessons', 'teacherId', l.teacherId)).map((x) => x.intake.title));
+    let n = 1, title = `${base} (${word})`;
+    while (titles.has(title)) title = `${base} (${word} ${++n})`;
     const copy: Lesson = { ...structuredClone(l), id: id(), createdAt: new Date().toISOString(), sample: false, picturesPending: false,
-      intake: { ...l.intake, title: `${l.intake.title} (${lang === 'en' ? 'copy' : 'bản sao'})`.slice(0, 120) } };
+      copyOf: l.copyOf || l.id, intake: { ...l.intake, title: title.slice(0, 120) } };
     await store.put('lessons', copy);
     return c.json({ id: copy.id });
   });
