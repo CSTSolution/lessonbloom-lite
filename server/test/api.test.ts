@@ -163,3 +163,13 @@ test('a teacher’s own class named 2A is not sample data, and the guide state s
   assert.equal(start.json.classes, 1);
   assert.equal(start.json.sample, false);
 });
+
+test('intake refuses meaningless text with a message in both languages', async () => {
+  const app = createApp(new MockProvider(), new LocalStore(await mkdtemp(join(tmpdir(), 'lb-'))));
+  const me = await (await app.request('/api/t/me', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })).json() as any;
+  const r = await app.request('/api/t/intake', { method: 'POST', headers: { 'content-type': 'application/json', 'x-teacher': me.key }, body: JSON.stringify({ source: '121212 121212 121212 121212 121212 121212' }) });
+  const j = await r.json() as any;
+  assert.equal(r.status, 400);
+  assert.equal(j.code, 'notLesson');
+  assert.ok(j.error && j.errorEn);
+});

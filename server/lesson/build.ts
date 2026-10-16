@@ -26,8 +26,20 @@ const TEMPLATE_HELP: Record<string, string> = {
 const noteLine = (it: Intake) => (it.note?.trim() ? `Teacher's note: ${it.note.trim()}` : '');
 const pad = (n: number) => String(n).padStart(2, '0');
 
+// Text that cannot be a lesson: mostly digits or symbols, or the same few words over and over
+export function meaningless(source: string): boolean {
+  const chars = source.replace(/\s/g, ''), letters = (source.match(/\p{L}/gu) || []).length;
+  const words = new Set((source.toLowerCase().match(/\p{L}{2,}/gu) || []));
+  return !chars.length || letters / chars.length < 0.5 || words.size < 5;
+}
+
+export class NotALesson extends Error {}
+
 export async function intake(ai: AI, source: string): Promise<Intake> {
-  const r = await ai.json<Intake>({ task: 'intake', tier: 'fast', system: INTAKE_SYSTEM, prompt: `DOCUMENT:\n${source}`, schema: INTAKE_SCHEMA, input: { source } });
+  if (meaningless(source)) throw new NotALesson('meaningless');
+  const r = await ai.json<Intake & { usable?: boolean }>({ task: 'intake', tier: 'fast', system: INTAKE_SYSTEM, prompt: `DOCUMENT:\n${source}`, schema: INTAKE_SCHEMA, input: { source } });
+  if (r.usable === false) throw new NotALesson('not lesson content');
+  delete r.usable;
   const minutes = [15, 25, 35].reduce((b, m) => (Math.abs(m - (r.minutes || 25)) < Math.abs(b - (r.minutes || 25)) ? m : b), 25);
   return { ...r, grade: Math.min(5, Math.max(1, Math.round(r.grade))) as Intake['grade'], minutes, objectives: r.objectives.slice(0, 2),
     // everything ticked by default; the teacher unticks what they don't want (Gemini's guess here was unreliable)

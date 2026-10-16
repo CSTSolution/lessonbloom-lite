@@ -129,3 +129,4 @@ table.t .chip { white-space: nowrap; }
 .pupil-card { padding: 12px; text-decoration: none; color: inherit; } .pupil-card:hover { border-color: var(--blue); }
 .lesson-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; max-width: 1200px; margin: 0 auto; padding: 10px 32px 0; }
 @media (max-width: 720px) { .lesson-bar { padding: 10px 16px 0; } }
+.lesson-title { font-size: 17px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

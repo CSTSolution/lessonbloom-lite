@@ -28,6 +28,28 @@ export function Stepper({ current, lessonId }: { current: number; lessonId?: str
   );
 }
 
+// title (rename), duplicate, print, delete: on every step of a ready lesson
+function LessonBar({ l, onChange }: { l: Lesson; onChange: (x: Lesson) => void }) {
+  const t = useT(T);
+  const [edit, setEdit] = useState<string | null>(null), [err, setErr] = useState(''), [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(() => { try { const v = sessionStorage.getItem('lb-copied') === l.id; sessionStorage.removeItem('lb-copied'); return v; } catch { return false; } });
+  const act = async (fn: () => Promise<void>) => { setErr(''); setBusy(true); try { await fn(); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); } };
+  const copy = () => act(async () => { const { id: nid } = await teacherApi.copyLesson(l.id); try { sessionStorage.setItem('lb-copied', nid); } catch { /* ok */ } go(`/lesson/${nid}/slides`); });
+  const del = () => { if (confirm(t.delLessonConfirm)) act(async () => { await teacherApi.deleteLesson(l.id); go('/'); }); };
+  const save = () => act(async () => { if (!edit?.trim()) throw new Error(t.required([t.q0])); onChange(await teacherApi.renameLesson(l.id, edit)); setEdit(null); });
+  return (
+    <div className="lesson-bar no-print">
+      {edit !== null
+        ? <form className="row grow" style={{ flexWrap: 'nowrap' }} onSubmit={(e) => { e.preventDefault(); save(); }}><input autoFocus maxLength={120} value={edit} onChange={(e) => setEdit(e.target.value)} /><button className="btn primary sm" disabled={busy}>{t.save}</button><button type="button" className="btn sm" onClick={() => setEdit(null)}>{t.cancel}</button></form>
+        : <><strong className="grow lesson-title">{l.intake.title}</strong><button className="btn ghost sm" onClick={() => setEdit(l.intake.title)}>{t.rename}</button></>}
+      <button className="btn sm" disabled={busy} onClick={copy}>{t.copyLesson}</button>
+      <button className="btn sm danger" disabled={busy} onClick={del}>{t.deleteLesson}</button>
+      {copied && <p className="ok-note" role="status" style={{ width: '100%', margin: 0 }}>✓ {t.copiedLesson} {t.copiedHint}</p>}
+      {err && <p className="error-note" role="alert" style={{ width: '100%' }}>{err}</p>}
+    </div>
+  );
+}
+
 export function LessonFlow({ id, step }: { id: string; step: string }) {
   const t = useT(T), lang = useLang();
   const [l, setL] = useState<Lesson | null>(null);
@@ -76,11 +98,7 @@ export function LessonFlow({ id, step }: { id: string; step: string }) {
   return (
     <>
       <Stepper current={idx} lessonId={l.id} />
-      <div className="lesson-bar">
-        <span className="grow" />
-        <button className="btn sm" onClick={async () => { const { id: nid } = await teacherApi.copyLesson(l.id); go(`/lesson/${nid}/slides`); }}>{t.copyLesson}</button>
-        <button className="btn sm danger" onClick={async () => { if (!confirm(t.delLessonConfirm)) return; await teacherApi.deleteLesson(l.id); go('/'); }}>{t.deleteLesson}</button>
-      </div>
+      <LessonBar l={l} onChange={onChange} />
       {idx === 2 && <Slides l={l} onChange={onChange} />}
       {idx === 3 && <Video l={l} onChange={onChange} onStarted={() => setTimeout(restartPoll, 300)} />}
       {idx === 4 && <Exercises l={l} onChange={onChange} />}

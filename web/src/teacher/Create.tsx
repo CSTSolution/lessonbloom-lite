@@ -62,12 +62,16 @@ export function Create() {
   const words = source.trim() ? source.trim().split(/\s+/).length : 0;
 
   const load = async (f?: File) => { if (!f) return; try { setSource((await readFileText(f)).slice(0, 20000)); } catch (e) { setErr((e as Error).message); } };
+  const MIN_WORDS = 8;
   const toQuestions = async () => {
+    if (words < MIN_WORDS) { setErr(words ? t.needMore(words, MIN_WORDS) : t.needSource); return; }   // say why, never a silently disabled button
     setBusy(true); setErr('');
     try { const r = await teacherApi.intake(source); setIt({ ...r, subject: r.subject || subject }); setStep(2); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   };
   const build = async () => {
     if (!it) return;
+    const missing = [!it.title.trim() && t.q0, !it.objectives.some((o) => o.trim()) && t.q1].filter(Boolean).map((x) => String(x).replace(/^\d+\.\s*/, ''));
+    if (missing.length) { setErr(t.required(missing)); return; }
     setBusy(true); setErr('');
     try { const { id } = await teacherApi.create(source, it); try { sessionStorage.removeItem('lb-draft'); } catch { /* ok */ } go(`/lesson/${id}/build`); } catch (e) { setErr((e as Error).message); setBusy(false); }
   };
@@ -106,8 +110,9 @@ export function Create() {
               <button className="btn ghost sm" onClick={() => { setSubject('english'); setSource(SAMPLES.english); }}>{t.sampleEng}</button>
             </div>
             <div className="row">
-              <span className="muted small grow">{words > 0 && t.received(words)}</span>
-              <button className="btn primary lg" disabled={words < 8 || busy} onClick={toQuestions}>{busy ? t.reading : t.next}</button>
+              <span className={`small grow ${words > 0 && words < MIN_WORDS ? '' : 'muted'}`} style={words > 0 && words < MIN_WORDS ? { color: 'var(--amber)' } : undefined}>
+                {words > 0 && (words < MIN_WORDS ? t.needMore(words, MIN_WORDS) : t.received(words))}</span>
+              <button className="btn primary lg" disabled={busy} onClick={toQuestions}>{busy ? t.reading : t.next}</button>
             </div>
           </>
         )}
@@ -115,8 +120,8 @@ export function Create() {
           <>
             <div><h1>{t.qTitle}</h1><p className="muted">{t.qSub}</p></div>
             <div className="card stack" style={{ gap: 18 }}>
-              <label className="field">{t.q0}<input value={it.title} onChange={(e) => set('title', e.target.value)} /></label>
-              <label className="field"><span>{t.q1} <span className="chip blue small">{t.aiTag}</span></span>
+              <label className="field"><span>{t.q0} <span className="req" aria-hidden="true">*</span></span><input required aria-invalid={!it.title.trim()} value={it.title} onChange={(e) => set('title', e.target.value)} /></label>
+              <label className="field"><span>{t.q1} <span className="req" aria-hidden="true">*</span> <span className="chip blue small">{t.aiTag}</span></span>
                 <textarea rows={2} value={it.objectives.join('\n')} onChange={(e) => set('objectives', e.target.value.split('\n'))} /></label>
               <div className="field"><span>{t.q2}</span>
                 <div className="radio-pills">{[15, 25, 35].map((m) => <label key={m} className={it.minutes === m ? 'on' : ''}><input type="radio" className="sr" checked={it.minutes === m} onChange={() => set('minutes', m)} />{m} {t.min}</label>)}</div></div>

@@ -6,6 +6,7 @@ import { useT } from '../i18n.ts';
 import { T } from './dict.ts';
 import { activeStep, GuideHint, pulse } from './Guide.tsx';
 import { shareMessage } from './share.ts';
+import { ErrorNote } from './ErrorNote.tsx';
 import { Link } from './TeacherRoutes.tsx';
 
 export function Classes() {
@@ -17,7 +18,7 @@ export function Classes() {
   const [adding, setAdding] = useState<'class' | 'pupils' | null>(() => (new URLSearchParams(location.search).has('add') || activeStep() === 'class' ? 'class' : null));
   const [form, setForm] = useState<{ name: string; names: string; subject: 'math' | 'english' | 'both' }>({ name: '', names: '', subject: 'math' });
   const [subj, setSubj] = useState<'all' | 'math' | 'english'>('all');
-  const [loaded, setLoaded] = useState(false), [copied, setCopied] = useState(''), [shared, setShared] = useState('');
+  const [loaded, setLoaded] = useState(false), [copied, setCopied] = useState(''), [shared, setShared] = useState(''), [err, setErr] = useState('');
   const [edit, setEdit] = useState<{ name: string; subject: 'math' | 'english' | 'both' } | null>(null);
   const load = () => teacherApi.classes().then((cs) => { setClasses(cs); setLoaded(true); setCid((c) => c || cs[0]?.id || ''); });
   useEffect(() => { load(); }, []);
@@ -29,8 +30,13 @@ export function Classes() {
   const today = new Date().toISOString().slice(0, 10);
 
   const submit = async () => {
-    if (adding === 'class' && form.name.trim()) { const k = await teacherApi.addClass(form.name, names(form.names), form.subject); await load(); setCid(k.id); setSubj('all'); }
-    if (adding === 'pupils' && d) { await teacherApi.addPupils(d.id, names(form.names)); setD(await teacherApi.klass(d.id)); load(); }
+    setErr('');
+    if (adding === 'class' && !form.name.trim()) return setErr(t.required([t.newClassName.replace(/\s*\(.*\)$/, '')]));
+    if (adding === 'pupils' && !names(form.names).length) return setErr(t.required([t.addPupilsPh]));
+    try {
+      if (adding === 'class') { const k = await teacherApi.addClass(form.name, names(form.names), form.subject); await load(); setCid(k.id); setSubj('all'); }
+      if (adding === 'pupils' && d) { await teacherApi.addPupils(d.id, names(form.names)); setD(await teacherApi.klass(d.id)); load(); }
+    } catch (e) { return setErr((e as Error).message); }
     setAdding(null); setForm({ name: '', names: '', subject: 'math' });
   };
 
@@ -51,7 +57,7 @@ export function Classes() {
         <div className="card stack">
           {adding === 'class' && (
             <div className="row" style={{ gap: 16, alignItems: 'flex-end' }}>
-              <label className="field grow">{t.newClassName}<input autoFocus placeholder="2A" maxLength={12} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
+              <label className="field grow"><span>{t.newClassName} <span className="req" aria-hidden="true">*</span></span><input autoFocus required placeholder="2A" maxLength={12} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
               <label className="field grow">{t.classSubject}
                 <select value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value as 'math' | 'english' | 'both' })}>
                   <option value="math">{t.math}</option><option value="english">{t.english}</option><option value="both">{t.both}</option>
@@ -59,6 +65,7 @@ export function Classes() {
             </div>
           )}
           <label className="field">{adding === 'class' ? t.newClassNames : t.addPupilsPh}<textarea rows={5} value={form.names} onChange={(e) => setForm({ ...form, names: e.target.value })} /></label>
+          <ErrorNote text={err} />
           <div className="row"><button className={`btn primary${adding === 'class' ? pulse('class') : ''}`} onClick={submit}>{t.save}</button>{classes.length > 0 && <button className="btn" onClick={() => setAdding(null)}>{t.cancel}</button>}</div>
         </div>
       )}

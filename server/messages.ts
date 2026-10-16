@@ -18,6 +18,7 @@ export const MSG = {
   needAccount: { vi: 'Cô đăng ký tài khoản (miễn phí) trước nhé.', en: 'Please register a free account first.' },
   className: { vi: 'Cô nhập tên lớp nhé.', en: 'Please enter a class name.' },
   notFound: { vi: 'Không tìm thấy mục này (có thể đã bị xoá).', en: 'Not found (it may have been deleted).' },
+  notLesson: { vi: 'Nội dung này chưa giống một bài học (ví dụ chỉ có số, chữ ngẫu nhiên hoặc vài từ rời rạc). Cô dán nội dung bài có ý nghĩa: tên bài, kiến thức cần học, ví dụ, bài tập nhé.', en: 'This does not look like a lesson yet (only numbers, random letters or a few unrelated words). Please paste real lesson content: the topic, what pupils learn, examples, exercises.' },
   sourceShort: { vi: 'Cô dán nội dung bài học (ít nhất vài câu) nhé.', en: 'Please paste the lesson content (at least a few sentences).' },
   missingSource: { vi: 'Thiếu nội dung bài hoặc câu trả lời ở bước 2.', en: 'The lesson text or the step 2 answers are missing.' },
   notReady: { vi: 'Bài giảng đang được soạn, cô đợi một chút nhé.', en: 'The lesson is still being prepared. Please wait a moment.' },

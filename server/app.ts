@@ -10,7 +10,7 @@ import { Otp, type Purpose } from './otp.ts';
 import { Hono, type Context } from 'hono';
 import type { AI } from './ai/provider.ts';
 import { nextSteps, readableAnswer, summarise } from './insights.ts';
-import { cleanCard, draftComments, editSlide, intake, tagError } from './lesson/build.ts';
+import { cleanCard, draftComments, editSlide, intake, meaningless, NotALesson, tagError } from './lesson/build.ts';
 import { illustrate } from './lesson/illustrate.ts';
 import { runLesson } from './lesson/job.ts';
 import { makeVideo } from './lesson/video.ts';
@@ -328,8 +328,10 @@ export function createApp(ai: AI, store: Store) {
   t.post('/intake', async (c) => {
     const { source } = await c.req.json<{ source: string }>();
     if (!source?.trim() || source.trim().length < 30) return bad(c, 'sourceShort');
+    if (meaningless(source)) return bad(c, 'notLesson');
     const stop = await guard(c, 'intake'); if (stop) return stop;
-    return c.json(await intake(ai, source.slice(0, MAX_SOURCE)));
+    try { return c.json(await intake(ai, source.slice(0, MAX_SOURCE))); }
+    catch (e) { if (e instanceof NotALesson) return bad(c, 'notLesson'); throw e; }
   });
   t.post('/lessons', async (c) => {
     const { source, intake: it } = await c.req.json<{ source: string; intake: Intake }>();
@@ -348,8 +350,9 @@ export function createApp(ai: AI, store: Store) {
   t.put('/lessons/:id', async (c) => {
     const l = await myLesson(c);
     if (!l) return bad(c, 'notFound', 404);
-    const body = await c.req.json<Partial<Pick<Lesson, 'slides' | 'exercises' | 'flashcards' | 'pairs'>>>();
+    const body = await c.req.json<Partial<Pick<Lesson, 'slides' | 'exercises' | 'flashcards' | 'pairs'>> & { title?: string }>();
     for (const k of ['slides', 'exercises', 'flashcards', 'pairs'] as const) if (Array.isArray(body[k])) (l as unknown as Record<string, unknown>)[k] = body[k];
+    if (typeof body.title === 'string') { if (!body.title.trim()) return bad(c, 'badRequest'); l.intake.title = body.title.trim().slice(0, 120); }
     await store.put('lessons', l);
     return c.json(l);
   });

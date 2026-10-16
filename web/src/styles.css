@@ -51,6 +51,8 @@ h1 { font-size: 28px; line-height: 1.25; } h2 { font-size: 20px; } h3 { font-siz
 .note { background: var(--blue-soft); color: var(--ink-2); border-radius: 12px; padding: 12px 16px; font-size: 14px; }
 .ok-note { background: var(--green-soft); color: var(--green-ink); border-radius: 12px; padding: 10px 14px; font-size: 14px; }
 .error { color: var(--red); }
+.req { color: var(--red); font-weight: 700; }
+input[aria-invalid=true], textarea[aria-invalid=true] { border-color: var(--red); }
 .error-note { margin: 0; padding: 12px 14px; border-radius: 12px; background: var(--red-soft); color: var(--red); font-size: 14px; line-height: 1.45; }
 .pills { display: flex; gap: 8px; flex-wrap: wrap; }
 .pill { padding: 9px 18px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); cursor: pointer; font-weight: 500; }

@@ -18,7 +18,8 @@ Read the document and pre-fill the setup so the teacher only checks it:
 - minutes: 15, 25 or 35
 - level: "basic", "good", "advanced", or "mixed" when the class has all levels (default "mixed")
 - lang: "vi" for maths, "en" for English lessons
-- outputs: which of slides, video, exercises, flashcards suit this lesson (usually all four)`;
+- outputs: which of slides, video, exercises, flashcards suit this lesson (usually all four)
+- usable: false when the text is not lesson content a teacher could teach from (random letters or numbers, a few unrelated words, spam, a shopping list, a message); true for real lesson notes, even short ones`;
 
 export const INTAKE_SCHEMA = {
   type: 'object',
@@ -26,8 +27,9 @@ export const INTAKE_SCHEMA = {
     subject: { type: 'string', enum: ['math', 'english'] }, grade: { type: 'integer', minimum: 1, maximum: 5 },
     title: str, objectives: strs, minutes: { type: 'integer' }, level: { type: 'string', enum: [...LEVELS, 'mixed'] },
     lang: { type: 'string', enum: ['vi', 'en'] }, outputs: { type: 'array', items: { type: 'string', enum: ['slides', 'video', 'exercises', 'flashcards'] } },
+    usable: { type: 'boolean' },
   },
-  required: ['subject', 'grade', 'title', 'objectives', 'minutes', 'level', 'lang', 'outputs'],
+  required: ['usable', 'subject', 'grade', 'title', 'objectives', 'minutes', 'level', 'lang', 'outputs'],
 };
 
 export const LESSON_SYSTEM = `You build a slide lesson for Vietnamese primary pupils (age 6-11) from the teacher's own document.

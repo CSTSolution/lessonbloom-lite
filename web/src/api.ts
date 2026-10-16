@@ -79,6 +79,7 @@ export const teacherApi = {
   renamePupil: (cid: string, pid: string, name: string) => tc<Pupil>('PUT', `/classes/${cid}/pupils/${pid}`, { name }),
   deletePupil: (cid: string, pid: string) => tc<{ ok: true }>('DELETE', `/classes/${cid}/pupils/${pid}`),
   deleteLesson: (id: string) => tc<{ ok: true }>('DELETE', `/lessons/${id}`),
+  renameLesson: (id: string, title: string) => tc<Lesson>('PUT', `/lessons/${id}`, { title }),
   copyLesson: (id: string) => tc<{ id: string }>('POST', `/lessons/${id}/copy`, { lang: getLang() }),
   clearSample: () => tc<{ removed: Record<string, number> }>('POST', '/sample/clear'),
   addPupils: (id: string, names: string[]) => tc<Pupil[]>('POST', `/classes/${id}/pupils`, { names }),

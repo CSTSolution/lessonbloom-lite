@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import { MockProvider } from '../ai/mock.ts';
-import { checkLocal, cleanCard, intake, makeCards, makeExercises, makeSlides } from '../lesson/build.ts';
+import { checkLocal, cleanCard, intake, makeCards, makeExercises, makeSlides, meaningless } from '../lesson/build.ts';
 import { illustrate } from '../lesson/illustrate.ts';
 import { checkMath, evaluate, solveBlank } from '../lesson/mathcheck.ts';
 import type { Exercise } from '../types.ts';
@@ -118,4 +118,13 @@ test('flashcard words never repeat their emoji, before or after the word', () =>
   assert.equal(cleanCard({ front: 'blue', emoji: '🔵' }).front, 'blue');
   assert.equal(cleanCard({ front: '🔴', emoji: '🔴' }).front, '🔴');
   assert.equal(cleanCard({ front: 'red 🔴' }).front, 'red 🔴');
+});
+
+test('text that cannot be a lesson is spotted before any AI call', () => {
+  assert.equal(meaningless('121212 121212 121212 121212 121212 121212 121212 121212'), true);
+  assert.equal(meaningless('asdf asdf asdf asdf asdf asdf asdf asdf asdf'), true);
+  assert.equal(meaningless('!!! ??? ... 123 456'), true);
+  assert.equal(meaningless(math), false);
+  assert.equal(meaningless(eng), false);
+  assert.equal(meaningless('Phép trừ có nhớ: 52 - 18 = 34. Hàng đơn vị 2 không trừ được 8, mượn 1 chục.'), false);
 });
