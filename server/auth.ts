@@ -38,3 +38,4 @@ export async function setPassword(email: string, password: string): Promise<void
   await admin().updateUser(u.uid, { password, emailVerified: true });   // owning the mailbox proves the email too
 }
 export async function markVerified(uid: string): Promise<void> { await admin().updateUser(uid, { emailVerified: true }); }
+export async function setDisplayName(uid: string, name: string): Promise<void> { await admin().updateUser(uid, { displayName: name }); }

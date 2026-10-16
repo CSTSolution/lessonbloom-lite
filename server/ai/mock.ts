@@ -90,6 +90,11 @@ export class MockProvider implements AI {
   }
 
   async see<T>(req: VisionRequest): Promise<T> {
+    if (req.task === 'ocr') {               // a "photo of a textbook page": fixed text per photo, so tests can count pages
+      this.calls.push({ task: 'ocr' });
+      const n = req.images?.length || 0;
+      return { usable: n > 0, text: Array.from({ length: n }, (_, i) => `Trang ${i + 1}: Phép cộng có nhớ trong phạm vi 100. Ví dụ: 36 + 27 = 63. Luyện tập: 48 + 25; 19 + 36.`).join('\n\n') } as T;
+    }
     this.calls.push({ task: 'image-critic' });
     const { slide, attempt, prompt } = req.input as { slide: string; attempt: number; prompt: string };
     const fail = !this.opts.clean && slide === 'sl02' && attempt === 1;

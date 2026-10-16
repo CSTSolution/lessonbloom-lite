@@ -173,3 +173,44 @@ test('intake refuses meaningless text with a message in both languages', async (
   assert.equal(j.code, 'notLesson');
   assert.ok(j.error && j.errorEn);
 });
+
+test('display name can be changed, blank names are refused; a lesson keeps its file names and shows the demo source', async () => {
+  const app = createApp(new MockProvider(), new LocalStore(await mkdtemp(join(tmpdir(), 'lb-'))));
+  let key = '';
+  const call = async (method: string, path: string, body?: unknown) => {
+    const r = await app.request(path, { method, headers: { 'content-type': 'application/json', 'x-teacher': key }, body: body ? JSON.stringify(body) : undefined });
+    return { status: r.status, json: await r.json() as any };
+  };
+  key = (await call('POST', '/api/t/me', {})).json.key;
+  const blank = await call('PUT', '/api/t/me', { name: '   ' });
+  assert.equal(blank.status, 400);
+  assert.equal(blank.json.code, 'nameMissing');
+  assert.equal((await call('PUT', '/api/t/me', { name: '  Cô   Lan  ' })).json.name, 'Cô Lan');
+  assert.equal((await call('GET', '/api/t/me')).json.name, 'Cô Lan');
+  const demo = (await call('GET', '/api/t/lessons')).json[0];
+  assert.match((await call('GET', `/api/t/lessons/${demo.id}`)).json.source, /Phép cộng có nhớ/);
+  const it = (await call('POST', '/api/t/intake', { source: 'Toán lớp 2: phép cộng có nhớ trong phạm vi 100. Ví dụ 36 + 27 = 63, nhớ 1 sang hàng chục.' })).json;
+  const { id } = (await call('POST', '/api/t/lessons', { source: 'Toán lớp 2: phép cộng có nhớ trong phạm vi 100. Ví dụ 36 + 27 = 63.', intake: it, files: ['bai-1.docx', 42] })).json;
+  assert.deepEqual((await call('GET', `/api/t/lessons/${id}`)).json.files, ['bai-1.docx']);
+});
+
+test('photos of a lesson are read into text, at most 3 per lesson on the demo, bad files refused', async () => {
+  const app = createApp(new MockProvider(), new LocalStore(await mkdtemp(join(tmpdir(), 'lb-'))));
+  let key = '';
+  const call = async (method: string, path: string, body?: unknown) => {
+    const r = await app.request(path, { method, headers: { 'content-type': 'application/json', 'x-teacher': key }, body: body ? JSON.stringify(body) : undefined });
+    return { status: r.status, json: await r.json() as any };
+  };
+  key = (await call('POST', '/api/t/me', {})).json.key;
+  assert.equal((await call('GET', '/api/t/usage')).json.photos, 3);
+  const pic = { type: 'image/jpeg', data: Buffer.alloc(2000, 7).toString('base64') };
+  const two = await call('POST', '/api/t/ocr', { images: [pic, pic] });
+  assert.equal(two.status, 200);
+  assert.match(two.json.text, /Trang 1:[\s\S]*Trang 2:/);
+  const four = await call('POST', '/api/t/ocr', { images: [pic, pic, pic, pic] });
+  assert.equal(four.status, 400);
+  assert.equal(four.json.code, 'tooManyPhotos');
+  assert.ok(four.json.error.includes('3') && four.json.errorEn.includes('3'));
+  assert.equal((await call('POST', '/api/t/ocr', { images: [{ type: 'application/pdf', data: pic.data }] })).json.code, 'photoBad');
+  assert.equal((await call('POST', '/api/t/ocr', { images: [] })).json.code, 'noPhotos');
+});

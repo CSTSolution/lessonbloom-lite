@@ -14,7 +14,7 @@ import { checkMath } from './mathcheck.ts';
 import { MSG, type Msg } from '../messages.ts';
 import {
   CARDS_SCHEMA, CARDS_SYSTEM, COMMENT_SCHEMA, COMMENT_SYSTEM, ENG_TYPES, ERROR_SCHEMA, ERROR_SYSTEM, exercisesSchema, EXERCISES_SYSTEM, fill,
-  INTAKE_SCHEMA, INTAKE_SYSTEM, LESSON_SCHEMA, LESSON_SYSTEM, MATH_TYPES, REVIEW_SCHEMA, REVIEW_SYSTEM, SLIDE_EDIT_SYSTEM, SLIDE_SCHEMA,
+  INTAKE_SCHEMA, INTAKE_SYSTEM, LESSON_SCHEMA, LESSON_SYSTEM, MATH_TYPES, OCR_SCHEMA, OCR_SYSTEM, REVIEW_SCHEMA, REVIEW_SYSTEM, SLIDE_EDIT_SYSTEM, SLIDE_SCHEMA,
 } from './prompts.ts';
 
 const LANG_NAME = { vi: 'Vietnamese', en: 'English' } as const;
@@ -178,4 +178,14 @@ export async function draftComments(ai: AI, lessonTitle: string, rows: { pupilId
   const r = await ai.json<{ comments: { pupilId: string; text: string }[] }>({ task: 'comments', tier: 'fast', system: COMMENT_SYSTEM,
     prompt: `LESSON: ${lessonTitle}\nPUPILS (skill, label, repeated error):\n${JSON.stringify(rows)}`, schema: COMMENT_SCHEMA, input: { rows } });
   return r.comments;
+}
+
+// Step 1: photos of the lesson -> text the teacher checks before continuing
+export async function readPhotos(ai: AI, images: { data: Buffer; mime: string }[]): Promise<string> {
+  const r = await ai.see<{ usable: boolean; text: string }>({
+    task: 'ocr', tier: 'fast', system: OCR_SYSTEM, schema: OCR_SCHEMA, images, input: { photos: images.length },
+    prompt: `Copy out the lesson text from these ${images.length} photo(s), in order.`,
+  });
+  if (!r.usable || !r.text?.trim()) throw new NotALesson();
+  return r.text.trim();
 }

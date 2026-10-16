@@ -4,20 +4,20 @@
 // Pupil routes: join with a class code, tap your name; answers never leave the server, and
 //   nothing a pupil receives contains scores, percentages or labels.
 import { createHash, timingSafeEqual } from 'node:crypto';
-import { accountExists, createAccount, firebaseEnabled, isAdminEmail, markVerified, setPassword, verify, webConfig } from './auth.ts';
+import { accountExists, createAccount, firebaseEnabled, isAdminEmail, markVerified, setDisplayName, setPassword, verify, webConfig } from './auth.ts';
 import { sendCode } from './mail.ts';
 import { Otp, type Purpose } from './otp.ts';
 import { Hono, type Context } from 'hono';
 import type { AI } from './ai/provider.ts';
 import { nextSteps, readableAnswer, summarise } from './insights.ts';
-import { cleanCard, draftComments, editSlide, intake, meaningless, NotALesson, tagError } from './lesson/build.ts';
+import { cleanCard, draftComments, editSlide, intake, meaningless, NotALesson, readPhotos, tagError } from './lesson/build.ts';
 import { illustrate } from './lesson/illustrate.ts';
 import { runLesson } from './lesson/job.ts';
 import { makeVideo } from './lesson/video.ts';
 import { id, newTeacher, SAMPLE_SOURCE, SAMPLE_TEXT, sampleOf, seedTeacher } from './seed.ts';
 import { SpendGuard, type SpendKind } from './spend.ts';
 import { costOf, PRICE, UsageLog } from './usage.ts';
-import { CREDIT_COST, Credits, ctx, dailyLimit, planOf, type CreditKind } from './credits.ts';
+import { CREDIT_COST, Credits, ctx, dailyLimit, PHOTOS_PER_LESSON, planOf, type CreditKind } from './credits.ts';
 import { config } from './config.ts';
 import { errorBody, MSG, type Msg } from './messages.ts';
 import type { Store } from './store.ts';
@@ -119,11 +119,21 @@ export function createApp(ai: AI, store: Store) {
     await ctx.run({ teacherId: teacher.id }, next);     // background work started here keeps the teacher id
   });
   t.get('/me', (c) => c.json(c.get('teacher')));
+  // "My account": the display name shown on the top bar and in pupils' view; for an account also its Firebase name
+  t.put('/me', async (c) => {
+    const { name } = await c.req.json<{ name?: string }>().catch(() => ({ name: undefined }));
+    const n = String(name ?? '').replace(/\s+/g, ' ').trim().slice(0, 40);
+    if (!n) return bad(c, 'nameMissing');
+    const tc = { ...c.get('teacher'), name: n };
+    await store.put('teachers', tc);
+    if (tc.id.startsWith('u_')) await setDisplayName(tc.id.slice(2), n).catch((e) => console.warn('displayName', e));
+    return c.json(tc);
+  });
   t.get('/spend', async (c) => c.json(await spend.status()));
   t.get('/usage', async (c) => {
     const tc = c.get('teacher'), plan = planOf(tc), days = await credits.history(tc.id, 30);
     const today = days.find((d) => d.day === new Date().toISOString().slice(0, 10));
-    return c.json({ plan, limit: Number.isFinite(dailyLimit(plan)) ? dailyLimit(plan) : null, usedToday: today?.credits || 0, costs: CREDIT_COST, proRequestedAt: tc.proRequestedAt || null,
+    return c.json({ plan, limit: Number.isFinite(dailyLimit(plan)) ? dailyLimit(plan) : null, usedToday: today?.credits || 0, costs: CREDIT_COST, photos: PHOTOS_PER_LESSON[plan], proRequestedAt: tc.proRequestedAt || null,
       days: days.map(({ day, credits: cr, actions, usd, calls }) => ({ day, credits: cr, actions, usd, calls })) });
   });
   // accounts made before codes existed confirm their email with a code too (the banner)
@@ -332,6 +342,22 @@ export function createApp(ai: AI, store: Store) {
     const stop = await guard(c, 'intake'); if (stop) return stop;
     try { return c.json(await intake(ai, source.slice(0, MAX_SOURCE))); }
     catch (e) { if (e instanceof NotALesson) return bad(c, 'notLesson'); throw e; }
+  });
+  // step 1 by photo: up to 3 photos per lesson (5 on Pro), downscaled in the browser; Gemini copies out the text
+  t.post('/ocr', async (c) => {
+    const { images } = await c.req.json<{ images?: { data?: string; type?: string }[] }>().catch(() => ({ images: undefined }));
+    const max = PHOTOS_PER_LESSON[planOf(c.get('teacher'))];
+    if (!Array.isArray(images) || !images.length) return bad(c, 'noPhotos');
+    if (images.length > max) return bad(c, 'tooManyPhotos', 400, MSG.tooManyPhotos(max), { max });
+    const pics: { data: Buffer; mime: string }[] = [];
+    for (const x of images) {
+      const mime = String(x?.type || ''), data = Buffer.from(String(x?.data || ''), 'base64');
+      if (!/^image\/(jpeg|png|webp)$/.test(mime) || data.length < 100 || data.length > 4e6) return bad(c, 'photoBad');
+      pics.push({ data, mime });
+    }
+    const stop = await guard(c, 'ocr'); if (stop) return stop;
+    try { return c.json({ text: (await readPhotos(ai, pics)).slice(0, MAX_SOURCE), max }); }
+    catch (e) { if (e instanceof NotALesson) return bad(c, 'photoNoText'); throw e; }
   });
   t.post('/lessons', async (c) => {
     const { source, intake: it, files } = await c.req.json<{ source: string; intake: Intake; files?: unknown }>();

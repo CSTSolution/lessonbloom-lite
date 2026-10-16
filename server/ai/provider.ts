@@ -1,7 +1,7 @@
 // The one seam between LessonBloom and the models. GeminiProvider talks to Gemini (AI
 // Studio key or Vertex AI); MockProvider answers offline so everything runs without a key.
 
-export type Task = 'intake' | 'lesson' | 'slide-edit' | 'exercises' | 'review' | 'cards' | 'error' | 'comments' | 'image-critic';
+export type Task = 'intake' | 'lesson' | 'slide-edit' | 'exercises' | 'review' | 'cards' | 'error' | 'comments' | 'image-critic' | 'ocr';
 
 export interface TextRequest {
   task: Task;
@@ -13,7 +13,7 @@ export interface TextRequest {
 }
 
 export interface ImageRequest { prompt: string; key: string; aspect?: '4:3' | '1:1' | '16:9' }
-export interface VisionRequest extends TextRequest { image: Buffer }
+export interface VisionRequest extends TextRequest { image?: Buffer; images?: { data: Buffer; mime: string }[] }   // images: photos in page order
 export interface SpeechRequest { text: string; lang: 'vi' | 'en'; voice?: number }   // voice: 0 female North, 1 female South, 2 male North
 
 import type { UsageEvent } from '../usage.ts';

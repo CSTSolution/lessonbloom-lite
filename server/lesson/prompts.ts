@@ -138,3 +138,16 @@ score 0-10 for how well it serves the slide. issues: short list of what is wrong
 export const IMAGE_CRITIC_SCHEMA = { type: 'object', properties: { hasText: { type: 'boolean' }, unsafe: { type: 'boolean' }, broken: { type: 'boolean' }, offTopic: { type: 'boolean' }, score: { type: 'number' }, issues: strs, revisedPrompt: str }, required: ['hasText', 'unsafe', 'broken', 'offTopic', 'score', 'issues'] };
 
 export const fill = (t: string, v: Record<string, string | number>) => t.replace(/\{\{(\w+)\}\}/g, (_, k) => String(v[k] ?? ''));
+
+// Photos of a lesson (textbook page, handwritten notes, worksheet) -> plain text for step 1
+export const OCR_SYSTEM = `You read photos a Vietnamese primary-school teacher took of lesson material (a textbook page, handwritten notes, a worksheet or a whiteboard) and copy out the text so it can be used as lesson notes.
+- Copy the text exactly, in its original language (Vietnamese or English), with Vietnamese diacritics. Do not translate, summarise or add anything.
+- Keep the reading order. Put each photo's text in order, separated by one blank line. Keep headings, numbered exercises and line breaks.
+- Write maths exactly: digits, + - × : = < >, fractions as 1/2. Keep column additions as a line such as "36 + 27 = 63".
+- A picture that carries lesson content becomes a short note in brackets in the same language, e.g. "[hình: 3 quả táo và 2 quả cam]". Skip decorations, page numbers, logos and publisher text.
+- If a word is unreadable write "[…]".
+- usable = false when the photos show no readable lesson text (e.g. a selfie, a blank page, a blurred photo); then text is "".`;
+export const OCR_SCHEMA = {
+  type: 'object', required: ['usable', 'text'],
+  properties: { usable: { type: 'boolean' }, text: { type: 'string' } },
+};

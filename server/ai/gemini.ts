@@ -79,7 +79,8 @@ export class GeminiProvider implements AI {
   json<T>(req: TextRequest) { return this.generateJson<T>(req, [{ text: req.prompt }]); }
 
   see<T>(req: VisionRequest) {
-    return this.generateJson<T>(req, [{ inlineData: { mimeType: 'image/png', data: req.image.toString('base64') } }, { text: req.prompt }]);
+    const pics = req.images || (req.image ? [{ data: req.image, mime: 'image/png' }] : []);
+    return this.generateJson<T>(req, [...pics.map((p) => ({ inlineData: { mimeType: p.mime, data: p.data.toString('base64') } })), { text: req.prompt }]);
   }
 
   // Pictures: each image model has its own per-minute quota, so on a 429 we move straight to

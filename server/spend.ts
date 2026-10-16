@@ -12,6 +12,7 @@ export const COST_USD = {
   intake: 0.005,
   errorTag: 0.002,
   comments: 0.01,
+  ocr: 0.01,            // photos of a lesson page -> text (Gemini vision, up to 5 photos)
 } as const;
 export type SpendKind = keyof typeof COST_USD;
 

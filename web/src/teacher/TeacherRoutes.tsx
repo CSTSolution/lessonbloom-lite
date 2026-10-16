@@ -10,6 +10,7 @@ import { Criteria } from './Criteria.tsx';
 import { T } from './dict.ts';
 import { Home } from './Home.tsx';
 import { Insights } from './Insights.tsx';
+import { Account } from './Account.tsx';
 import { LessonFlow } from './LessonFlow.tsx';
 import { Login } from './Login.tsx';
 import { Usage } from './Usage.tsx';
@@ -22,12 +23,12 @@ export function Link({ to, children, className, ...rest }: { to: string; childre
 }
 
 const U = {
-  vi: { signOut: 'Đăng xuất', demo: 'Bản dùng thử', register: 'Đăng ký để lưu bài của cô',
+  vi: { signOut: 'Đăng xuất', account: 'Tài khoản của tôi', demo: 'Bản dùng thử', register: 'Đăng ký để lưu bài của cô',
     verify: (e: string) => `Xác nhận email ${e} để dùng AI.`, send: 'Gửi mã xác nhận', sentTo: (e: string) => `Đã gửi mã 6 số tới ${e} (xem cả mục Spam).`,
     codePh: 'Mã 6 số', confirm: 'Xác nhận', resend: 'Gửi lại mã', resendIn: (s: number) => `Gửi lại sau ${s} giây`, codeShort: 'Cô nhập đủ 6 số nhé.',
     verified: 'Đã xác nhận email! Cô dùng AI được rồi.', busy: 'Đang gửi…', checking: 'Đang xác nhận…',
     updated: 'LessonBloom vừa có phiên bản mới nên trang đã tải lại. Nội dung cô đã dán vẫn còn; nếu cô đang chọn file, hãy chọn lại nhé.', loadErr: 'Chưa tải được trang.', retry: 'Thử lại', loading: 'Đang tải…' },
-  en: { signOut: 'Sign out', demo: 'Demo', register: 'Register to keep your lessons',
+  en: { signOut: 'Sign out', account: 'My account', demo: 'Demo', register: 'Register to keep your lessons',
     verify: (e: string) => `Confirm ${e} to use AI.`, send: 'Send verification code', sentTo: (e: string) => `A 6-digit code was sent to ${e} (check Spam too).`,
     codePh: '6-digit code', confirm: 'Confirm', resend: 'Send a new code', resendIn: (s: number) => `New code in ${s} s`, codeShort: 'Please enter all 6 digits.',
     verified: 'Email confirmed! You can use AI now.', busy: 'Sending…', checking: 'Checking…',
@@ -46,7 +47,7 @@ export function TopBar({ teacher, path, onSignOut }: { teacher: Teacher; path: s
         <LangToggle />
         {isDemo() && <span className="chip amber hide-sm" title={u.register}>{u.demo}</span>}
         <CreditPill path={path} />
-        <span className="avatar" title={teacher.name}>{teacher.name.replace(/^(Cô|Thầy)\s*/, '').slice(0, 1).toUpperCase()}</span><span className="hide-sm">{teacher.name}</span>
+        <Link to="/account" className={`me ${path.startsWith('/account') ? 'on' : ''}`} title={u.account}><span className="avatar">{teacher.name.replace(/^(Cô|Thầy)\s*/, '').slice(0, 1).toUpperCase()}</span><span className="hide-sm">{teacher.name}</span></Link>
         <button className="btn ghost sm" onClick={onSignOut}>{u.signOut}</button>
       </div>
     </header>
@@ -130,6 +131,7 @@ export function TeacherRoutes({ path }: { path: string }) {
   else if (path.startsWith('/classes')) body = <Classes />;
   else if (path.startsWith('/insights')) body = <Insights />;
   else if (path.startsWith('/usage')) body = <Usage />;
+  else if (path.startsWith('/account')) body = <Account teacher={teacher} onSaved={setTeacher} />;
   else if (path.startsWith('/criteria')) body = <Criteria teacher={teacher} onSaved={setTeacher} />;
   else body = <Home teacher={teacher} />;
   return <><TopBar teacher={teacher} path={path} onSignOut={out} /><VerifyBanner /><UpdatedNote />{body}</>;

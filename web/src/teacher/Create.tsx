@@ -40,6 +40,26 @@ Nam: My favourite colour is yellow. I like the sun!
 Objectives: Pupils can name six colours, ask and answer "What colour is it?", and say their favourite colour.`,
 };
 
+// photos are made smaller in the browser before upload (long side 1600 px, JPEG), enough for Gemini to read the page
+async function shrink(f: File): Promise<{ data: string; type: string }> {
+  const bmp = await createImageBitmap(f);
+  const k = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+  const cv = document.createElement('canvas');
+  cv.width = Math.round(bmp.width * k); cv.height = Math.round(bmp.height * k);
+  cv.getContext('2d')!.drawImage(bmp, 0, 0, cv.width, cv.height);
+  return { data: cv.toDataURL('image/jpeg', 0.85).split(',')[1], type: 'image/jpeg' };
+}
+const isPhoto = (f: File) => f.type.startsWith('image/') || /\.(jpe?g|png|webp|heic|heif)$/i.test(f.name);
+
+const PH = {
+  vi: { photos: (n: number, max: number) => `Ảnh đã dùng: ${n}/${max}`, reading: (n: number) => `AI đang đọc ${n} ảnh…`, check: 'AI đã chép chữ từ ảnh vào ô bên dưới. Cô đọc lại và sửa chỗ sai trước khi tiếp tục nhé.',
+    tooMany: (max: number, left: number) => left > 0 ? `Mỗi bài dùng tối đa ${max} ảnh, nên LessonBloom chỉ đọc ${left} ảnh đầu cô chọn.` : `Bài này đã dùng đủ ${max} ảnh.${max < 5 ? ' Gói Pro dùng được 5 ảnh.' : ''}`,
+    cantRead: (n: string) => `Không mở được ảnh ${n}. Cô chụp lại bằng JPG hoặc PNG nhé (ảnh HEIC của iPhone: chọn từ ứng dụng Ảnh trên điện thoại).` },
+  en: { photos: (n: number, max: number) => `Photos used: ${n}/${max}`, reading: (n: number) => `The AI is reading ${n} photo(s)…`, check: 'The AI copied the text from the photos into the box below. Please read it and fix any mistakes before continuing.',
+    tooMany: (max: number, left: number) => left > 0 ? `A lesson can use up to ${max} photos, so only the first ${left} you chose were read.` : `This lesson already uses ${max} photos.${max < 5 ? ' Pro allows 5.' : ''}`,
+    cantRead: (n: string) => `Could not open the photo ${n}. Please use JPG or PNG (for iPhone HEIC photos, pick them from the Photos app on the phone).` },
+};
+
 async function readFileText(f: File): Promise<string> {
   if (/\.docx$/i.test(f.name)) {
     // @ts-expect-error browser build has no types
@@ -50,20 +70,41 @@ async function readFileText(f: File): Promise<string> {
 }
 
 export function Create() {
-  const t = useT(T);
+  const t = useT(T), ph = useT(PH);
   const [step, setStep] = useState<1 | 2>(1);
   // the draft (subject + text) survives a reload in this tab, e.g. the automatic one after a new version
   const draft = (() => { try { return JSON.parse(sessionStorage.getItem('lb-draft') || '{}') as { subject?: 'math' | 'english'; source?: string; files?: string[] }; } catch { return {}; } })();
   const [subject, setSubject] = useState<'math' | 'english'>(draft.subject || 'math');
   const [source, setSource] = useState(draft.source || '');
   const [files, setFiles] = useState<string[]>(draft.files || []);   // shown later on the read-only Document step
+  const [maxPhotos, setMaxPhotos] = useState(3), [photoNote, setPhotoNote] = useState(''), [reading, setReading] = useState(0);
+  useEffect(() => { teacherApi.usage().then((u) => u.photos && setMaxPhotos(u.photos)).catch(() => {}); }, []);
+  const photosUsed = files.filter((f) => f.startsWith('📷 ')).length;
   useEffect(() => { if (!source.trim() && files.length) setFiles([]); }, [source]);
   useEffect(() => { try { sessionStorage.setItem('lb-draft', JSON.stringify({ subject, source, files })); } catch { /* private mode */ } }, [subject, source, files]);
   const [it, setIt] = useState<Intake | null>(null);
   const [busy, setBusy] = useState(false), [err, setErr] = useState(''), [over, setOver] = useState(false);
   const words = source.trim() ? source.trim().split(/\s+/).length : 0;
 
-  const load = async (f?: File) => { if (!f) return; try { setSource((await readFileText(f)).slice(0, 20000)); setFiles([f.name]); } catch (e) { setErr((e as Error).message); } };
+  const load = async (list?: FileList | File[] | null) => {
+    const all = [...(list || [])];
+    if (!all.length) return;
+    setErr(''); setPhotoNote('');
+    const photos = all.filter(isPhoto), doc = all.find((f) => !isPhoto(f));
+    if (doc && !photos.length) { try { setSource((await readFileText(doc)).slice(0, 20000)); setFiles([doc.name]); } catch (e) { setErr((e as Error).message); } return; }
+    const left = maxPhotos - photosUsed;
+    if (photos.length > left) { setErr(ph.tooMany(maxPhotos, left)); if (left <= 0) return; }
+    const use = photos.slice(0, Math.max(0, left));
+    const images: { data: string; type: string }[] = [];
+    for (const f of use) { try { images.push(await shrink(f)); } catch { setErr(ph.cantRead(f.name)); return; } }
+    setReading(images.length);
+    try {
+      const { text } = await teacherApi.ocr(images);
+      setSource((s) => (s.trim() ? `${s.trim()}\n\n${text}` : text).slice(0, 20000));
+      setFiles((x) => [...x, ...use.map((f) => `📷 ${f.name}`)]);
+      setPhotoNote(ph.check);
+    } catch (e) { setErr((e as Error).message); } finally { setReading(0); }
+  };
   const MIN_WORDS = 8;
   const toQuestions = async () => {
     if (words < MIN_WORDS) { setErr(words ? t.needMore(words, MIN_WORDS) : t.needSource); return; }   // say why, never a silently disabled button
@@ -95,14 +136,20 @@ export function Create() {
             </div>
             <label
               onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)}
-              onDrop={(e) => { e.preventDefault(); setOver(false); load(e.dataTransfer.files[0]); }}
+              onDrop={(e) => { e.preventDefault(); setOver(false); load(e.dataTransfer.files); }}
               style={{ border: `2px dashed ${over ? 'var(--blue)' : 'var(--line-2)'}`, borderRadius: 14, padding: 28, textAlign: 'center', background: over ? 'var(--blue-soft)' : '#fff', cursor: 'pointer' }}>
               <div style={{ fontSize: 26, color: 'var(--blue)' }}>⤒</div>
               <strong>{t.drop}</strong>
               <div className="muted small">{t.formats}</div>
               <span className="btn sm" style={{ marginTop: 10, borderColor: 'var(--blue)', color: 'var(--blue)' }}>{t.choose}</span>
-              <input type="file" accept=".txt,.docx,text/plain" className="sr" onChange={(e) => load(e.target.files?.[0])} />
+              <input type="file" multiple accept=".txt,.docx,text/plain,image/*" className="sr" onChange={(e) => { load(e.target.files); e.target.value = ''; }} />
             </label>
+            <div className="row small" style={{ marginTop: -8 }}>
+              <span className="muted">{ph.photos(photosUsed, maxPhotos)}</span>
+              {files.length > 0 && <span className="muted">· {files.join(', ')}</span>}
+              {reading > 0 && <span role="status" style={{ color: 'var(--blue)' }}>⏳ {ph.reading(reading)}</span>}
+            </div>
+            {photoNote && <p className="ok-note" role="status" style={{ margin: 0 }}>✓ {photoNote}</p>}
             <label className="field">{t.paste}
               <textarea rows={10} value={source} onChange={(e) => setSource(e.target.value)} />
             </label>
@@ -114,7 +161,7 @@ export function Create() {
             <div className="row">
               <span className={`small grow ${words > 0 && words < MIN_WORDS ? '' : 'muted'}`} style={words > 0 && words < MIN_WORDS ? { color: 'var(--amber)' } : undefined}>
                 {words > 0 && (words < MIN_WORDS ? t.needMore(words, MIN_WORDS) : t.received(words))}</span>
-              <button className="btn primary lg" disabled={busy} onClick={toQuestions}>{busy ? t.reading : t.next}</button>
+              <button className="btn primary lg" disabled={busy || reading > 0} onClick={toQuestions}>{busy ? t.reading : t.next}</button>
             </div>
           </>
         )}

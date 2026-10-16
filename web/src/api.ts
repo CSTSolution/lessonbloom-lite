@@ -61,7 +61,7 @@ export interface ClassCard extends ClassRoom { pupils: number; joined: number; a
 export interface ClassDetail extends ClassRoom { pupils: Pupil[]; assignments: (Assignment & { title: string; done: number; total: number })[] }
 export interface PupilSkill { pupilId: string; name: string; label: Label; right: number; total: number; topError?: string }
 export interface SkillSummary { skill: string; skillName: string; classLabel: Label; pupils: PupilSkill[]; errors: { errorType: string; count: number; pupils: string[]; example?: string }[] }
-export interface Usage { plan: 'demo' | 'free' | 'pro'; limit: number | null; usedToday: number; costs: Record<string, number>; proRequestedAt: string | null;
+export interface Usage { plan: 'demo' | 'free' | 'pro'; limit: number | null; usedToday: number; costs: Record<string, number>; photos?: number; proRequestedAt: string | null;
   days: { day: string; credits: number; actions: Record<string, number>; usd: number; calls: number }[] }
 export interface Insights { lessons: { id: string; title: string }[]; lessonId: string; classId: string; classes: { id: string; name: string }[];
   overview: { skill: string; name: string; byClass: Record<string, Label | null> }[]; detail: SkillSummary[] | null }
@@ -84,6 +84,8 @@ export const teacherApi = {
   clearSample: () => tc<{ removed: Record<string, number> }>('POST', '/sample/clear'),
   addPupils: (id: string, names: string[]) => tc<Pupil[]>('POST', `/classes/${id}/pupils`, { names }),
   lessons: () => tc<LessonCard[]>('GET', '/lessons'),
+  rename: (name: string) => tc<Teacher>('PUT', '/me', { name }),
+  ocr: (images: { data: string; type: string }[]) => tc<{ text: string; max: number }>('POST', '/ocr', { images }),
   intake: (source: string) => tc<Intake>('POST', '/intake', { source }),
   create: (source: string, intake: Intake, files: string[] = []) => tc<{ id: string }>('POST', '/lessons', { source, intake, files }),
   lesson: (id: string) => tc<Lesson>('GET', `/lessons/${id}`),

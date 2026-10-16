@@ -60,6 +60,13 @@ export async function refreshUser(): Promise<boolean> {
   emit();
   return !!user?.emailVerified;
 }
+// "My account": a new password needs the current one (Firebase asks for a recent sign-in)
+export async function changePassword(current: string, next: string) {
+  if (!user?.email) throw Object.assign(new Error('no user'), { code: 'auth/requires-recent-login' });
+  const a = await fa();
+  await limit(a.reauthenticateWithCredential(user, a.EmailAuthProvider.credential(user.email, current)));
+  await limit(a.updatePassword(user, next));
+}
 export async function signOut() { const a = await fa(); await a.signOut(auth!); user = null; emit(); }
 
 // Firebase error codes -> short messages in the teacher's language
