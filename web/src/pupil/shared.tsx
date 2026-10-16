@@ -56,6 +56,23 @@ export function markVisited(pid: string, a: Activity) {
   try { sessionStorage.setItem(visitKey(pid), JSON.stringify([...v, a])); } catch { /* private mode */ }
 }
 
+// "finished today's lesson": set on the all-done screen, per pupil and assignment (this device only)
+const finKey = (pid: string, aid?: string) => `lb-fin-${pid}-${aid || ''}`;
+export function finished(pid: string, aid?: string): boolean { try { return !!aid && localStorage.getItem(finKey(pid, aid)) === '1'; } catch { return false; } }
+export function markFinished(pid: string, aid?: string) { try { if (aid) localStorage.setItem(finKey(pid, aid), '1'); } catch { /* private mode */ } }
+
+// a short burst of confetti; nothing moves when the device asks for reduced motion
+export function Confetti() {
+  const colors = ['#1D5FA8', '#F2A33A', '#3C9A5F', '#E0567A', '#8A5CC2', '#F6D04D'];
+  return (
+    <div className="confetti" aria-hidden="true">
+      {Array.from({ length: 36 }, (_, i) => (
+        <i key={i} style={{ left: `${(i * 37) % 100}%`, background: colors[i % colors.length], animationDelay: `${(i % 9) * 0.12}s`, animationDuration: `${2.2 + (i % 5) * 0.3}s`, transform: `rotate(${i * 29}deg)` }} />
+      ))}
+    </div>
+  );
+}
+
 // ----- small UI pieces -----
 const D = {
   vi: { back: 'Quay lại', loading: 'Đang tải bài…', missingH: 'Cô chưa thấy con trong lớp', missingB: 'Con vào lại bằng mã lớp nhé.', rejoin: 'Vào lại bằng mã lớp',

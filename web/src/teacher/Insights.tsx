@@ -3,10 +3,61 @@
 // comment drafts the teacher edits and copies. No scores anywhere.
 import { useEffect, useState } from 'react';
 import { teacherApi, type Insights as Ins, type Label } from '../api.ts';
-import { useT } from '../i18n.ts';
+import { useLang, useT } from '../i18n.ts';
 import { LABEL_KEY, T } from './dict.ts';
 import { Link } from './TeacherRoutes.tsx';
 import { GuideHint } from './Guide.tsx';
+import { shareMessage } from './share.ts';
+
+// "Kết quả từng học sinh": every pupil of the class for this lesson, including those not started
+const R = {
+  vi: { h: 'Kết quả từng học sinh', sub: 'Bấm tên để xem chi tiết. Chỉ cô xem được; học sinh không thấy nhãn hay điểm.',
+    status: { none: 'Chưa làm', started: 'Đang làm', done: 'Đã xong' }, colPupil: 'Học sinh', colStatus: 'Trạng thái', colTried: 'Câu đã làm', colErr: 'Lỗi hay gặp', colMood: 'Con thấy bài', colLast: 'Lần cuối',
+    count: (d: number, s: number, n: number, all: number) => `Đã xong ${d}/${all} · Đang làm ${s} · Chưa làm ${n}`, moods: { easy: '😊 Dễ', ok: '🙂 Vừa', hard: '😟 Khó' },
+    notAssigned: (k: string) => `Bài này chưa giao cho lớp ${k}.`, assign: 'Giao bài', noPupils: 'Lớp này chưa có học sinh.', remind: 'Nhắc các em chưa làm', reminded: 'Đã chép lời nhắc' ,
+    remindMsg: (names: string[], title: string) => `Phụ huynh của ${names.join(', ')} nhắc con làm bài "${title}" trên LessonBloom giúp cô nhé. Cảm ơn quý phụ huynh!` },
+  en: { h: 'Each pupil’s results', sub: 'Tap a name for details. Only you see this; pupils never see labels or scores.',
+    status: { none: 'Not started', started: 'In progress', done: 'Finished' }, colPupil: 'Pupil', colStatus: 'Status', colTried: 'Questions done', colErr: 'Common slip', colMood: 'How it felt', colLast: 'Last active',
+    count: (d: number, s: number, n: number, all: number) => `Finished ${d}/${all} · In progress ${s} · Not started ${n}`, moods: { easy: '😊 Easy', ok: '🙂 Just right', hard: '😟 Hard' },
+    notAssigned: (k: string) => `This lesson is not assigned to class ${k} yet.`, assign: 'Assign', noPupils: 'This class has no pupils yet.', remind: 'Remind those not started', reminded: 'Reminder copied',
+    remindMsg: (names: string[], title: string) => `Dear parents of ${names.join(', ')}: please remind your child to do "${title}" on LessonBloom. Thank you!` },
+};
+
+function PupilTable({ d }: { d: Ins }) {
+  const r = useT(R), lang = useLang();
+  const [copied, setCopied] = useState(false);
+  const rows = d.pupils || [], skills = d.skills || [];
+  const cname = d.classes.find((k) => k.id === d.classId)?.name || '';
+  const title = d.lessons.find((x) => x.id === d.lessonId)?.title || '';
+  const n = (s: string) => rows.filter((x) => x.status === s).length;
+  const notYet = rows.filter((x) => x.status === 'none').map((x) => x.name);
+  const when = (iso?: string) => iso ? new Date(iso).toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-GB', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }) : '–';
+  const remind = async () => { const url = `${location.origin}/learn`; await shareMessage(`${r.remindMsg(notYet, title)} ${url}`, url); setCopied(true); setTimeout(() => setCopied(false), 2000); };
+  return (
+    <div className="card stack">
+      <div className="row"><h2 className="grow" style={{ margin: 0 }}>{r.h}</h2>
+        {d.assigned && rows.length > 0 && <span className="muted small">{r.count(n('done'), n('started'), n('none'), rows.length)}</span>}
+        {d.assigned && notYet.length > 0 && <button className="btn sm" onClick={remind}>{copied ? `✓ ${r.reminded}` : r.remind}</button>}
+      </div>
+      <p className="muted small" style={{ margin: 0 }}>{r.sub}</p>
+      {!d.assigned ? <div className="row"><span className="muted">{r.notAssigned(cname)}</span><Link to={`/lesson/${d.lessonId}/assign`} className="btn sm primary">{r.assign}</Link></div>
+        : !rows.length ? <p className="muted" style={{ margin: 0 }}>{r.noPupils}</p>
+        : <div className="table-scroll"><table className="t pupils-t">
+          <thead><tr><th>{r.colPupil}</th><th>{r.colStatus}</th><th>{r.colTried}</th>{skills.map((s) => <th key={s.tag}>{s.name}</th>)}<th>{r.colErr}</th><th>{r.colMood}</th><th>{r.colLast}</th></tr></thead>
+          <tbody>{rows.map((p) => (
+            <tr key={p.pupilId} className={p.status === 'none' ? 'muted' : ''}>
+              <td><Link to={`/classes/${d.classId}/pupil/${p.pupilId}`}>{p.name}</Link></td>
+              <td><span className={`st st-${p.status}`}>{r.status[p.status]}</span></td>
+              <td>{p.status === 'none' ? '–' : p.tried}</td>
+              {skills.map((s) => <td key={s.tag}>{p.skills[s.tag] ? <LabelChip l={p.skills[s.tag]} /> : '–'}</td>)}
+              <td className="small">{p.topError || '–'}</td>
+              <td className="small">{p.mood ? r.moods[p.mood] : '–'}</td>
+              <td className="small muted">{when(p.lastAt)}</td>
+            </tr>))}</tbody>
+        </table></div>}
+    </div>
+  );
+}
 
 export function LabelChip({ l }: { l: Label | null }) {
   const t = useT(T);
@@ -56,6 +107,8 @@ export function Insights() {
           <span className="grow" /><Link to="/criteria">{t.editCriteria}</Link>
         </div>
       </div>
+
+      <PupilTable d={d} />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 18, alignItems: 'start' }}>
         <section className="stack">

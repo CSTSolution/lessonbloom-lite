@@ -2,7 +2,7 @@
 // same error type >= 3 times across >= 2 sessions; class repeated if >= 30% of pupils are.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { nextSteps, pupilLabel, readableAnswer, summarise } from '../insights.ts';
+import { nextSteps, pupilLabel, pupilRows, readableAnswer, summarise } from '../insights.ts';
 import { type Attempt, DEFAULT_CRITERIA as C } from '../types.ts';
 
 let n = 0;
@@ -53,4 +53,17 @@ test('next steps still suggest practice when every item was already answered', (
 test('answers read as a person would: matches as word → picture', () => {
   assert.equal(readableAnswer('{"red":"🔵","blue":"🟡"}'), 'red → 🔵, blue → 🟡');
   assert.equal(readableAnswer('44'), '44');
+});
+
+test('each pupil gets a row: finished, in progress or not started, with a label per skill and no score', () => {
+  const pupils = [{ id: 'p1', classId: 'k', displayName: 'An' }, { id: 'p2', classId: 'k', displayName: 'Bình' }, { id: 'p3', classId: 'k', displayName: 'Chi' }];
+  const at = (pupilId: string, i: number, correct: boolean, errorType?: string) => ({ id: `${pupilId}${i}`, assignmentId: 'a', classId: 'k', pupilId, lessonId: 'l', exerciseId: `e${i}`, skill: 'carry', answer: '1', correct, errorType, at: `2026-10-16T08:0${i}:00Z`, session: 's1' });
+  const atts = [at('p1', 1, true), at('p1', 2, true), at('p2', 1, false, 'forgot carry'), at('p2', 2, false, 'forgot carry')];
+  const rows = pupilRows([{ tag: 'carry', name: 'Nhớ 1' }], pupils, atts, [{ id: 'c', assignmentId: 'a', pupilId: 'p1', mood: 'easy', at: '2026-10-16T08:05:00Z' }], C);
+  assert.deepEqual(rows.map((r) => [r.name, r.status]), [['An', 'done'], ['Bình', 'started'], ['Chi', 'none']]);
+  assert.equal(rows[0].mood, 'easy');
+  assert.equal(rows[0].tried, 2);
+  assert.equal(rows[1].topError, 'forgot carry');
+  assert.equal(rows[2].skills.carry, null);
+  assert.ok(!('right' in rows[0]) && !('score' in rows[0]));
 });

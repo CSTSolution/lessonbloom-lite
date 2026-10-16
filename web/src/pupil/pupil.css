@@ -169,3 +169,17 @@
 .d-mood[aria-checked=true] { border-color: var(--orange-line); background: var(--cream); }
 
 @media (prefers-reduced-motion: reduce) { .m-card { transition: none; } }
+
+/* all done: confetti, the note for parents, the "finished" banner on the lesson page */
+.confetti { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 30; }
+.confetti i { position: absolute; top: -20px; width: 10px; height: 16px; border-radius: 3px; opacity: 0; animation-name: lbfall; animation-timing-function: ease-in; animation-iteration-count: 1; animation-fill-mode: forwards; }
+@keyframes lbfall { 0% { opacity: 1; transform: translateY(0) rotate(0); } 100% { opacity: 0; transform: translateY(105vh) rotate(540deg); } }
+@media (prefers-reduced-motion: reduce) { .confetti { display: none; } }
+.d-parent { background: #FFF8EC; border: 2px solid #F6D9A8; border-radius: 18px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+.d-parent .h { font-weight: 700; font-size: 17px; }
+.d-parent ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: 15px; }
+.d-parent li::before { content: '✓ '; color: var(--green-ink, #2B7A4B); font-weight: 700; }
+.d-parent .note { font-size: 13px; color: var(--muted, #556072); }
+.h-fin { display: flex; align-items: center; gap: 12px; background: #EAF5EE; border: 2px solid #CFE7D7; border-radius: 16px; padding: 12px 14px; text-align: left; font: inherit; color: inherit; cursor: pointer; width: 100%; }
+.h-fin .e { font-size: 28px; }
+.h-fin b { display: block; font-size: 16px; }

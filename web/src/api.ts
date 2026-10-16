@@ -63,7 +63,9 @@ export interface PupilSkill { pupilId: string; name: string; label: Label; right
 export interface SkillSummary { skill: string; skillName: string; classLabel: Label; pupils: PupilSkill[]; errors: { errorType: string; count: number; pupils: string[]; example?: string }[] }
 export interface Usage { plan: 'demo' | 'free' | 'pro'; limit: number | null; usedToday: number; costs: Record<string, number>; photos?: number; proRequestedAt: string | null;
   days: { day: string; credits: number; actions: Record<string, number>; usd: number; calls: number }[] }
+export interface PupilRow { pupilId: string; name: string; status: 'none' | 'started' | 'done'; tried: number; answers: number; skills: Record<string, Label | null>; topError?: string; mood?: 'easy' | 'ok' | 'hard'; lastAt?: string }
 export interface Insights { lessons: { id: string; title: string }[]; lessonId: string; classId: string; classes: { id: string; name: string }[];
+  assigned?: boolean; pupils?: PupilRow[]; skills?: { tag: string; name: string }[];
   overview: { skill: string; name: string; byClass: Record<string, Label | null> }[]; detail: SkillSummary[] | null }
 
 export const teacherApi = {
@@ -124,7 +126,7 @@ export const pupilApi = {
   learn: (pid: string) => call<Learn>('GET', `/api/learn/${pid}`),
   answer: (pid: string, b: { assignmentId: string; exerciseId: string; answer: string; session: string }) => call<AnswerResult>('POST', `/api/learn/${pid}/answer`, b),
   next: (pid: string) => call<NextStep[]>('GET', `/api/learn/${pid}/next`),
-  selfcheck: (pid: string, mood: 'easy' | 'ok' | 'hard') => call<{ ok: true }>('POST', `/api/learn/${pid}/selfcheck`, { mood }),
+  selfcheck: (pid: string, mood: 'easy' | 'ok' | 'hard' | null) => call<{ ok: true }>('POST', `/api/learn/${pid}/selfcheck`, { mood }),
 };
 
 export function go(path: string) { history.pushState(null, '', path); dispatchEvent(new PopStateEvent('popstate')); scrollTo(0, 0); }

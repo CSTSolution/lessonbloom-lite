@@ -214,3 +214,28 @@ test('photos of a lesson are read into text, at most 3 per lesson on the demo, b
   assert.equal((await call('POST', '/api/t/ocr', { images: [{ type: 'application/pdf', data: pic.data }] })).json.code, 'photoBad');
   assert.equal((await call('POST', '/api/t/ocr', { images: [] })).json.code, 'noPhotos');
 });
+
+test('the teacher sees every pupil of the class; reaching "all done" marks a pupil finished even without a face tapped', async () => {
+  const app = createApp(new MockProvider(), new LocalStore(await mkdtemp(join(tmpdir(), 'lb-'))));
+  let key = '';
+  const call = async (method: string, path: string, body?: unknown) => {
+    const r = await app.request(path, { method, headers: { 'content-type': 'application/json', 'x-teacher': key }, body: body ? JSON.stringify(body) : undefined });
+    return { status: r.status, json: await r.json() as any };
+  };
+  key = (await call('POST', '/api/t/me', {})).json.key;
+  const k2a = (await call('GET', '/api/t/classes')).json.find((k: any) => k.name === '2A');
+  const ins = (await call('GET', `/api/t/insights?classId=${k2a.id}`)).json;
+  assert.equal(ins.assigned, true);
+  assert.equal(ins.pupils.length, 12);
+  const idle = ins.pupils.find((p: any) => p.status === 'none');
+  assert.ok(idle, 'some pupils have not started');
+  assert.equal((await call('POST', `/api/learn/${idle.pupilId}/selfcheck`, { mood: null })).status, 200);
+  await call('POST', `/api/learn/${idle.pupilId}/selfcheck`, { mood: null });
+  let row = (await call('GET', `/api/t/insights?classId=${k2a.id}`)).json.pupils.find((p: any) => p.pupilId === idle.pupilId);
+  assert.equal(row.status, 'done');
+  assert.equal(row.mood, undefined);
+  await call('POST', `/api/learn/${idle.pupilId}/selfcheck`, { mood: 'hard' });
+  row = (await call('GET', `/api/t/insights?classId=${k2a.id}`)).json.pupils.find((p: any) => p.pupilId === idle.pupilId);
+  assert.equal(row.mood, 'hard');
+  assert.equal((await call('POST', `/api/learn/${idle.pupilId}/selfcheck`, { mood: 'great' })).status, 400);
+});

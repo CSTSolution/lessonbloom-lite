@@ -1,7 +1,7 @@
 // Learning summary, computed from Attempts with the teacher's criteria (Chi's defaults:
 // 80 / 50 / 3 times in 2 sessions / 30% / 70%). Labels attach to a SKILL for a pupil or a
 // class; nothing here is ever sent to a pupil. Pure functions, so they are easy to test.
-import type { Attempt, Criteria, Label, Pupil, Skill } from './types.ts';
+import type { Attempt, Criteria, Label, Pupil, SelfCheck, Skill } from './types.ts';
 
 export interface PupilSkill { pupilId: string; name: string; label: Label; right: number; total: number; topError?: string; enough: boolean }
 export interface SkillSummary {
@@ -28,6 +28,30 @@ export function pupilLabel(atts: Attempt[], c: Criteria): Omit<PupilSkill, 'pupi
   if (repeatedErr || (enough && pct < c.repeatedPct)) label = 'repeated';
   else if (enough && pct >= c.securePct) label = 'secure';
   return { label, right, total, topError: top?.[0], enough };
+}
+
+// One row per pupil of the class for one lesson (teacher only): finished = reached the "all done"
+// screen (a self-check), started = answered at least once. Questions are counted, never scored.
+export interface PupilRow {
+  pupilId: string; name: string; status: 'none' | 'started' | 'done'; tried: number; answers: number;
+  skills: Record<string, Label | null>; topError?: string; mood?: SelfCheck['mood']; lastAt?: string;
+}
+export function pupilRows(skills: Skill[], pupils: Pupil[], attempts: Attempt[], checks: SelfCheck[], c: Criteria): PupilRow[] {
+  const order = { none: 2, started: 1, done: 0 };
+  return pupils.map((p): PupilRow => {
+    const mine = attempts.filter((a) => a.pupilId === p.id), own = checks.filter((x) => x.pupilId === p.id).sort((a, b) => b.at.localeCompare(a.at));
+    const check = own[0], felt = own.find((x) => x.mood);
+    const errs = new Map<string, number>();
+    for (const a of mine) if (!a.correct && a.errorType) errs.set(a.errorType, (errs.get(a.errorType) || 0) + 1);
+    const top = [...errs].sort((a, b) => b[1] - a[1])[0];
+    const last = [...mine.map((a) => a.at), check?.at].filter(Boolean).sort().pop();
+    return {
+      pupilId: p.id, name: p.displayName, status: check ? 'done' : mine.length ? 'started' : 'none',
+      tried: new Set(mine.map((a) => a.exerciseId)).size, answers: mine.length,
+      skills: Object.fromEntries(skills.map((s) => { const on = mine.filter((a) => a.skill === s.tag); return [s.tag, on.length ? pupilLabel(on, c).label : null]; })),
+      topError: top && top[1] >= 2 ? top[0] : undefined, mood: felt?.mood, lastAt: last,
+    };
+  }).sort((a, b) => order[a.status] - order[b.status] || a.name.localeCompare(b.name, 'vi'));
 }
 
 // a pupil's answer as a person reads it: a word-picture match is stored as JSON

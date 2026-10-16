@@ -170,3 +170,13 @@ table.t .chip { white-space: nowrap; }
 .ro-row dd { margin: 0; font-weight: 500; }
 .ro-text { white-space: pre-wrap; max-height: 420px; overflow: auto; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: #FAFBFD; line-height: 1.6; }
 @media (max-width: 560px) { .ro-row { grid-template-columns: 1fr; gap: 2px; } }
+
+/* learning summary: each pupil's results */
+.pupils-t tr.muted td { color: var(--muted); }
+.pupils-t th, .pupils-t td { white-space: nowrap; }
+.pupils-t th:nth-child(n+4) { white-space: normal; min-width: 110px; }
+.pupils-t td.small { white-space: normal; min-width: 150px; }
+.st { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.st-done { background: var(--green-soft); color: var(--green-ink); }
+.st-started { background: var(--blue-soft); color: var(--blue); }
+.st-none { background: #EEF1F5; color: var(--muted); }

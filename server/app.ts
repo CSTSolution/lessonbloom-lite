@@ -9,7 +9,7 @@ import { sendCode } from './mail.ts';
 import { Otp, type Purpose } from './otp.ts';
 import { Hono, type Context } from 'hono';
 import type { AI } from './ai/provider.ts';
-import { nextSteps, readableAnswer, summarise } from './insights.ts';
+import { nextSteps, pupilRows, readableAnswer, summarise } from './insights.ts';
 import { cleanCard, draftComments, editSlide, intake, meaningless, NotALesson, readPhotos, tagError } from './lesson/build.ts';
 import { illustrate } from './lesson/illustrate.ts';
 import { runLesson } from './lesson/job.ts';
@@ -307,7 +307,7 @@ export function createApp(ai: AI, store: Store) {
       return {
         lessonId: l.id, title: l.intake.title, subject: l.intake.subject, assignedAt: a.createdAt, dueAt: a.dueAt,
         answered: mine.length, sessions: new Set(mine.map((t) => t.session)).size, lastAt: mine.map((t) => t.at).sort().pop() || null,
-        mood: moods.filter((m) => m.assignmentId === a.id).sort((p, q) => q.at.localeCompare(p.at))[0]?.mood || null,
+        mood: moods.filter((m) => m.assignmentId === a.id && m.mood).sort((p, q) => q.at.localeCompare(p.at))[0]?.mood || null,
         skills: l.skills.map((s) => { const ps = summarise(s, [x.p], mine, tc.criteria).pupils[0]; return { skill: s.tag, name: s.name, label: ps.label, right: ps.right, total: ps.total, topError: ps.topError, enough: ps.enough }; }).filter((s) => s.total > 0),
         mistakes: mine.filter((t) => !t.correct && t.errorType).slice(-5).reverse().map((t) => ({ errorType: t.errorType, exercise: l.exercises.find((e) => e.id === t.exerciseId)?.prompt || '', answer: readableAnswer(t.answer), at: t.at })),
       };
@@ -465,13 +465,18 @@ export function createApp(ai: AI, store: Store) {
     const atts = (await store.find<Attempt>('attempts', 'lessonId', l.id));
     const per = await Promise.all(classes.map(async (k) => {
       const pupils = await store.find<Pupil>('pupils', 'classId', k.id);
-      return { k, sums: l.skills.map((s) => summarise(s, pupils, atts.filter((a) => a.classId === k.id), tc.criteria)) };
+      return { k, pupils, sums: l.skills.map((s) => summarise(s, pupils, atts.filter((a) => a.classId === k.id), tc.criteria)) };
     }));
     const classId = c.req.query('classId') || per[0]?.k.id;
     const detail = per.find((p) => p.k.id === classId);
+    // every pupil of the chosen class for this lesson, including those who have not started
+    const given = assigns.filter((a) => a.lessonId === l.id && a.classId === classId);
+    const checks = (await Promise.all(given.map((a) => store.find<SelfCheck>('selfchecks', 'assignmentId', a.id)))).flat();
+    const rows = detail ? pupilRows(l.skills, detail.pupils, atts.filter((a) => a.classId === classId), checks, tc.criteria) : [];
     return c.json({
       lessons: lessons.map((x) => ({ id: x.id, title: x.intake.title })), lessonId: l.id, classId,
-      classes: classes.map((k) => ({ id: k.id, name: k.name })),
+      classes: classes.map((k) => ({ id: k.id, name: k.name })), assigned: given.length > 0, pupils: rows,
+      skills: l.skills.map((s) => ({ tag: s.tag, name: s.name })),
       overview: l.skills.map((s, i) => ({ skill: s.tag, name: s.name, byClass: Object.fromEntries(per.map((p) => [p.k.id, p.sums[i].pupils.length ? p.sums[i].classLabel : null])) })),
       // "36 + 27 → 53": the question next to the pupil's slip
       detail: detail ? detail.sums.filter((s) => s.pupils.length).map((s) => ({ ...s, errors: s.errors.map((e) => {
@@ -575,8 +580,13 @@ export function createApp(ai: AI, store: Store) {
   });
   app.post('/api/learn/:pid/selfcheck', async (c) => {
     const x = await pupilCtx(c.req.param('pid'));
-    const { mood } = await c.req.json<{ mood: SelfCheck['mood'] }>();
-    if (!x || !x.a || !['easy', 'ok', 'hard'].includes(mood)) return bad(c, 'badRequest');
+    const { mood } = await c.req.json<{ mood?: SelfCheck['mood'] | null }>().catch(() => ({ mood: undefined }));
+    if (!x || !x.a || (mood != null && !['easy', 'ok', 'hard'].includes(mood))) return bad(c, 'badRequest');
+    if (mood == null) {                    // "finished": recorded once per assignment, so the teacher sees it without a face being tapped
+      const had = (await store.find<SelfCheck>('selfchecks', 'pupilId', x.p.id)).some((s) => s.assignmentId === x.a!.id);
+      if (!had) await store.put('selfchecks', { id: id(12), assignmentId: x.a.id, pupilId: x.p.id, at: new Date().toISOString() } satisfies SelfCheck);
+      return c.json({ ok: true });
+    }
     await store.put('selfchecks', { id: id(12), assignmentId: x.a.id, pupilId: x.p.id, mood, at: new Date().toISOString() } satisfies SelfCheck);
     return c.json({ ok: true });
   });

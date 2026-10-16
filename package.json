@@ -10,7 +10,7 @@
   "scripts": {
     "dev:api": "tsx watch server/main.ts",
     "make": "tsx server/cli.ts",
-    "test": "tsc --noEmit && tsx --test server/test/*.test.ts",
+    "test": "tsc --noEmit && tsc --noEmit -p web && tsx --test server/test/*.test.ts",
     "typecheck": "tsc --noEmit && tsc --noEmit -p web",
     "dev:web": "vite --config web/vite.config.ts",
     "build": "vite build --config web/vite.config.ts",

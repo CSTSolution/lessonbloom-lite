@@ -3,7 +3,7 @@
 import { go } from '../api.ts';
 import { useT } from '../i18n.ts';
 import { practiceSet } from './Practice.tsx';
-import { Empty, Gate, TopBar, useLearn, visited, type Activity } from './shared.tsx';
+import { Empty, Gate, TopBar, finished, useLearn, visited, type Activity } from './shared.tsx';
 
 const D = {
   vi: { hi: 'Chào', cls: 'Lớp', subj: { math: 'Toán', english: 'Tiếng Anh' }, grade: 'Lớp', today: 'Bài hôm nay:', remindB: 'Nhớ nhé!',
@@ -12,6 +12,7 @@ const D = {
     video: 'Xem video', cards: 'Thẻ nhớ', practice: 'Làm bài tập', memory: 'Lật thẻ',
     min: (m: number) => `${m} phút`, slides: (n: number) => `${n} trang`, nCards: (n: number) => `${n} thẻ`, nQ: (n: number) => `${n} câu`, pairs: (n: number) => `Tìm ${n} cặp`,
     watched: 'đã xem', doneTag: 'đã xong', tried: 'đã làm', played: 'đã chơi',
+    finH: 'Con đã hoàn thành bài hôm nay! 🎉', finB: 'Bấm để xem lời khen. Con vẫn có thể luyện thêm nhé.',
     noneH: 'Cô chưa giao bài nào', noneB: 'Khi cô giao bài mới, bài sẽ hiện ở đây. Con quay lại sau nhé!' },
   en: { hi: 'Hi', cls: 'Class', subj: { math: 'Math', english: 'English' }, grade: 'Grade', today: 'Today:', remindB: 'Remember!',
     remind: (r: string) => `Last time you often had trouble with: ${r}. Let’s watch out for it today.`,
@@ -19,6 +20,7 @@ const D = {
     video: 'Watch video', cards: 'Flashcards', practice: 'Exercises', memory: 'Memory game',
     min: (m: number) => `${m} min`, slides: (n: number) => `${n} slides`, nCards: (n: number) => `${n} cards`, nQ: (n: number) => `${n} questions`, pairs: (n: number) => `Find ${n} pairs`,
     watched: 'watched', doneTag: 'done', tried: 'done', played: 'played',
+    finH: 'You finished today’s lesson! 🎉', finB: 'Tap to see your praise. You can still practise more.',
     noneH: 'No lesson yet', noneB: 'When your teacher gives you a lesson, it will show up here. Come back later!' },
 };
 
@@ -49,6 +51,9 @@ export function Hub({ pid }: { pid: string }) {
             {top}
             <span className="p-chip">{t.subj[l.subject]} · {t.grade} {l.grade}</span>
             <h1 className="h-title">{t.today} {l.title}</h1>
+            {finished(pid, learn.assignmentId) && (
+              <button className="h-fin" onClick={() => go(`/learn/${pid}/done`)}><span className="e" aria-hidden="true">🏆</span><span><b>{t.finH}</b><span className="small">{t.finB}</span></span></button>
+            )}
             {learn.reminder && (
               <div className="h-remind">
                 <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true" style={{ flex: '0 0 28px' }}><circle cx="14" cy="14" r="12" fill="#FFE7CC" /><path d="M14 8v8M14 19.5v.5" stroke="#B4561A" strokeWidth="2.6" strokeLinecap="round" /></svg>
