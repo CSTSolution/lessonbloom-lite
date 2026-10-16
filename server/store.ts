@@ -5,7 +5,7 @@ import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promise
 import { join } from 'node:path';
 import { config } from './config.ts';
 
-export type Coll = 'teachers' | 'classes' | 'pupils' | 'lessons' | 'assignments' | 'attempts' | 'selfchecks' | 'cache';
+export type Coll = 'teachers' | 'classes' | 'pupils' | 'lessons' | 'assignments' | 'attempts' | 'selfchecks' | 'visits' | 'cache';
 
 export interface Store {
   get<T>(coll: Coll, id: string): Promise<T | null>;

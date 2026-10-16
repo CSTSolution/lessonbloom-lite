@@ -13,14 +13,14 @@ const P = {
     title: 'In hoặc lưu PDF', sub: 'Chọn những gì cần in. Trong hộp thoại in, chọn "Lưu thành PDF" nếu cô muốn có file.',
     slides: 'Slide bài giảng', notes: 'Kèm lời giảng cho cô', sheet: 'Phiếu bài tập', templates: 'Mẫu bài', levels: 'Mức', nameLine: 'Dòng "Họ và tên / Lớp" ở đầu phiếu',
     key: 'Đáp án và lời giải (trang riêng)', cards: 'Thẻ nhớ để cắt', print: 'In / Lưu PDF', close: 'Đóng', none: 'Cô chọn ít nhất một mục để in nhé.', noItems: 'Không có câu nào với mẫu và mức đã chọn.',
-    count: (n: number) => `${n} câu`, sheetH: 'Phiếu bài tập', keyH: 'Đáp án', cardsH: 'Thẻ nhớ', name: 'Họ và tên:', cls: 'Lớp:', date: 'Ngày:',
+    count: (n: number) => `${n} câu`, pick: 'Chọn từng câu', pickHide: 'Ẩn danh sách câu', all: 'In tất cả', allSub: 'Slide kèm lời giảng, phiếu tất cả các câu, đáp án và thẻ nhớ', sheetH: 'Phiếu bài tập', keyH: 'Đáp án', cardsH: 'Thẻ nhớ', name: 'Họ và tên:', cls: 'Lớp:', date: 'Ngày:',
     answer: 'Trả lời:', tf: ['Đúng', 'Sai'], listenFor: (w: string) => `Cô đọc: “${w}”`, listen: 'Nghe cô đọc rồi khoanh từ đúng.', match: 'Nối mỗi từ với hình đúng.', order: 'Sắp xếp các từ thành câu đúng.', explain: 'Lời giải:',
   },
   en: {
     title: 'Print or save as PDF', sub: 'Choose what to print. In the print dialog, choose "Save as PDF" to get a file.',
     slides: 'Lesson slides', notes: 'With teacher notes', sheet: 'Worksheet', templates: 'Templates', levels: 'Levels', nameLine: '"Name / Class" line at the top',
     key: 'Answer key with solutions (separate page)', cards: 'Flashcards to cut out', print: 'Print / Save PDF', close: 'Close', none: 'Choose at least one thing to print.', noItems: 'No items for the chosen templates and levels.',
-    count: (n: number) => `${n} items`, sheetH: 'Worksheet', keyH: 'Answer key', cardsH: 'Flashcards', name: 'Name:', cls: 'Class:', date: 'Date:',
+    count: (n: number) => `${n} items`, pick: 'Choose questions', pickHide: 'Hide the question list', all: 'Print everything', allSub: 'Slides with notes, a worksheet with every question, the answer key and flashcards', sheetH: 'Worksheet', keyH: 'Answer key', cardsH: 'Flashcards', name: 'Name:', cls: 'Class:', date: 'Date:',
     answer: 'Answer:', tf: ['True', 'False'], listenFor: (w: string) => `Teacher reads: “${w}”`, listen: 'Listen to your teacher, then circle the right word.', match: 'Match each word to the right picture.', order: 'Put the words in the right order.', explain: 'Solution:',
   },
 };
@@ -54,6 +54,9 @@ function Item({ e, n, p }: { e: Exercise; n: number; p: typeof P.vi }) {
   return <li className="pr-item" value={n}>{body}</li>;
 }
 
+// one line per question in the chooser's list
+const shortQ = (e: Exercise) => ('expr' in e && e.expr ? e.expr : 'equation' in e ? e.equation : 'statement' in e ? e.statement : 'sentence' in e ? e.sentence : e.type === 'eng_match' ? e.pairs.map((x) => x.word).join(', ') : e.type === 'eng_order' ? e.answer : e.prompt);
+
 function keyOf(e: Exercise, p: typeof P.vi): string {
   switch (e.type) {
     case 'math_truefalse': return e.answer === 'true' ? p.tf[0] : p.tf[1];
@@ -70,7 +73,11 @@ export function PrintDialog({ l, initial, onClose }: { l: Lesson; initial: Print
   const [o, setO] = useState({ slides: initial === 'slides', notes: true, sheet: initial === 'sheet', nameLine: true, key: initial === 'sheet', cards: initial === 'cards',
     types: types as string[], levels: [...LEVELS] as string[] });
   const [printing, setPrinting] = useState(false), [msg, setMsg] = useState('');
-  const items = l.exercises.filter((e) => o.types.includes(e.type) && o.levels.includes(e.level));
+  const [skip, setSkip] = useState<string[]>([]), [picking, setPicking] = useState(false);    // questions left out one by one
+  const pool = l.exercises.filter((e) => o.types.includes(e.type) && o.levels.includes(e.level));
+  const items = pool.filter((e) => !skip.includes(e.id));
+  const nOf = (type: string) => l.exercises.filter((e) => e.type === type && o.levels.includes(e.level) && !skip.includes(e.id)).length;
+  const printAll = () => { setO({ ...o, slides: true, notes: true, sheet: true, key: true, cards: l.flashcards.length > 0, types: types as string[], levels: [...LEVELS] }); setSkip([]); setMsg(''); setPrinting(true); };
   const toggle = (k: 'types' | 'levels', v: string) => setO({ ...o, [k]: o[k].includes(v) ? o[k].filter((x) => x !== v) : [...o[k], v] });
   useEffect(() => {                               // Esc closes the chooser
     const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -106,15 +113,23 @@ export function PrintDialog({ l, initial, onClose }: { l: Lesson; initial: Print
           <label className="row pr-opt"><input type="checkbox" checked={o.sheet} onChange={(e) => setO({ ...o, sheet: e.target.checked })} /><strong>{p.sheet}</strong> <span className="muted small">({p.count(items.length)})</span></label>
           {(o.sheet || o.key) && (
             <div className="pr-sub stack" style={{ gap: 8 }}>
-              <div className="row" style={{ gap: 6 }}><span className="small muted">{p.templates}:</span>{types.map((x) => <label key={x} className={`pill sm ${o.types.includes(x) ? 'on' : ''}`}><input type="checkbox" className="sr" checked={o.types.includes(x)} onChange={() => toggle('types', x)} />{t.tpl[x as keyof typeof t.tpl] || x}</label>)}</div>
+              <div className="row" style={{ gap: 6 }}><span className="small muted">{p.templates}:</span>{types.map((x) => <label key={x} className={`pill sm ${o.types.includes(x) ? 'on' : ''}`}><input type="checkbox" className="sr" checked={o.types.includes(x)} onChange={() => toggle('types', x)} />{t.tpl[x as keyof typeof t.tpl] || x} <b>{nOf(x)}</b></label>)}</div>
               <div className="row" style={{ gap: 6 }}><span className="small muted">{p.levels}:</span>{LEVELS.map((x) => <label key={x} className={`pill sm ${o.levels.includes(x) ? 'on' : ''}`}><input type="checkbox" className="sr" checked={o.levels.includes(x)} onChange={() => toggle('levels', x)} />{t[x]}</label>)}</div>
+              <button type="button" className="btn ghost sm" style={{ alignSelf: 'flex-start' }} aria-expanded={picking} onClick={() => setPicking(!picking)}>{picking ? p.pickHide : `${p.pick} (${items.length}/${pool.length})`}</button>
+              {picking && (
+                <ol className="pr-pick">{pool.map((e) => (
+                  <li key={e.id}><label className="row" style={{ gap: 8, flexWrap: 'nowrap', alignItems: 'flex-start' }}>
+                    <input type="checkbox" checked={!skip.includes(e.id)} onChange={() => setSkip(skip.includes(e.id) ? skip.filter((x) => x !== e.id) : [...skip, e.id])} />
+                    <span><span className="muted small">{t.tpl[e.type as keyof typeof t.tpl] || e.type} · {t[e.level]}</span><br />{shortQ(e)}</span></label></li>))}
+                </ol>
+              )}
               {o.sheet && <label className="row"><input type="checkbox" checked={o.nameLine} onChange={(e) => setO({ ...o, nameLine: e.target.checked })} />{p.nameLine}</label>}
             </div>
           )}
           <label className="row pr-opt"><input type="checkbox" checked={o.key} onChange={(e) => setO({ ...o, key: e.target.checked })} /><strong>{p.key}</strong></label>
           {l.flashcards.length > 0 && <label className="row pr-opt"><input type="checkbox" checked={o.cards} onChange={(e) => setO({ ...o, cards: e.target.checked })} /><strong>{p.cards}</strong> <span className="muted small">({l.flashcards.length})</span></label>}
           {msg && <p className="error-note" role="alert">{msg}</p>}
-          <div className="row"><button className="btn primary" onClick={go}>{p.print}</button><button className="btn" onClick={onClose}>{p.close}</button></div>
+          <div className="row"><button className="btn primary" onClick={go}>{p.print}</button><button className="btn" onClick={printAll} title={p.allSub}>{p.all}</button><div className="grow" /><button className="btn ghost" onClick={onClose}>{p.close}</button></div>
         </div>
       </div>
       {printing && createPortal(

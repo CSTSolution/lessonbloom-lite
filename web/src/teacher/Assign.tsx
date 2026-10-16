@@ -3,7 +3,7 @@
 import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
 import { go, teacherApi, type ClassCard, type ClassDetail, type Lesson } from '../api.ts';
-import { useT } from '../i18n.ts';
+import { useT, withCls } from '../i18n.ts';
 import { T } from './dict.ts';
 import { GuideHint, pulse } from './Guide.tsx';
 import { shareMessage } from './share.ts';
@@ -38,7 +38,7 @@ export function Assign({ l, presetClass }: { l: Lesson; presetClass?: string }) 
     try {
       const ids = [cid, ...also.filter((x) => x !== cid)];
       for (const classId of ids) await teacherApi.assign({ lessonId: l.id, classId, dueAt: due, allowRetry: retry, autoSuggest: suggest });
-      setDoneNames(ids.map((x) => `${t.cls} ${classes.find((k) => k.id === x)?.name}`).join(', ')); setAlso([]);
+      setDoneNames(ids.map((x) => withCls(t.cls, classes.find((k) => k.id === x)?.name || '')).join(', ')); setAlso([]);
       setDone(true); teacherApi.klass(cid).then(setDetail);
     }
     catch (e) { setErr((e as Error).message); }
@@ -50,7 +50,7 @@ export function Assign({ l, presetClass }: { l: Lesson; presetClass?: string }) 
       {loaded && classes.length === 0 && <div className="card empty"><p style={{ margin: 0 }}>{t.needClass}</p><Link to="/classes?add=1" className="btn primary">{t.goClasses}</Link></div>}
       <div className="row">
         <span className="muted">{t.pickClassAssign}</span>
-        <div className="pills">{classes.map((k) => <button key={k.id} className={`pill ${cid === k.id ? 'on' : ''}`} onClick={() => setCid(k.id)}>{t.cls} {k.name}</button>)}</div>
+        <div className="pills">{classes.map((k) => <button key={k.id} className={`pill ${cid === k.id ? 'on' : ''}`} onClick={() => setCid(k.id)}>{withCls(t.cls, k.name)}</button>)}</div>
         {detail && <span className="muted small">{detail.pupils.filter((p) => p.joinedAt).length}/{detail.pupils.length} {t.joinedSuffix}</span>}
       </div>
       {detail && (
@@ -74,14 +74,14 @@ export function Assign({ l, presetClass }: { l: Lesson; presetClass?: string }) 
                   <span className="small" style={{ fontWeight: 600 }}>{t.alsoAssign}</span>
                   <div className="pills">{classes.filter((k) => k.id !== cid).map((k) => (
                     <label key={k.id} className={`pill ${also.includes(k.id) ? 'on' : ''}`} style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-                      <input type="checkbox" className="sr" checked={also.includes(k.id)} onChange={(e) => setAlso(e.target.checked ? [...also, k.id] : also.filter((x) => x !== k.id))} />{also.includes(k.id) ? '✓ ' : ''}{t.cls} {k.name}
+                      <input type="checkbox" className="sr" checked={also.includes(k.id)} onChange={(e) => setAlso(e.target.checked ? [...also, k.id] : also.filter((x) => x !== k.id))} />{also.includes(k.id) ? '✓ ' : ''}{withCls(t.cls, k.name)}
                     </label>))}</div>
                 </div>
               )}
             </div>
             {done ? (
               <div className="stack" style={{ gap: 8 }}>
-                <div className="ok-note">✓ {doneNames ? t.assignedMany(doneNames) : `${t.assigned} ${t.cls} ${detail.name}`} · {t.joinCode}: <strong>{detail.joinCode}</strong></div>
+                <div className="ok-note">✓ {doneNames ? t.assignedMany(doneNames) : `${t.assigned} ${withCls(t.cls, detail.name)}`} · {t.joinCode}: <strong>{detail.joinCode}</strong></div>
                 <button className="btn sm" style={{ alignSelf: 'flex-start' }} onClick={async () => { if ((await shareMessage(t.shareMsg(l.intake.title, detail.name, detail.joinCode, url), url)) === 'copied') setShared(true); }}>{t.share}</button>
                 {shared && <p className="ok-note" style={{ margin: 0 }}>{t.msgCopied}</p>}
                 <button className="link-btn" style={{ alignSelf: 'flex-start' }} onClick={() => { try { sessionStorage.setItem('lb-guide', 'share'); } catch { /* ok */ } go('/classes'); }}>{t.nextInvite}</button>

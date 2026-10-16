@@ -51,6 +51,7 @@ export function visited(pid: string): Activity[] {
   try { const v = JSON.parse(sessionStorage.getItem(visitKey(pid)) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; }
 }
 export function markVisited(pid: string, a: Activity) {
+  pupilApi.visit(pid, a).catch(() => {});            // the teacher's summary shows which parts were opened
   const v = visited(pid);
   if (v.includes(a)) return;
   try { sessionStorage.setItem(visitKey(pid), JSON.stringify([...v, a])); } catch { /* private mode */ }

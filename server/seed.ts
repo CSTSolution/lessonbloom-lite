@@ -4,7 +4,7 @@
 // shows Đã vững / Đang luyện / Lỗi lặp lại on first open. No real pupil data, ever.
 import { randomBytes } from 'node:crypto';
 import type { Store } from './store.ts';
-import type { Assignment, Attempt, ClassRoom, Exercise, Lesson, Pupil, SelfCheck, Teacher } from './types.ts';
+import type { Assignment, Attempt, ClassRoom, Exercise, Lesson, Pupil, SelfCheck, Teacher, Visit } from './types.ts';
 import { DEFAULT_CRITERIA } from './types.ts';
 
 export const NAMES = ['An', 'Bình', 'Chi', 'Dũng', 'Hà', 'Khôi', 'Linh', 'Minh', 'Nam', 'Phương', 'Quân', 'Thảo'];
@@ -125,8 +125,11 @@ export async function seedTeacher(store: Store, teacherId: string, name = 'Cô H
       }
     }
     await store.putMany('attempts', atts);
-    // most active pupils reached "all done" and said how it felt; the last two are still practising
     const active = pupils.slice(0, cname === '2A' ? 10 : 12);
+    // the parts each active pupil opened: everything for those who finished, video and exercises for the rest
+    await store.putMany('visits', active.map((p, i): Visit => ({ id: `v-${a.id}-${p.id}`, assignmentId: a.id, pupilId: p.id,
+      parts: i < active.length - 2 ? (i % 3 === 2 ? ['video', 'cards', 'practice'] : ['video', 'cards', 'practice', 'memory']) : ['video', 'practice'], at: new Date(now - day + i * 60000).toISOString() })));
+    // most active pupils reached "all done" and said how it felt; the last two are still practising
     await store.putMany('selfchecks', active.slice(0, -2).map((p, i): SelfCheck => ({ id: id(12), assignmentId: a.id, pupilId: p.id,
       mood: plan[cname].carry.includes(p.displayName) ? 'hard' : (['easy', 'ok', 'easy'] as const)[i % 3], at: new Date(now - day + i * 60000).toISOString() })));
   }

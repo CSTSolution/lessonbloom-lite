@@ -1,7 +1,7 @@
 // Screen 11: join with the class code the teacher gives, then tap your name.
 import { useEffect, useRef, useState } from 'react';
 import { go, pupilApi } from '../api.ts';
-import { useT } from '../i18n.ts';
+import { useT, withCls } from '../i18n.ts';
 import { Flower, TopBar, savePupil, savedPupil } from './shared.tsx';
 
 const D = {
@@ -77,7 +77,7 @@ export function Join() {
         <div className="j-continue">
           <div className="grow" style={{ minWidth: 0 }}>
             <div className="display" style={{ fontSize: 20 }}>{saved.name}</div>
-            <div className="p-muted small">{t.cls} {saved.className}</div>
+            <div className="p-muted small">{withCls(t.cls, saved.className)}</div>
           </div>
           <button className="p-btn" style={{ width: 'auto', fontSize: 18, minHeight: 48 }} onClick={() => go(`/learn/${saved.id}`)} aria-label={t.contAs(saved.name)}>{t.cont}</button>
           <button className="btn ghost sm" style={{ minHeight: 48 }} onClick={() => { savePupil(null); setSaved(null); }}>{t.notMe}</button>
@@ -99,7 +99,7 @@ export function Join() {
 
         {roster && (
           <div className="stack" style={{ gap: 8 }}>
-            <div style={{ fontWeight: 600, fontSize: 16 }}>{t.nameLabel} <span className="p-muted" style={{ fontWeight: 500 }}>· {t.cls} {roster.className}</span></div>
+            <div style={{ fontWeight: 600, fontSize: 16 }}>{t.nameLabel} <span className="p-muted" style={{ fontWeight: 500 }}>· {withCls(t.cls, roster.className)}</span></div>
             {roster.pupils.length === 0 ? <p className="p-sub">{t.empty}</p> : (
               <div className="j-names" role="radiogroup" aria-label={t.nameLabel}>
                 {roster.pupils.map((p) => (

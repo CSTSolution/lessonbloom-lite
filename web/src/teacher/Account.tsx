@@ -1,10 +1,14 @@
-// "Tài khoản của tôi": change the display name; for a registered account also change the
+// "Tài khoản của tôi" / profile (avatar in the top bar): display name, the subject taught, the teacher's classes,
+// interface language, how they sign in; for a registered account also change the
 // password (needs the current one), or, if it is forgotten, set a new one with a 6-digit code
 // sent to the account's email (same code flow as the sign-in page). A demo workspace has a name only.
 import { useEffect, useState } from 'react';
-import { accountApi, teacherApi, type Teacher } from '../api.ts';
+import { accountApi, goRegister, teacherApi, type ClassCard, type Teacher } from '../api.ts';
 import { authError, changePassword, signIn, useAuth } from '../auth.ts';
-import { useLang, useT } from '../i18n.ts';
+import { useLang, useT, withCls } from '../i18n.ts';
+import { LangToggle } from '../main.tsx';
+import { T } from './dict.ts';
+import { Link } from './TeacherRoutes.tsx';
 import { ErrorNote } from './ErrorNote.tsx';
 
 const A = {
@@ -16,7 +20,10 @@ const A = {
     sent: (e: string) => `Mã đã được gửi tới ${e}. Mã dùng được trong 10 phút; cô xem cả mục Spam nhé.`, setNew: 'Đặt mật khẩu mới', cancel: 'Huỷ',
     wrongCurrent: 'Mật khẩu hiện tại chưa đúng. Nếu cô quên, bấm "Quên mật khẩu hiện tại?".', mismatch: 'Hai mật khẩu mới chưa giống nhau.', short: 'Mật khẩu cần ít nhất 6 ký tự.',
     same: 'Mật khẩu mới cần khác mật khẩu hiện tại.', codeShort: 'Cô nhập đủ 6 số trong email nhé.', show: 'Hiện', hide: 'Ẩn',
-    demoNote: 'Đây là bản dùng thử: chỉ đổi được tên. Muốn có mật khẩu và lưu bài lâu dài, cô đăng xuất rồi bấm "Đăng ký".', busy: 'Đang lưu…',
+    demoNote: 'Đây là bản dùng thử, chưa có mật khẩu. Muốn có mật khẩu, 30 lượt AI mỗi ngày và lưu bài lâu dài, cô đăng ký tài khoản miễn phí (bài trong bản dùng thử không chuyển sang).', register: 'Đăng ký tài khoản miễn phí', busy: 'Đang lưu…',
+    subjH: 'Môn cô dạy', subjSub: 'Dùng làm môn mặc định khi tạo bài và tạo lớp.', subj: { math: 'Toán', english: 'Tiếng Anh', both: 'Cả hai' }, subjSaved: 'Đã lưu môn dạy.',
+    classesH: 'Lớp của cô', noClasses: 'Cô chưa có lớp nào.', manage: 'Quản lý lớp ›', pupilsN: (n: number) => `${n} học sinh`,
+    langH: 'Ngôn ngữ giao diện', loginH: 'Đăng nhập', loginAcc: (e: string) => `Cô đăng nhập bằng email ${e} và mật khẩu.`, loginDemo: 'Bản dùng thử, không cần đăng nhập; bài chỉ lưu trên trình duyệt này.', signOut: 'Đăng xuất',
   },
   en: {
     title: 'My account', email: 'Email', plan: 'Plan', plans: { demo: 'Trial', free: 'Free', pro: 'Pro' },
@@ -26,7 +33,10 @@ const A = {
     sent: (e: string) => `A code has been sent to ${e}. It works for 10 minutes; check Spam too.`, setNew: 'Set new password', cancel: 'Cancel',
     wrongCurrent: 'The current password is wrong. If you forgot it, use "Forgot your current password?".', mismatch: 'The two new passwords are not the same.', short: 'The password needs at least 6 characters.',
     same: 'The new password must be different from the current one.', codeShort: 'Please enter all 6 digits from the email.', show: 'Show', hide: 'Hide',
-    demoNote: 'This is a trial workspace: only the name can be changed. For a password and lessons kept for good, sign out and choose "Register".', busy: 'Saving…',
+    demoNote: 'This is a trial workspace with no password. For a password, 30 AI credits a day and lessons kept for good, register a free account (trial lessons do not move over).', register: 'Register a free account', busy: 'Saving…',
+    subjH: 'Subject you teach', subjSub: 'Used as the default when you create a lesson or a class.', subj: { math: 'Maths', english: 'English', both: 'Both' }, subjSaved: 'Subject saved.',
+    classesH: 'Your classes', noClasses: 'No classes yet.', manage: 'Manage classes ›', pupilsN: (n: number) => `${n} pupils`,
+    langH: 'Interface language', loginH: 'Sign-in', loginAcc: (e: string) => `You sign in with ${e} and a password.`, loginDemo: 'Trial workspace, no sign-in; lessons are kept in this browser only.', signOut: 'Sign out',
   },
 };
 
@@ -44,8 +54,11 @@ function Pw({ label, value, onChange, auto, hint }: { label: string; value: stri
   );
 }
 
-export function Account({ teacher, onSaved }: { teacher: Teacher; onSaved: (t: Teacher) => void }) {
-  const a = useT(A), lang = useLang();
+export function Account({ teacher, onSaved, onSignOut }: { teacher: Teacher; onSaved: (t: Teacher) => void; onSignOut: () => void }) {
+  const a = useT(A), lang = useLang(), tt = useT(T);
+  const [classes, setClasses] = useState<ClassCard[] | null>(null);
+  useEffect(() => { teacherApi.classes().then(setClasses).catch(() => setClasses([])); }, []);
+  const saveSubject = (s: 'math' | 'english' | 'both') => run('name', async () => { onSaved(await teacherApi.saveProfile({ subject: s })); return a.subjSaved; });
   const { user } = useAuth();
   const email = user?.email || teacher.email || '';
   const [name, setName] = useState(teacher.name);
@@ -96,6 +109,19 @@ export function Account({ teacher, onSaved }: { teacher: Teacher; onSaved: (t: T
           {ok.name && <span className="ok-note" role="status">✓ {ok.name}</span>}</div>
         <ErrorNote text={err.name} />
       </form>
+      <div className="card stack">
+        <div><h2 style={{ margin: 0 }}>{a.subjH}</h2><p className="muted small" style={{ margin: 0 }}>{a.subjSub}</p></div>
+        <div className="radio-pills">{(['math', 'english', 'both'] as const).map((x) => <label key={x} className={teacher.subject === x ? 'on' : ''}><input type="radio" className="sr" checked={teacher.subject === x} onChange={() => saveSubject(x)} />{a.subj[x]}</label>)}</div>
+      </div>
+      <div className="card stack">
+        <div className="row"><h2 className="grow" style={{ margin: 0 }}>{a.classesH}</h2><Link to="/classes" className="small">{a.manage}</Link></div>
+        {classes === null ? <span className="muted small">…</span> : !classes.length ? <span className="muted">{a.noClasses}</span> : (
+          <div className="pills">{classes.map((k) => <Link key={k.id} to={`/classes?cid=${k.id}`} className="pill">{withCls(tt.cls, k.name)} <span className="pill-sub">· {a.pupilsN(k.pupils)}</span></Link>)}</div>
+        )}
+      </div>
+      <div className="card row"><h2 className="grow" style={{ margin: 0 }}>{a.langH}</h2><LangToggle /></div>
+      <div className="card row"><div className="grow"><h2 style={{ margin: 0 }}>{a.loginH}</h2><p className="muted small" style={{ margin: 0 }}>{user && email ? a.loginAcc(email) : a.loginDemo}</p></div>
+        <button className="btn" onClick={onSignOut}>{a.signOut}</button></div>
       {user ? (
         <form className="card stack" onSubmit={(e) => { e.preventDefault(); if (mode === 'change') change(); else if (mode === 'forgot') send(); else reset(); }}>
           <h2 style={{ margin: 0 }}>{a.pwH}</h2>
@@ -121,7 +147,7 @@ export function Account({ teacher, onSaved }: { teacher: Teacher; onSaved: (t: T
           {ok.pw && <p className="ok-note" role="status" style={{ margin: 0 }}>✓ {ok.pw}</p>}
           <ErrorNote text={err.pw} />
         </form>
-      ) : <p className="ro-note" role="note">{a.demoNote}</p>}
+      ) : <div className="ro-note row" role="note" style={{ justifyContent: 'space-between' }}><span className="grow">{a.demoNote}</span><button className="btn sm primary" onClick={goRegister}>{a.register}</button></div>}
     </main>
   );
 }

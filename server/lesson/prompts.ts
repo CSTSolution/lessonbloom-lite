@@ -125,7 +125,11 @@ export const ERROR_SYSTEM = `A primary pupil (grade {{grade}}) answered a practi
 - hint: 1-2 short Vietnamese sentences TO THE CHILD that point at the step to fix WITHOUT giving the final answer, warm tone ("6 + 7 = 13, viết 3 và nhớ 1 sang hàng chục. 3 + 2 rồi thêm 1 nữa là mấy nhỉ?"). The screen already shows "Gần đúng rồi! Thử lại nhé" above it, so do not open with praise or "sai rồi"; never mention scores.`;
 export const ERROR_SCHEMA = { type: 'object', properties: { errorType: str, hint: str }, required: ['errorType', 'hint'] };
 
-export const COMMENT_SYSTEM = `Draft short comments ("gợi ý lời nhận xét") a Vietnamese primary teacher can copy into the pupil's notebook or school record, in the spirit of Thông tư 27/2020/TT-BGDĐT: describe progress and what to practise next, specific to the skill; no scores, no comparison with other pupils, encouraging. 1-2 sentences each, Vietnamese, address the pupil by name ("Em An ...").`;
+export const COMMENT_SYSTEM = `Draft short comments ("gợi ý lời nhận xét") a Vietnamese primary teacher can copy into the pupil's notebook or school record, in the spirit of Thông tư 27/2020/TT-BGDĐT: describe progress and what to practise next, specific to the skills; no scores, no numbers of right or wrong answers, no comparison with other pupils, encouraging.
+Write exactly ONE comment for EVERY pupil in the list, with that pupil's pupilId. Each pupil comes with their skills: label secure = làm chắc, practising = đang luyện, repeated = hay mắc cùng một lỗi (the error is given); "felt" is how the pupil said the lesson felt.
+1-2 sentences each, Vietnamese, address the pupil by name ("Em An ..."): one thing done well, then one thing to practise next.`;
+export const COMMENT_SHORT_SYSTEM = `Rewrite this comment for a Vietnamese primary-school pupil to be shorter: one sentence, at most 20 words, same meaning, keep the name and the thing to practise, no scores. Vietnamese.`;
+export const COMMENT_SHORT_SCHEMA = { type: 'object', properties: { text: str }, required: ['text'] };
 export const COMMENT_SCHEMA = { type: 'object', properties: { comments: { type: 'array', items: { type: 'object', properties: { pupilId: str, text: str }, required: ['pupilId', 'text'] } } }, required: ['comments'] };
 
 export const IMAGE_STYLE = 'Cheerful flat cartoon illustration for a primary-school lesson slide, soft pastel colours, simple shapes, friendly Vietnamese children and everyday objects, plain light background, no text, no letters, no numbers, no watermark.';

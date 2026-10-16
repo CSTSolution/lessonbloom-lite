@@ -60,7 +60,7 @@ type Mode = 'in' | 'up' | 'reset';
 export function Login({ onReady }: { onReady: (t: Teacher) => void }) {
   const t = useT(L), lang = useLang();
   const { enabled } = useAuth();
-  const [mode, setMode] = useState<Mode>('in');
+  const [mode, setMode] = useState<Mode>(() => { try { const m = sessionStorage.getItem('lb-auth-mode'); sessionStorage.removeItem('lb-auth-mode'); return m === 'up' ? 'up' : 'in'; } catch { return 'in'; } });   // 'up' when coming from the demo's Register button
   const [stage, setStage] = useState<'form' | 'code'>('form');      // register/reset: details first, then the emailed code
   const [f, setF] = useState({ name: '', email: '', password: '', code: '' });
   const [showPw, setShowPw] = useState(false);

@@ -82,9 +82,11 @@ export interface Criteria {
 }
 export const DEFAULT_CRITERIA: Criteria = { lastN: 10, minAnswers: 5, securePct: 80, repeatedPct: 50, repeatTimes: 3, repeatSessions: 2, classRepeatedPct: 30, classSecurePct: 70 };
 
-export interface Teacher { id: string; name: string; subject: Subject; criteria: Criteria; createdAt: string; email?: string; account?: boolean; plan?: 'demo' | 'free' | 'pro'; proRequestedAt?: string }
+export interface Teacher { id: string; name: string; subject: Subject | 'both'; criteria: Criteria; createdAt: string; email?: string; account?: boolean; plan?: 'demo' | 'free' | 'pro'; proRequestedAt?: string }
 export interface ClassRoom { id: string; teacherId: string; name: string; joinCode: string; subject?: Subject | 'both'; sample?: boolean }   // sample: made by seedTeacher
 export interface Pupil { id: string; classId: string; displayName: string; joinedAt?: string }
 export interface Assignment { id: string; teacherId: string; lessonId: string; classId: string; dueAt?: string; allowRetry: boolean; autoSuggest: boolean; createdAt: string }
 export interface Attempt { id: string; assignmentId: string; classId: string; pupilId: string; lessonId: string; exerciseId: string; skill: string; answer: string; correct: boolean; errorType?: string; at: string; session: string }
+export type Part = 'video' | 'cards' | 'practice' | 'memory';
+export interface Visit { id: string; assignmentId: string; pupilId: string; parts: Part[]; at: string }   // which parts of the lesson a pupil opened
 export interface SelfCheck { id: string; assignmentId: string; pupilId: string; mood?: 'easy' | 'ok' | 'hard'; at: string }   // no mood: reached the all-done screen

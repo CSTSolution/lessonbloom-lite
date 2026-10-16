@@ -1,7 +1,7 @@
 // Screen 12: today's lesson. Four activities and how far the pupil has got through them today
 // (which activities they opened, not how well they did).
 import { go } from '../api.ts';
-import { useT } from '../i18n.ts';
+import { useT, withCls } from '../i18n.ts';
 import { practiceSet } from './Practice.tsx';
 import { Empty, Gate, TopBar, finished, useLearn, visited, type Activity } from './shared.tsx';
 
@@ -33,7 +33,7 @@ export function Hub({ pid }: { pid: string }) {
   return (
     <Gate pid={pid} state={state} needLesson={false}>
       {(learn) => {
-        const top = <TopBar><span className="p-hi">{t.hi} {learn.name} · {t.cls} {learn.className}</span></TopBar>;
+        const top = <TopBar><span className="p-hi">{t.hi} {learn.name} · {withCls(t.cls, learn.className)}</span></TopBar>;
         const l = learn.lesson;
         if (!l) return (<>{top}<Empty title={t.noneH} body={t.noneB} /></>);
         const seen = visited(pid);

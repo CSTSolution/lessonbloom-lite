@@ -47,6 +47,8 @@ export async function startDemo(): Promise<Teacher> {
 }
 export const isDemo = () => !currentUser() && !!getKey();
 export function leaveDemo() { try { localStorage.removeItem(KEY); } catch { /* ok */ } }
+// "Đăng ký tài khoản" from the demo: leave the demo and open the sign-in page on the Register tab
+export function goRegister() { try { sessionStorage.setItem('lb-auth-mode', 'up'); } catch { /* ok */ } leaveDemo(); location.href = '/'; }
 
 export interface PupilProgress {
   pupil: Pupil; className: string; classId: string;
@@ -56,13 +58,22 @@ export interface PupilProgress {
 }
 // getting-started guide on the home page (sample/demo data not counted)
 export interface StartState { classes: number; pupils: number; lessons: number; readyLessonId: string | null; assigned: number; joined: number; practised: boolean; sample: boolean }
-export interface LessonCard { id: string; title: string; subject: string; grade: number; status: string; createdAt: string; slides: number; exercises: number; flashcards: number; video: boolean; cover: string; classes: string[] }
+export interface LessonCard { id: string; title: string; subject: string; grade: number; status: string; createdAt: string; slides: number; exercises: number; flashcards: number; video: boolean; cover: string; classes: string[]; copy?: boolean }
 export interface ClassCard extends ClassRoom { pupils: number; joined: number; assignments: number }
 export interface ClassDetail extends ClassRoom { pupils: Pupil[]; assignments: (Assignment & { title: string; done: number; total: number })[] }
 export interface PupilSkill { pupilId: string; name: string; label: Label; right: number; total: number; topError?: string }
 export interface SkillSummary { skill: string; skillName: string; classLabel: Label; pupils: PupilSkill[]; errors: { errorType: string; count: number; pupils: string[]; example?: string }[] }
-export interface Usage { plan: 'demo' | 'free' | 'pro'; limit: number | null; usedToday: number; costs: Record<string, number>; photos?: number; proRequestedAt: string | null;
+export interface Usage { plan: 'demo' | 'free' | 'pro'; limit: number | null; usedToday: number; costs: Record<string, number>; photos?: number; lessonsToday?: number; lessonsMax?: number | null; proRequestedAt: string | null;
   days: { day: string; credits: number; actions: Record<string, number>; usd: number; calls: number }[] }
+export type Part = 'video' | 'cards' | 'practice' | 'memory';
+export interface AssignmentSummaryT {
+  assignment: Assignment; lesson: { id: string; title: string; skills: Skill[]; parts: Part[] }; klass: { id: string; name: string };
+  pupils: { pupilId: string; name: string; joined: boolean; status: 'none' | 'started' | 'done'; parts: Part[]; skills: Record<string, { right: number; wrong: number; label: Label | null }>;
+    repeated?: string; retries: number; tried: number; mood?: 'easy' | 'ok' | 'hard'; next: { kind: 'same' | 'harder'; skillName: string }[]; lastAt?: string }[];
+  cls: { total: number; done: number; started: number; none: number; joined: number; skills: { tag: string; name: string; label: Label | null; stuck: number; secure: number; topError?: string }[] };
+}
+export interface PupilQuestions { name: string; questions: { id: string; type: string; level: string; skill: string; question: string; tries: { answer: string; correct: boolean; errorType?: string; at: string }[] }[] }
+export interface Comments { comments: { pupilId: string; text: string; name: string; skills: { skill: string; label: Label; error?: string }[]; felt?: string }[] | null; stale: boolean; ready: number; waiting: string[]; at: string | null }
 export interface PupilRow { pupilId: string; name: string; status: 'none' | 'started' | 'done'; tried: number; answers: number; skills: Record<string, Label | null>; topError?: string; mood?: 'easy' | 'ok' | 'hard'; lastAt?: string }
 export interface Insights { lessons: { id: string; title: string }[]; lessonId: string; classId: string; classes: { id: string; name: string }[];
   assigned?: boolean; pupils?: PupilRow[]; skills?: { tag: string; name: string }[];
@@ -87,6 +98,7 @@ export const teacherApi = {
   addPupils: (id: string, names: string[]) => tc<Pupil[]>('POST', `/classes/${id}/pupils`, { names }),
   lessons: () => tc<LessonCard[]>('GET', '/lessons'),
   rename: (name: string) => tc<Teacher>('PUT', '/me', { name }),
+  saveProfile: (p: { name?: string; subject?: 'math' | 'english' | 'both' }) => tc<Teacher>('PUT', '/me', p),
   ocr: (images: { data: string; type: string }[]) => tc<{ text: string; max: number }>('POST', '/ocr', { images }),
   intake: (source: string) => tc<Intake>('POST', '/intake', { source }),
   create: (source: string, intake: Intake, files: string[] = []) => tc<{ id: string }>('POST', '/lessons', { source, intake, files }),
@@ -100,7 +112,12 @@ export const teacherApi = {
   proRequest: () => tc<{ proRequestedAt: string }>('POST', '/pro-request'),
   verifySend: () => tc<{ sent?: true; verified?: true }>('POST', '/verify/code', { lang: getLang() }),
   verify: (code: string) => tc<{ verified: true }>('POST', '/verify', { code }),
-  comments: (lessonId: string, classId: string) => tc<{ pupilId: string; text: string }[]>('POST', '/insights/comments', { lessonId, classId }),
+  assignmentSummary: (aid: string) => tc<AssignmentSummaryT>('GET', `/assignments/${aid}/summary`),
+  assignmentPupil: (aid: string, pid: string) => tc<PupilQuestions>('GET', `/assignments/${aid}/pupils/${pid}`),
+  comments: (lessonId: string, classId: string) => tc<Comments>('GET', `/insights/comments?lessonId=${encodeURIComponent(lessonId)}&classId=${encodeURIComponent(classId)}`),
+  draftComments: (lessonId: string, classId: string) => tc<Comments>('POST', '/insights/comments', { lessonId, classId }),
+  saveComment: (lessonId: string, classId: string, pupilId: string, text: string) => tc<{ ok: true }>('PUT', '/insights/comments', { lessonId, classId, pupilId, text }),
+  shorterComment: (text: string) => tc<{ text: string }>('POST', '/insights/comments/shorter', { text }),
 };
 
 // ----- accounts: 6-digit code by email for registering and resetting a password -----
@@ -126,6 +143,7 @@ export const pupilApi = {
   learn: (pid: string) => call<Learn>('GET', `/api/learn/${pid}`),
   answer: (pid: string, b: { assignmentId: string; exerciseId: string; answer: string; session: string }) => call<AnswerResult>('POST', `/api/learn/${pid}/answer`, b),
   next: (pid: string) => call<NextStep[]>('GET', `/api/learn/${pid}/next`),
+  visit: (pid: string, part: 'video' | 'cards' | 'practice' | 'memory') => call<{ ok: true }>('POST', `/api/learn/${pid}/visit`, { part }),
   selfcheck: (pid: string, mood: 'easy' | 'ok' | 'hard' | null) => call<{ ok: true }>('POST', `/api/learn/${pid}/selfcheck`, { mood }),
 };
 

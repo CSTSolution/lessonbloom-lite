@@ -1,22 +1,22 @@
 // Screen 02 · "Lớp học của cô": class tabs, key numbers, assigned lessons with progress, the
 // roster (names only) and the class code; add a class (with its subject) or pupils; filter by subject.
 import { useEffect, useState } from 'react';
-import { go, teacherApi, type ClassCard, type ClassDetail, type Insights } from '../api.ts';
-import { useT } from '../i18n.ts';
+import { go, teacherApi, type ClassCard, type ClassDetail, type Insights, type Teacher } from '../api.ts';
+import { useT, withCls } from '../i18n.ts';
 import { T } from './dict.ts';
 import { activeStep, GuideHint, pulse } from './Guide.tsx';
 import { shareMessage } from './share.ts';
 import { ErrorNote } from './ErrorNote.tsx';
 import { Link } from './TeacherRoutes.tsx';
 
-export function Classes() {
+export function Classes({ teacher }: { teacher?: Teacher }) {
   const t = useT(T);
   const [classes, setClasses] = useState<ClassCard[]>([]);
-  const [cid, setCid] = useState('');
+  const [cid, setCid] = useState(() => new URLSearchParams(location.search).get('cid') || '');   // ?cid= from "Về lớp"
   const [d, setD] = useState<ClassDetail | null>(null);
   const [ins, setIns] = useState<Insights | null>(null);
   const [adding, setAdding] = useState<'class' | 'pupils' | null>(() => (new URLSearchParams(location.search).has('add') || activeStep() === 'class' ? 'class' : null));
-  const [form, setForm] = useState<{ name: string; names: string; subject: 'math' | 'english' | 'both' }>({ name: '', names: '', subject: 'math' });
+  const [form, setForm] = useState<{ name: string; names: string; subject: 'math' | 'english' | 'both' }>({ name: '', names: '', subject: teacher?.subject || 'math' });
   const [subj, setSubj] = useState<'all' | 'math' | 'english'>('all');
   const [loaded, setLoaded] = useState(false), [copied, setCopied] = useState(''), [shared, setShared] = useState(''), [err, setErr] = useState('');
   const [edit, setEdit] = useState<{ name: string; subject: 'math' | 'english' | 'both' } | null>(null);
@@ -37,7 +37,7 @@ export function Classes() {
       if (adding === 'class') { const k = await teacherApi.addClass(form.name, names(form.names), form.subject); await load(); setCid(k.id); setSubj('all'); }
       if (adding === 'pupils' && d) { await teacherApi.addPupils(d.id, names(form.names)); setD(await teacherApi.klass(d.id)); load(); }
     } catch (e) { return setErr((e as Error).message); }
-    setAdding(null); setForm({ name: '', names: '', subject: 'math' });
+    setAdding(null); setForm({ name: '', names: '', subject: teacher?.subject || 'math' });
   };
 
   return (
@@ -49,7 +49,7 @@ export function Classes() {
           <div className="lang subj" role="group" aria-label={t.subject}>
             {(['all', 'math', 'english'] as const).map((x) => <button key={x} className={subj === x ? 'on' : ''} aria-pressed={subj === x} onClick={() => { setSubj(x); const first = classes.find((k) => x === 'all' || !k.subject || k.subject === x || k.subject === 'both'); if (first) setCid(first.id); }}>{x === 'all' ? t.allSubjects : t[x]}</button>)}
           </div>
-          <div className="pills">{visible.map((k) => <button key={k.id} className={`pill ${cid === k.id ? 'on' : ''}`} onClick={() => setCid(k.id)}>{t.cls} {k.name}{k.subject && <span className="pill-sub"> · {subjName(k.subject)}</span>}</button>)}</div>
+          <div className="pills">{visible.map((k) => <button key={k.id} className={`pill ${cid === k.id ? 'on' : ''}`} onClick={() => setCid(k.id)}>{withCls(t.cls, k.name)}{k.subject && <span className="pill-sub"> · {subjName(k.subject)}</span>}</button>)}</div>
         </div>
       )}
       {adding === 'class' && <GuideHint step="class" />}
@@ -105,7 +105,7 @@ export function Classes() {
                   <td>{a.title}</td><td>{a.dueAt?.split('-').reverse().slice(0, 2).join('/')}</td>
                   <td><div className="row" style={{ flexWrap: 'nowrap' }}><div className="bar" style={{ width: 120 }}><span style={{ width: `${(100 * a.done) / Math.max(1, a.total)}%` }} /></div><span className="small">{a.done}/{a.total}</span></div></td>
                   <td><span className={`chip ${!a.dueAt || a.dueAt >= today ? 'blue' : ''}`}>{!a.dueAt || a.dueAt >= today ? t.sOpen : t.sDone}</span></td>
-                  <td><Link to={`/insights?lessonId=${a.lessonId}&classId=${d.id}`}>{t.seeSummary}</Link></td>
+                  <td><Link to={`/classes/${d.id}/a/${a.id}`}>{t.seeSummary}</Link></td>
                 </tr>))}</tbody>
             </table>
           </div>

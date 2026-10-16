@@ -1,7 +1,7 @@
 // Learning summary, computed from Attempts with the teacher's criteria (Chi's defaults:
 // 80 / 50 / 3 times in 2 sessions / 30% / 70%). Labels attach to a SKILL for a pupil or a
 // class; nothing here is ever sent to a pupil. Pure functions, so they are easy to test.
-import type { Attempt, Criteria, Label, Pupil, SelfCheck, Skill } from './types.ts';
+import type { Attempt, Criteria, Exercise, Label, Part, Pupil, SelfCheck, Skill, Visit } from './types.ts';
 
 export interface PupilSkill { pupilId: string; name: string; label: Label; right: number; total: number; topError?: string; enough: boolean }
 export interface SkillSummary {
@@ -109,4 +109,64 @@ export function nextSteps(skills: Skill[], pupilAttempts: Attempt[], pool: { id:
     }
   }
   return out.sort((a, b) => (a.kind === b.kind ? 0 : a.kind === 'same' ? -1 : 1)).slice(0, 2);
+}
+
+// "Tổng kết bài đã giao" (teacher only): for one assignment, every pupil first (parts opened, right and
+// not-yet-right answers per skill, repeated slip, retries, self-check, what to practise next), then the
+// class as a whole. Counts of right / not yet right are shown to the teacher; never a score or a rank.
+export interface SkillCount { right: number; wrong: number; label: Label | null }
+export interface AssignmentPupil {
+  pupilId: string; name: string; joined: boolean; status: 'none' | 'started' | 'done'; parts: Part[];
+  skills: Record<string, SkillCount>; repeated?: string; retries: number; tried: number; mood?: SelfCheck['mood'];
+  next: { kind: 'same' | 'harder'; skillName: string }[]; lastAt?: string;
+}
+export interface AssignmentSummary {
+  pupils: AssignmentPupil[];
+  cls: { total: number; done: number; started: number; none: number; joined: number;
+    skills: { tag: string; name: string; label: Label | null; stuck: number; secure: number; topError?: string }[] };
+}
+export function assignmentSummary(skills: Skill[], exercises: { id: string; skill: string; level: string }[], pupils: (Pupil)[], attempts: Attempt[],
+  checks: SelfCheck[], visits: Visit[], c: Criteria): AssignmentSummary {
+  const order = { none: 2, started: 1, done: 0 };
+  const rows = pupils.map((p): AssignmentPupil => {
+    const mine = attempts.filter((a) => a.pupilId === p.id).sort((a, b) => a.at.localeCompare(b.at));
+    const own = checks.filter((x) => x.pupilId === p.id).sort((a, b) => b.at.localeCompare(a.at));
+    const parts = new Set<Part>(visits.filter((v) => v.pupilId === p.id).flatMap((v) => v.parts));
+    if (mine.length) parts.add('practice');
+    const errs = new Map<string, number>();
+    for (const a of mine) if (!a.correct && a.errorType) errs.set(a.errorType, (errs.get(a.errorType) || 0) + 1);
+    const top = [...errs].sort((a, b) => b[1] - a[1])[0];
+    const tried = new Set(mine.map((a) => a.exerciseId)).size;
+    return {
+      pupilId: p.id, name: p.displayName, joined: !!p.joinedAt, status: own.length ? 'done' : mine.length ? 'started' : 'none', parts: [...parts],
+      skills: Object.fromEntries(skills.map((s) => { const on = mine.filter((a) => a.skill === s.tag); return [s.tag, { right: on.filter((a) => a.correct).length, wrong: on.filter((a) => !a.correct).length, label: on.length ? pupilLabel(on, c).label : null }]; })),
+      repeated: top && top[1] >= 2 ? top[0] : undefined, retries: mine.length - tried, tried, mood: own.find((x) => x.mood)?.mood,
+      next: mine.length ? nextSteps(skills, mine, exercises, c).map((x) => ({ kind: x.kind, skillName: x.skillName })) : [],
+      lastAt: [...mine.map((a) => a.at), ...own.map((x) => x.at), ...visits.filter((v) => v.pupilId === p.id).map((v) => v.at)].sort().pop(),
+    };
+  }).sort((a, b) => order[a.status] - order[b.status] || a.name.localeCompare(b.name, 'vi'));
+  const sums = skills.map((s) => summarise(s, pupils, attempts, c));
+  return {
+    pupils: rows,
+    cls: {
+      total: rows.length, done: rows.filter((r) => r.status === 'done').length, started: rows.filter((r) => r.status === 'started').length,
+      none: rows.filter((r) => r.status === 'none').length, joined: rows.filter((r) => r.joined).length,
+      skills: skills.map((s, i) => ({ tag: s.tag, name: s.name, label: sums[i].pupils.length ? sums[i].classLabel : null,
+        stuck: rows.filter((r) => r.skills[s.tag]?.label === 'repeated').length, secure: rows.filter((r) => r.skills[s.tag]?.label === 'secure').length,
+        topError: sums[i].errors[0]?.errorType })),
+    },
+  };
+}
+
+// one pupil's answers question by question (teacher only), in the lesson's order
+export function questionText(e: Exercise): string {
+  return 'expr' in e && e.expr ? `${e.prompt} ${e.expr}`.trim() : 'equation' in e ? `${e.prompt} ${e.equation}`.trim() : 'statement' in e ? `${e.prompt} ${e.statement}`.trim()
+    : 'sentence' in e ? `${e.prompt} ${e.sentence}`.trim() : e.type === 'eng_listen' ? `${e.prompt} (“${e.say}”)` : e.type === 'eng_match' ? `${e.prompt}: ${e.pairs.map((x) => x.word).join(', ')}` : e.prompt;
+}
+export function pupilAnswers(exercises: Exercise[], skills: Skill[], attempts: Attempt[]) {
+  const name = new Map(skills.map((s) => [s.tag, s.name]));
+  return exercises.filter((e) => attempts.some((a) => a.exerciseId === e.id)).map((e) => ({
+    id: e.id, type: e.type, level: e.level, skill: name.get(e.skill) || e.skill, question: questionText(e),
+    tries: attempts.filter((a) => a.exerciseId === e.id).sort((a, b) => a.at.localeCompare(b.at)).map((a) => ({ answer: readableAnswer(a.answer), correct: a.correct, errorType: a.errorType, at: a.at })),
+  }));
 }

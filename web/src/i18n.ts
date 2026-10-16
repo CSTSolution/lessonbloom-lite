@@ -23,3 +23,7 @@ export function useLang(): UiLang {
 export function useT<D extends { vi: object; en: object }>(dict: D): D['vi'] & D['en'] {
   return dict[useLang()] as D['vi'] & D['en'];
 }
+
+// "Lớp 2A" from a class name, without doubling it when the teacher already wrote "Lớp TômCua" / "Class 3B"
+export const withCls = (word: string, name: string) => (/^\s*(lớp|class)(\s|$)/i.test(name) ? name.trim() : `${word} ${name}`);
+export const withClsList = (word: string, names: string[]) => (names.some((n) => /^\s*(lớp|class)(\s|$)/i.test(n)) ? names.map((n) => withCls(word, n)).join(', ') : `${word} ${names.join(', ')}`);

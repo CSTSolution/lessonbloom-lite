@@ -1,7 +1,7 @@
 // Screens 05-06 · steps 1-2: upload or paste the document, then check the questions Gemini
 // pre-filled (goal, length, class level, outputs, an optional note), then build.
 import { useEffect, useState } from 'react';
-import { go, teacherApi, type Intake } from '../api.ts';
+import { go, goRegister, teacherApi, type Intake, type Teacher, type Usage } from '../api.ts';
 import { useT } from '../i18n.ts';
 import { T } from './dict.ts';
 import { Stepper } from './LessonFlow.tsx';
@@ -51,6 +51,14 @@ async function shrink(f: File): Promise<{ data: string; type: string }> {
 }
 const isPhoto = (f: File) => f.type.startsWith('image/') || /\.(jpe?g|png|webp|heic|heif)$/i.test(f.name);
 
+// the demo's daily limits, shown before they run out
+const DM = {
+  vi: { left: (l: number, lm: number, c: number, cm: number) => `Bản dùng thử: hôm nay cô còn tạo được ${l} bài mới (mỗi ngày tối đa ${lm} bài và ${cm} lượt AI; mỗi bài mới dùng 10 lượt, còn ${c} lượt). Tài khoản miễn phí có 30 lượt mỗi ngày.`,
+    register: 'Đăng ký tài khoản miễn phí', registerSub: 'Bài trong bản dùng thử không chuyển sang tài khoản mới.' },
+  en: { left: (l: number, lm: number, c: number, cm: number) => `Demo: you can create ${l} more new lesson(s) today (at most ${lm} lessons and ${cm} AI credits a day; a new lesson uses 10, ${c} credits left). A free account has 30 credits a day.`,
+    register: 'Register a free account', registerSub: 'Lessons made in the demo do not move to the new account.' },
+};
+
 const PH = {
   vi: { photos: (n: number, max: number) => `Ảnh đã dùng: ${n}/${max}`, reading: (n: number) => `AI đang đọc ${n} ảnh…`, check: 'AI đã chép chữ từ ảnh vào ô bên dưới. Cô đọc lại và sửa chỗ sai trước khi tiếp tục nhé.',
     tooMany: (max: number, left: number) => left > 0 ? `Mỗi bài dùng tối đa ${max} ảnh, nên LessonBloom chỉ đọc ${left} ảnh đầu cô chọn.` : `Bài này đã dùng đủ ${max} ảnh.${max < 5 ? ' Gói Pro dùng được 5 ảnh.' : ''}`,
@@ -69,16 +77,17 @@ async function readFileText(f: File): Promise<string> {
   return f.text();
 }
 
-export function Create() {
-  const t = useT(T), ph = useT(PH);
+export function Create({ teacher }: { teacher?: Teacher }) {
+  const t = useT(T), ph = useT(PH), dm = useT(DM);
   const [step, setStep] = useState<1 | 2>(1);
   // the draft (subject + text) survives a reload in this tab, e.g. the automatic one after a new version
   const draft = (() => { try { return JSON.parse(sessionStorage.getItem('lb-draft') || '{}') as { subject?: 'math' | 'english'; source?: string; files?: string[] }; } catch { return {}; } })();
-  const [subject, setSubject] = useState<'math' | 'english'>(draft.subject || 'math');
+  const [subject, setSubject] = useState<'math' | 'english'>(draft.subject || (teacher?.subject === 'english' ? 'english' : 'math'));
   const [source, setSource] = useState(draft.source || '');
   const [files, setFiles] = useState<string[]>(draft.files || []);   // shown later on the read-only Document step
   const [maxPhotos, setMaxPhotos] = useState(3), [photoNote, setPhotoNote] = useState(''), [reading, setReading] = useState(0);
-  useEffect(() => { teacherApi.usage().then((u) => u.photos && setMaxPhotos(u.photos)).catch(() => {}); }, []);
+  const [usage, setUsage] = useState<Usage | null>(null), [errCode, setErrCode] = useState('');
+  useEffect(() => { teacherApi.usage().then((u) => { setUsage(u); if (u.photos) setMaxPhotos(u.photos); }).catch(() => {}); }, []);
   const photosUsed = files.filter((f) => f.startsWith('📷 ')).length;
   useEffect(() => { if (!source.trim() && files.length) setFiles([]); }, [source]);
   useEffect(() => { try { sessionStorage.setItem('lb-draft', JSON.stringify({ subject, source, files })); } catch { /* private mode */ } }, [subject, source, files]);
@@ -116,7 +125,7 @@ export function Create() {
     const missing = [!it.title.trim() && t.q0, !it.objectives.some((o) => o.trim()) && t.q1].filter(Boolean).map((x) => String(x).replace(/^\d+\.\s*/, ''));
     if (missing.length) { setErr(t.required(missing)); return; }
     setBusy(true); setErr('');
-    try { const { id } = await teacherApi.create(source, it, files); try { sessionStorage.removeItem('lb-draft'); } catch { /* ok */ } go(`/lesson/${id}/build`); } catch (e) { setErr((e as Error).message); setBusy(false); }
+    try { const { id } = await teacherApi.create(source, it, files); try { sessionStorage.removeItem('lb-draft'); } catch { /* ok */ } go(`/lesson/${id}/build`); } catch (e) { setErr((e as Error).message); setErrCode(String((e as { code?: string }).code || '')); setBusy(false); }
   };
   const set = <K extends keyof Intake>(k: K, v: Intake[K]) => setIt((p) => (p ? { ...p, [k]: v } : p));
 
@@ -126,6 +135,12 @@ export function Create() {
       <main className="page narrow stack" style={{ gap: 18 }}>
         <div className="row"><div className="grow" /><Link to="/" className="btn ghost">{t.exit}</Link></div>
         {step === 1 && <GuideHint step="lesson" />}
+        {usage?.plan === 'demo' && usage.lessonsMax != null && (
+          <div className="note row" style={{ justifyContent: 'space-between' }}>
+            <span className="grow">{dm.left(Math.max(0, Math.min(usage.lessonsMax - (usage.lessonsToday || 0), Math.floor(((usage.limit || 0) - usage.usedToday) / (usage.costs.lesson || 10)))), usage.lessonsMax, Math.max(0, (usage.limit || 0) - usage.usedToday), usage.limit || 0)}</span>
+            <button className="btn sm" onClick={goRegister}>{dm.register}</button>
+          </div>
+        )}
         {step === 1 && (
           <>
             <div><h1>{t.upTitle}</h1><p className="muted">{t.upSub}</p></div>
@@ -190,6 +205,7 @@ export function Create() {
           </>
         )}
         <ErrorNote text={err} />
+        {err && usage?.plan === 'demo' && (errCode === 'demoLessons' || errCode === 'credits') && <div className="row"><button className="btn primary" onClick={goRegister}>{dm.register}</button><span className="muted small">{dm.registerSub}</span></div>}
       </main>
     </>
   );

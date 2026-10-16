@@ -180,3 +180,38 @@ table.t .chip { white-space: nowrap; }
 .st-done { background: var(--green-soft); color: var(--green-ink); }
 .st-started { background: var(--blue-soft); color: var(--blue); }
 .st-none { background: #EEF1F5; color: var(--muted); }
+
+/* suggested comments: one card per pupil */
+.cm-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 12px; }
+.cm-card .chips { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 13px; }
+.cm-card { border: 1px solid var(--line); border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 8px; background: #fff; }
+.cm-card textarea { width: 100%; resize: vertical; }
+@media (max-width: 420px) { .cm-list { grid-template-columns: 1fr; } }
+
+/* assigned lesson summary */
+.as-t tr.clickable { cursor: pointer; }
+.as-t tr.clickable:hover td, .as-t tr.open td { background: var(--blue-soft); }
+.as-t tr.detail td { background: #FAFBFD; white-space: normal; }
+.parts { display: inline-flex; gap: 4px; }
+.parts span { width: 24px; height: 24px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; background: #EEF1F5; color: #A0A9B8; }
+.parts span.on { background: var(--green-soft); color: var(--green-ink); font-weight: 700; }
+.ok-t { color: var(--green-ink); } .no-t { color: var(--amber); }
+.qa-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 12px; border-top: 1px solid var(--line); padding-top: 8px; }
+.qa-tries { display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-start; }
+.qa-try { padding: 3px 10px; border-radius: 999px; font-size: 13px; }
+.qa-try.ok { background: var(--green-soft); color: var(--green-ink); }
+.qa-try.no { background: var(--amber-soft, #FFF1DE); color: var(--amber); }
+.qa-try em { font-style: normal; opacity: .85; }
+@media (max-width: 640px) { .qa-row { grid-template-columns: 1fr; } }
+
+/* lesson card "⋯" menu */
+.lesson-card { position: relative; }
+.card-menu { position: absolute; top: 10px; right: 10px; z-index: 5; }
+.card-menu > .btn { background: rgba(255,255,255,.92); min-height: 34px; padding: 4px 10px; font-size: 18px; line-height: 1; }
+.card-menu .menu { position: absolute; right: 0; top: 40px; background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 30px rgba(23,32,46,.14); min-width: 170px; padding: 6px; display: flex; flex-direction: column; }
+.card-menu .menu button { text-align: left; background: none; border: 0; padding: 9px 12px; border-radius: 8px; font: inherit; font-weight: 500; cursor: pointer; color: var(--ink); }
+.card-menu .menu button:hover { background: var(--blue-soft); }
+.card-menu .menu button.danger { color: #B42318; }
+.pr-pick { margin: 0; padding: 0 0 0 4px; list-style: none; max-height: 240px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.pill.sm b { margin-left: 4px; font-weight: 700; }
+a.pill { text-decoration: none; color: inherit; }

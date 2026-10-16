@@ -14,7 +14,7 @@ import { checkMath } from './mathcheck.ts';
 import { MSG, type Msg } from '../messages.ts';
 import {
   CARDS_SCHEMA, CARDS_SYSTEM, COMMENT_SCHEMA, COMMENT_SYSTEM, ENG_TYPES, ERROR_SCHEMA, ERROR_SYSTEM, exercisesSchema, EXERCISES_SYSTEM, fill,
-  INTAKE_SCHEMA, INTAKE_SYSTEM, LESSON_SCHEMA, LESSON_SYSTEM, MATH_TYPES, OCR_SCHEMA, OCR_SYSTEM, REVIEW_SCHEMA, REVIEW_SYSTEM, SLIDE_EDIT_SYSTEM, SLIDE_SCHEMA,
+  INTAKE_SCHEMA, INTAKE_SYSTEM, LESSON_SCHEMA, LESSON_SYSTEM, MATH_TYPES, OCR_SCHEMA, OCR_SYSTEM, COMMENT_SHORT_SCHEMA, COMMENT_SHORT_SYSTEM, REVIEW_SCHEMA, REVIEW_SYSTEM, SLIDE_EDIT_SYSTEM, SLIDE_SCHEMA,
 } from './prompts.ts';
 
 const LANG_NAME = { vi: 'Vietnamese', en: 'English' } as const;
@@ -173,11 +173,18 @@ export async function tagError(ai: AI, ex: Exercise, given: string, grade: numbe
     prompt: `ITEM:\n${JSON.stringify(ex)}\nCORRECT ANSWER: ${correct}\nPUPIL'S ANSWER: ${given}`, schema: ERROR_SCHEMA, input: { ex, given } });
 }
 
-export async function draftComments(ai: AI, lessonTitle: string, rows: { pupilId: string; name: string; skill: string; label: string; error?: string }[]): Promise<{ pupilId: string; text: string }[]> {
+export interface CommentRow { pupilId: string; name: string; skills: { skill: string; label: string; error?: string }[]; felt?: string }
+// one comment per pupil who did the lesson; a pupil the model skipped gets a plain fallback rather than nothing
+export async function draftComments(ai: AI, lessonTitle: string, rows: CommentRow[]): Promise<{ pupilId: string; text: string }[]> {
   if (!rows.length) return [];
   const r = await ai.json<{ comments: { pupilId: string; text: string }[] }>({ task: 'comments', tier: 'fast', system: COMMENT_SYSTEM,
-    prompt: `LESSON: ${lessonTitle}\nPUPILS (skill, label, repeated error):\n${JSON.stringify(rows)}`, schema: COMMENT_SCHEMA, input: { rows } });
-  return r.comments;
+    prompt: `LESSON: ${lessonTitle}\nPUPILS:\n${JSON.stringify(rows)}`, schema: COMMENT_SCHEMA, input: { rows } });
+  const got = new Map(r.comments.map((x) => [x.pupilId, x.text]));
+  return rows.map((p) => ({ pupilId: p.pupilId, text: got.get(p.pupilId) || `Em ${p.name} đã hoàn thành bài "${lessonTitle}". Cô và em cùng luyện thêm để em làm chắc hơn nhé.` }));
+}
+export async function shortenComment(ai: AI, text: string): Promise<string> {
+  const r = await ai.json<{ text: string }>({ task: 'comments', tier: 'fast', system: COMMENT_SHORT_SYSTEM, prompt: text, schema: COMMENT_SHORT_SCHEMA, input: { shorter: text } });
+  return r.text.trim();
 }
 
 // Step 1: photos of the lesson -> text the teacher checks before continuing

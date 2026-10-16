@@ -3,7 +3,7 @@
 // The teacher can rename the pupil or remove them. Pupils themselves never see labels or scores.
 import { useEffect, useState } from 'react';
 import { go, teacherApi, type PupilProgress } from '../api.ts';
-import { useLang, useT } from '../i18n.ts';
+import { useLang, useT, withCls } from '../i18n.ts';
 import { LABEL_KEY, T } from './dict.ts';
 import { ErrorNote } from './ErrorNote.tsx';
 import { Link } from './TeacherRoutes.tsx';
@@ -28,7 +28,7 @@ export function Pupil({ cid, pid }: { cid: string; pid: string }) {
           {editing
             ? <form className="row" onSubmit={(e) => { e.preventDefault(); rename(); }}><input autoFocus maxLength={30} value={name} onChange={(e) => setName(e.target.value)} style={{ maxWidth: 260 }} /><button className="btn primary sm">{t.save}</button><button type="button" className="btn sm" onClick={() => setEditing(false)}>{t.cancel}</button></form>
             : <h1>{d.pupil.displayName}</h1>}
-          <p className="muted" style={{ margin: '6px 0 0' }}>{t.pupilOf(d.className)} · {d.pupil.joinedAt ? t.joined : t.notYet}</p>
+          <p className="muted" style={{ margin: '6px 0 0' }}>{t.pupilOf(withCls(t.cls, d.className))} · {d.pupil.joinedAt ? t.joined : t.notYet}</p>
         </div>
         {!editing && <button className="btn sm" onClick={() => setEditing(true)}>{t.rename}</button>}
         <button className="btn sm danger" onClick={remove}>{t.removePupil}</button>

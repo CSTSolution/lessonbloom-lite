@@ -9,8 +9,8 @@ import { sendCode } from './mail.ts';
 import { Otp, type Purpose } from './otp.ts';
 import { Hono, type Context } from 'hono';
 import type { AI } from './ai/provider.ts';
-import { nextSteps, pupilRows, readableAnswer, summarise } from './insights.ts';
-import { cleanCard, draftComments, editSlide, intake, meaningless, NotALesson, readPhotos, tagError } from './lesson/build.ts';
+import { assignmentSummary, nextSteps, pupilAnswers, pupilRows, readableAnswer, summarise } from './insights.ts';
+import { cleanCard, draftComments, editSlide, intake, meaningless, NotALesson, readPhotos, shortenComment, tagError, type CommentRow } from './lesson/build.ts';
 import { illustrate } from './lesson/illustrate.ts';
 import { runLesson } from './lesson/job.ts';
 import { makeVideo } from './lesson/video.ts';
@@ -21,7 +21,7 @@ import { CREDIT_COST, Credits, ctx, dailyLimit, PHOTOS_PER_LESSON, planOf, type 
 import { config } from './config.ts';
 import { errorBody, MSG, type Msg } from './messages.ts';
 import type { Store } from './store.ts';
-import type { Assignment, Attempt, ClassRoom, Criteria, Exercise, Intake, Lesson, Pupil, SelfCheck, Slide, Teacher } from './types.ts';
+import type { Assignment, Attempt, ClassRoom, Criteria, Exercise, Intake, Lesson, Part, Pupil, SelfCheck, Slide, Teacher, Visit } from './types.ts';
 
 const MAX_SOURCE = 20000;
 const COPY_TAIL = /(\s*\((bản sao|copy)( \d+)?\))+$/i;   // what "Nhân bản" adds to a title
@@ -122,19 +122,25 @@ export function createApp(ai: AI, store: Store) {
   t.get('/me', (c) => c.json(c.get('teacher')));
   // "My account": the display name shown on the top bar and in pupils' view; for an account also its Firebase name
   t.put('/me', async (c) => {
-    const { name } = await c.req.json<{ name?: string }>().catch(() => ({ name: undefined }));
-    const n = String(name ?? '').replace(/\s+/g, ' ').trim().slice(0, 40);
-    if (!n) return bad(c, 'nameMissing');
-    const tc = { ...c.get('teacher'), name: n };
+    const { name, subject } = await c.req.json<{ name?: string; subject?: string }>().catch(() => ({ name: undefined, subject: undefined }));
+    const tc = { ...c.get('teacher') };
+    if (name !== undefined) { const n = String(name).replace(/\s+/g, ' ').trim().slice(0, 40); if (!n) return bad(c, 'nameMissing'); tc.name = n; }
+    if (subject !== undefined) { if (!['math', 'english', 'both'].includes(subject)) return bad(c, 'badRequest'); tc.subject = subject as Teacher['subject']; }
+    const n = tc.name;
     await store.put('teachers', tc);
-    if (tc.id.startsWith('u_')) await setDisplayName(tc.id.slice(2), n).catch((e) => console.warn('displayName', e));
+    if (name !== undefined && tc.id.startsWith('u_')) await setDisplayName(tc.id.slice(2), n).catch((e) => console.warn('displayName', e));
     return c.json(tc);
   });
   t.get('/spend', async (c) => c.json(await spend.status()));
+  // new AI lessons made today (copies and the demo's sample lesson do not count)
+  const lessonsToday = async (tid: string) => {
+    const today = new Date().toISOString().slice(0, 10);
+    return (await store.find<Lesson>('lessons', 'teacherId', tid)).filter((x) => x.createdAt.startsWith(today) && !x.sample && !x.copyOf && !COPY_TAIL.test(x.intake.title) && x.source !== SAMPLE_SOURCE).length;
+  };
   t.get('/usage', async (c) => {
     const tc = c.get('teacher'), plan = planOf(tc), days = await credits.history(tc.id, 30);
     const today = days.find((d) => d.day === new Date().toISOString().slice(0, 10));
-    return c.json({ plan, limit: Number.isFinite(dailyLimit(plan)) ? dailyLimit(plan) : null, usedToday: today?.credits || 0, costs: CREDIT_COST, photos: PHOTOS_PER_LESSON[plan], proRequestedAt: tc.proRequestedAt || null,
+    return c.json({ plan, limit: Number.isFinite(dailyLimit(plan)) ? dailyLimit(plan) : null, usedToday: today?.credits || 0, costs: CREDIT_COST, photos: PHOTOS_PER_LESSON[plan], lessonsToday: await lessonsToday(tc.id), lessonsMax: plan === 'demo' ? config.lessonsPerWorkspaceDay : null, proRequestedAt: tc.proRequestedAt || null,
       days: days.map(({ day, credits: cr, actions, usd, calls }) => ({ day, credits: cr, actions, usd, calls })) });
   });
   // accounts made before codes existed confirm their email with a code too (the banner)
@@ -183,8 +189,10 @@ export function createApp(ai: AI, store: Store) {
     const pupils = (await Promise.all(classes.map((k) => store.find<Pupil>('pupils', 'classId', k.id)))).flat();
     const attempts = (await Promise.all(assigns.map((a) => store.find<Attempt>('attempts', 'assignmentId', a.id)))).flat();
     const checks = (await Promise.all(assigns.map((a) => store.find<SelfCheck>('selfchecks', 'assignmentId', a.id)))).flat();
+    const visits = (await Promise.all(assigns.map((a) => store.find<Visit>('visits', 'assignmentId', a.id)))).flat();
     await store.removeMany('attempts', attempts.map((x) => x.id));
     await store.removeMany('selfchecks', checks.map((x) => x.id));
+    await store.removeMany('visits', visits.map((x) => x.id));
     await store.removeMany('assignments', assigns.map((x) => x.id));
     await store.removeMany('pupils', pupils.map((x) => x.id));
     await store.removeMany('classes', classes.map((x) => x.id));
@@ -249,8 +257,10 @@ export function createApp(ai: AI, store: Store) {
   const dropAssignments = async (assigns: Assignment[]) => {
     const atts = (await Promise.all(assigns.map((a) => store.find<Attempt>('attempts', 'assignmentId', a.id)))).flat();
     const checks = (await Promise.all(assigns.map((a) => store.find<SelfCheck>('selfchecks', 'assignmentId', a.id)))).flat();
+    const visits = (await Promise.all(assigns.map((a) => store.find<Visit>('visits', 'assignmentId', a.id)))).flat();
     await store.removeMany('attempts', atts.map((x) => x.id));
     await store.removeMany('selfchecks', checks.map((x) => x.id));
+    await store.removeMany('visits', visits.map((x) => x.id));
     await store.removeMany('assignments', assigns.map((x) => x.id));
   };
   t.put('/classes/:cid', async (c) => {
@@ -290,6 +300,7 @@ export function createApp(ai: AI, store: Store) {
     if (!x) return bad(c, 'notFound', 404);
     await store.removeMany('attempts', (await store.find<Attempt>('attempts', 'pupilId', x.p.id)).map((a) => a.id));
     await store.removeMany('selfchecks', (await store.find<SelfCheck>('selfchecks', 'pupilId', x.p.id)).map((a) => a.id));
+    await store.removeMany('visits', (await store.find<Visit>('visits', 'pupilId', x.p.id)).map((a) => a.id));
     await store.removeMany('pupils', [x.p.id]);
     return c.json({ ok: true });
   });
@@ -332,7 +343,7 @@ export function createApp(ai: AI, store: Store) {
     return c.json(ls.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map((l) => ({
       id: l.id, title: l.intake.title, subject: l.intake.subject, grade: l.intake.grade, status: l.status, createdAt: l.createdAt,
       slides: l.slides.length, exercises: l.exercises.length, flashcards: l.flashcards.length, video: l.video?.status === 'ready',
-      cover: coverOf(l),
+      cover: coverOf(l), copy: !!l.copyOf || COPY_TAIL.test(l.intake.title),
       classes: [...new Set(assigns.filter((a) => a.lessonId === l.id).map((a) => cname.get(a.classId)).filter(Boolean))],
     })));
   });
@@ -363,8 +374,7 @@ export function createApp(ai: AI, store: Store) {
   t.post('/lessons', async (c) => {
     const { source, intake: it, files } = await c.req.json<{ source: string; intake: Intake; files?: unknown }>();
     if (!source?.trim() || !it?.subject) return bad(c, 'missingSource');
-    const today = new Date().toISOString().slice(0, 10);
-    const mineToday = (await store.find<Lesson>('lessons', 'teacherId', c.get('teacher').id)).filter((x) => x.createdAt.startsWith(today) && !x.sample && !x.copyOf && !COPY_TAIL.test(x.intake.title) && x.source !== SAMPLE_SOURCE).length;
+    const mineToday = await lessonsToday(c.get('teacher').id);
     // demo workspaces only: accounts are limited by their daily credits (Free) or not at all (Pro)
     if (planOf(c.get('teacher')) === 'demo' && mineToday >= config.lessonsPerWorkspaceDay) return bad(c, 'demoLessons', 429, MSG.demoLessons(config.lessonsPerWorkspaceDay));
     const stop = await guard(c, 'lesson'); if (stop) return stop;
@@ -493,16 +503,80 @@ export function createApp(ai: AI, store: Store) {
       }) })) : null,
     });
   });
-  t.post('/insights/comments', async (c) => {
-    const { lessonId, classId } = await c.req.json<{ lessonId: string; classId: string }>();
+  // "Tổng kết bài đã giao": one assignment, every pupil, then the class; and one pupil's answers question by question
+  const myAssignment = async (c: Context<Env>) => {
+    const a = await store.get<Assignment>('assignments', c.req.param('aid') || '');
+    if (!a || a.teacherId !== c.get('teacher').id) return null;
+    const l = await store.get<Lesson>('lessons', a.lessonId), k = await store.get<ClassRoom>('classes', a.classId);
+    return l && k ? { a, l, k } : null;
+  };
+  t.get('/assignments/:aid/summary', async (c) => {
+    const x = await myAssignment(c);
+    if (!x) return bad(c, 'notFound', 404);
+    const [pupils, atts, checks, visits] = await Promise.all([store.find<Pupil>('pupils', 'classId', x.k.id), store.find<Attempt>('attempts', 'assignmentId', x.a.id),
+      store.find<SelfCheck>('selfchecks', 'assignmentId', x.a.id), store.find<Visit>('visits', 'assignmentId', x.a.id)]);
+    const parts: Part[] = [x.l.video?.status === 'ready' || x.l.slides.length ? 'video' : null, x.l.flashcards.length ? 'cards' : null, 'practice', x.l.pairs.length >= 2 ? 'memory' : null].filter(Boolean) as Part[];
+    return c.json({ assignment: x.a, lesson: { id: x.l.id, title: x.l.intake.title, skills: x.l.skills, parts }, klass: { id: x.k.id, name: x.k.name },
+      ...assignmentSummary(x.l.skills, x.l.exercises, pupils, atts, checks, visits, c.get('teacher').criteria) });
+  });
+  t.get('/assignments/:aid/pupils/:pid', async (c) => {
+    const x = await myAssignment(c), p = await store.get<Pupil>('pupils', c.req.param('pid'));
+    if (!x || !p || p.classId !== x.k.id) return bad(c, 'notFound', 404);
+    const atts = (await store.find<Attempt>('attempts', 'pupilId', p.id)).filter((a) => a.assignmentId === x.a.id);
+    return c.json({ name: p.displayName, questions: pupilAnswers(x.l.exercises, x.l.skills, atts) });
+  });
+
+  // "Gợi ý lời nhận xét": one comment for every pupil who did the lesson, kept per lesson + class (with the
+  // teacher's edits) and drafted again only when new answers came in or the teacher asks
+  type Drafts = { id: string; fp: string; at: string; comments: { pupilId: string; text: string }[] };
+  const commentData = async (c: Context<Env>, lessonId: string, classId: string) => {
     const tc = c.get('teacher'), l = await store.get<Lesson>('lessons', lessonId), k = await myClass(c, classId);
-    if (!l || l.teacherId !== tc.id || !k) return bad(c, 'notFound', 404);
+    if (!l || l.teacherId !== tc.id || !k) return null;
     const pupils = await store.find<Pupil>('pupils', 'classId', k.id);
     const atts = (await store.find<Attempt>('attempts', 'lessonId', l.id)).filter((a) => a.classId === k.id);
+    const given = (await store.find<Assignment>('assignments', 'lessonId', l.id)).filter((a) => a.classId === k.id);
+    const moods = (await Promise.all(given.map((a) => store.find<SelfCheck>('selfchecks', 'assignmentId', a.id)))).flat().filter((m) => m.mood).sort((a, b) => b.at.localeCompare(a.at));
+    const sums = l.skills.map((s) => summarise(s, pupils, atts, tc.criteria));
+    const rows: CommentRow[] = pupils.filter((p) => atts.some((a) => a.pupilId === p.id)).map((p) => ({
+      pupilId: p.id, name: p.displayName, felt: moods.find((m) => m.pupilId === p.id)?.mood,
+      skills: sums.flatMap((s) => s.pupils.filter((x) => x.pupilId === p.id).map((x) => ({ skill: s.skillName, label: x.label, error: x.topError }))),
+    }));
+    const fp = `${atts.length}-${atts.map((a) => a.at).sort().pop() || ''}`;
+    return { l, k, rows, fp, waiting: pupils.filter((p) => !rows.some((r) => r.pupilId === p.id)).map((p) => p.displayName), key: `comments-${l.id}-${k.id}` };
+  };
+  const commentBody = (x: NonNullable<Awaited<ReturnType<typeof commentData>>>, d: Drafts | null) => ({
+    comments: d ? d.comments.filter((m) => x.rows.some((r) => r.pupilId === m.pupilId)).map((m) => ({ ...m, ...x.rows.find((r) => r.pupilId === m.pupilId)! })) : null,
+    stale: !!d && d.fp !== x.fp, ready: x.rows.length, waiting: x.waiting, at: d?.at || null,
+  });
+  t.get('/insights/comments', async (c) => {
+    const x = await commentData(c, c.req.query('lessonId') || '', c.req.query('classId') || '');
+    if (!x) return bad(c, 'notFound', 404);
+    return c.json(commentBody(x, await store.get<Drafts>('cache', x.key)));
+  });
+  t.post('/insights/comments', async (c) => {
+    const { lessonId, classId } = await c.req.json<{ lessonId: string; classId: string }>();
+    const x = await commentData(c, lessonId, classId);
+    if (!x) return bad(c, 'notFound', 404);
+    if (!x.rows.length) return c.json(commentBody(x, null));            // nobody has answered yet: nothing to draft, nothing charged
     const stop = await guard(c, 'comments'); if (stop) return stop;
-    const rows = l.skills.flatMap((s) => summarise(s, pupils, atts, tc.criteria).pupils.filter((p) => p.label !== 'practising')
-      .map((p) => ({ pupilId: p.pupilId, name: p.name, skill: s.name, label: p.label, error: p.topError })));
-    return c.json(await draftComments(ai, l.intake.title, rows.slice(0, 30)));
+    const d: Drafts = { id: x.key, fp: x.fp, at: new Date().toISOString(), comments: await draftComments(ai, x.l.intake.title, x.rows.slice(0, 45)) };
+    await store.put('cache', d);
+    return c.json(commentBody(x, d));
+  });
+  t.put('/insights/comments', async (c) => {                             // the teacher's edit of one comment
+    const { lessonId, classId, pupilId, text } = await c.req.json<{ lessonId: string; classId: string; pupilId: string; text: string }>();
+    const x = await commentData(c, lessonId, classId);
+    const d = x && await store.get<Drafts>('cache', x.key);
+    if (!x || !d) return bad(c, 'notFound', 404);
+    d.comments = d.comments.map((m) => (m.pupilId === pupilId ? { ...m, text: String(text).slice(0, 600) } : m));
+    await store.put('cache', d);
+    return c.json({ ok: true });
+  });
+  t.post('/insights/comments/shorter', async (c) => {
+    const { text } = await c.req.json<{ text: string }>();
+    if (!String(text || '').trim()) return bad(c, 'badRequest');
+    const stop = await guard(c, 'comments'); if (stop) return stop;
+    return c.json({ text: await shortenComment(ai, String(text).slice(0, 600)) });
   });
   app.route('/api/t', t);
 
@@ -584,6 +658,17 @@ export function createApp(ai: AI, store: Store) {
     const mine = (await store.find<Attempt>('attempts', 'pupilId', x.p.id)).filter((a) => a.lessonId === x.l!.id);
     const steps = x.a.autoSuggest ? nextSteps(x.l.skills, mine, x.l.exercises, x.teacher.criteria) : [];
     return c.json(steps.map((s) => ({ ...s, exercises: s.exerciseIds.map((eid) => forPupil(x.l!.exercises.find((e) => e.id === eid)!)) })));
+  });
+  // which parts of today's lesson the pupil opened (video, flashcards, exercises, memory game), for the teacher's summary
+  app.post('/api/learn/:pid/visit', async (c) => {
+    const x = await pupilCtx(c.req.param('pid'));
+    const { part } = await c.req.json<{ part?: Part }>().catch(() => ({ part: undefined }));
+    if (!x || !x.a || !['video', 'cards', 'practice', 'memory'].includes(String(part))) return bad(c, 'badRequest');
+    const vid = `v-${x.a.id}-${x.p.id}`, v = (await store.get<Visit>('visits', vid)) || { id: vid, assignmentId: x.a.id, pupilId: x.p.id, parts: [], at: '' };
+    if (!v.parts.includes(part!)) v.parts.push(part!);
+    v.at = new Date().toISOString();
+    await store.put('visits', v);
+    return c.json({ ok: true });
   });
   app.post('/api/learn/:pid/selfcheck', async (c) => {
     const x = await pupilCtx(c.req.param('pid'));

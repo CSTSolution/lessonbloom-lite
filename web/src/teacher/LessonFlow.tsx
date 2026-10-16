@@ -58,7 +58,7 @@ export function LessonFlow({ id, step }: { id: string; step: string }) {
   const t = useT(T), lang = useLang();
   const [l, setL] = useState<Lesson | null>(null);
   const [err, setErr] = useState('');
-  const [printing, setPrinting] = useState<PrintPart | null>(null);
+  const [printing, setPrinting] = useState<PrintPart | null>(() => (new URLSearchParams(location.search).get('print') ? 'sheet' : null));   // "In / PDF" from a lesson card
   useEffect(() => {
     let stop = false, timer = 0;
     const poll = async () => {

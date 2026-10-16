@@ -72,7 +72,7 @@ test('teacher -> pupil -> learning summary', async () => {
   assert.equal(carry2.pupils[0].name, pupil.name);
   assert.equal(carry2.pupils[0].topError, MOCK_CARRY_ERROR);
   const comments = (await call('POST', '/api/t/insights/comments', { lessonId: seededSummary.lessonId, classId: classes[0].id })).json;
-  assert.ok(comments.length > 0 && comments.every((c: any) => !/điểm|%/.test(c.text)));
+  assert.ok(comments.comments.length > 0 && comments.comments.every((c: any) => !/điểm|%/.test(c.text)));
 
   // another workspace cannot read this one
   const other = key; key = (await call('POST', '/api/t/me', {})).json.key;
@@ -281,4 +281,75 @@ test('copies are numbered instead of stacking "(bản sao)", and do not count to
   const source = 'Toán lớp 2: phép cộng có nhớ trong phạm vi 100. Ví dụ 36 + 27 = 63, nhớ 1 sang hàng chục.';
   const intake = (await call('POST', '/api/t/intake', { source })).json;
   assert.equal((await call('POST', '/api/t/lessons', { source, intake })).status, 202, '7 copies today, still allowed to make a lesson');
+});
+
+test('suggested comments: one per pupil who answered (not only mastered/repeated), saved, edits kept, shorter, none before answers', async () => {
+  const store = new LocalStore(await mkdtemp(join(tmpdir(), 'lb-')));
+  const ai = new MockProvider();
+  const app = createApp(ai, store);
+  let key = '';
+  const call = async (method: string, path: string, body?: unknown) => {
+    const r = await app.request(path, { method, headers: { 'content-type': 'application/json', 'x-teacher': key }, body: body ? JSON.stringify(body) : undefined });
+    return { status: r.status, json: await r.json() as any };
+  };
+  key = (await call('POST', '/api/t/me', {})).json.key;
+  const k2a = (await call('GET', '/api/t/classes')).json.find((k: any) => k.name === '2A');
+  const ins = (await call('GET', `/api/t/insights?classId=${k2a.id}`)).json;
+  const q = `lessonId=${ins.lessonId}&classId=${k2a.id}`;
+  const before = (await call('GET', `/api/t/insights/comments?${q}`)).json;
+  assert.equal(before.comments, null);
+  const answered = ins.pupils.filter((p: any) => p.status !== 'none').length;
+  assert.equal(before.ready, answered);
+  assert.equal(before.waiting.length, 12 - answered);
+  const calls = () => ai.calls.filter((x) => x.task === 'comments').length;
+  const n0 = calls();
+  const d = (await call('POST', '/api/t/insights/comments', { lessonId: ins.lessonId, classId: k2a.id })).json;
+  assert.equal(d.comments.length, answered, 'a comment for every pupil who answered');
+  assert.ok(d.comments.every((m: any) => m.name && m.skills.length && m.text.includes(m.name)));
+  assert.equal(calls(), n0 + 1);
+  const p0 = d.comments[0].pupilId;
+  await call('PUT', '/api/t/insights/comments', { lessonId: ins.lessonId, classId: k2a.id, pupilId: p0, text: 'Cô đã sửa.' });
+  const again = (await call('GET', `/api/t/insights/comments?${q}`)).json;
+  assert.equal(again.comments.find((m: any) => m.pupilId === p0).text, 'Cô đã sửa.');
+  assert.equal(again.stale, false);
+  assert.equal(calls(), n0 + 1, 'opening the page again does not draft again');
+  const short = (await call('POST', '/api/t/insights/comments/shorter', { text: 'Em An làm chắc phép cộng. Em luyện thêm bài nâng cao nhé.' })).json;
+  assert.ok(short.text.length < 40);
+  // a class nobody has answered in: a clear "nothing yet", no AI call
+  const empty = (await call('POST', '/api/t/classes', { name: '3D', names: ['Hà'], subject: 'math' })).json;
+  const none = (await call('POST', '/api/t/insights/comments', { lessonId: ins.lessonId, classId: empty.id })).json;
+  assert.equal(none.ready, 0);
+  assert.equal(calls(), n0 + 2);
+});
+
+test('assigned lesson summary: every pupil with parts opened, right / not-yet per skill, retries, next practice; one pupil question by question', async () => {
+  const app = createApp(new MockProvider(), new LocalStore(await mkdtemp(join(tmpdir(), 'lb-'))));
+  let key = '';
+  const call = async (method: string, path: string, body?: unknown) => {
+    const r = await app.request(path, { method, headers: { 'content-type': 'application/json', 'x-teacher': key }, body: body ? JSON.stringify(body) : undefined });
+    return { status: r.status, json: await r.json() as any };
+  };
+  key = (await call('POST', '/api/t/me', {})).json.key;
+  const k2a = (await call('GET', '/api/t/classes')).json.find((k: any) => k.name === '2A');
+  const a = (await call('GET', `/api/t/classes/${k2a.id}`)).json.assignments[0];
+  let s = (await call('GET', `/api/t/assignments/${a.id}/summary`)).json;
+  assert.equal(s.pupils.length, 12);
+  assert.equal(s.cls.total, 12);
+  assert.equal(s.cls.done + s.cls.started + s.cls.none, 12);
+  const busy = s.pupils.find((p: any) => p.status === 'done');
+  assert.ok(busy.parts.includes('practice') && busy.parts.includes('video'));
+  const sk = Object.values(busy.skills) as any[];
+  assert.ok(sk.some((v) => v.right > 0), 'right counts per skill');
+  assert.ok(!('score' in busy) && !('pct' in busy));
+  // a pupil who has not started opens the flashcards: the teacher sees it
+  const idle = s.pupils.find((p: any) => p.status === 'none');
+  assert.equal((await call('POST', `/api/learn/${idle.pupilId}/visit`, { part: 'cards' })).status, 200);
+  assert.equal((await call('POST', `/api/learn/${idle.pupilId}/visit`, { part: 'nope' })).status, 400);
+  s = (await call('GET', `/api/t/assignments/${a.id}/summary`)).json;
+  assert.deepEqual(s.pupils.find((p: any) => p.pupilId === idle.pupilId).parts, ['cards']);
+  const q = (await call('GET', `/api/t/assignments/${a.id}/pupils/${busy.pupilId}`)).json;
+  assert.ok(q.questions.length > 0 && q.questions.every((x: any) => x.question && x.tries.length > 0));
+  // another teacher cannot read it
+  key = (await call('POST', '/api/t/me', {})).json.key;
+  assert.equal((await call('GET', `/api/t/assignments/${a.id}/summary`)).status, 404);
 });
