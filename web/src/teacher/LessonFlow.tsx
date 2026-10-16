@@ -6,21 +6,24 @@ import { pick, useLang, useT } from '../i18n.ts';
 import { Assign } from './Assign.tsx';
 import { T } from './dict.ts';
 import { Exercises } from './Exercises.tsx';
+import { PrintDialog, type PrintPart } from './Print.tsx';
 import { Slides } from './Slides.tsx';
+import { SourceView } from './Source.tsx';
 import { Link } from './TeacherRoutes.tsx';
 import { Video } from './Video.tsx';
 import './teacher.css';
 
 const STEP_KEYS = ['doc', 'questions', 'slides', 'video', 'exercises', 'assign'];
 
-export function Stepper({ current, lessonId }: { current: number; lessonId?: string }) {
+// with a lesson: every other step is a link (steps 1-2 read-only); while it is still being made, only steps 1-2
+export function Stepper({ current, lessonId, ready = true }: { current: number; lessonId?: string; ready?: boolean }) {
   const t = useT(T);
   return (
     <nav className="stepper" aria-label="steps">
       {t.steps.map((s, i) => {
         const cls = i < current ? 'done' : i === current ? 'cur' : '';
         const inner = <><span className="n">{i < current ? '✓' : i + 1}</span>{s}</>;
-        return lessonId && i >= 2 && i !== current
+        return lessonId && i !== current && (ready || i < 2)
           ? <Link key={s} to={`/lesson/${lessonId}/${STEP_KEYS[i]}`} className={cls}>{inner}</Link>
           : <span key={s} className={cls} aria-current={i === current ? 'step' : undefined}>{inner}</span>;
       })}
@@ -29,7 +32,7 @@ export function Stepper({ current, lessonId }: { current: number; lessonId?: str
 }
 
 // title (rename), duplicate, print, delete: on every step of a ready lesson
-function LessonBar({ l, onChange }: { l: Lesson; onChange: (x: Lesson) => void }) {
+function LessonBar({ l, onChange, onPrint }: { l: Lesson; onChange: (x: Lesson) => void; onPrint: () => void }) {
   const t = useT(T);
   const [edit, setEdit] = useState<string | null>(null), [err, setErr] = useState(''), [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(() => { try { const v = sessionStorage.getItem('lb-copied') === l.id; sessionStorage.removeItem('lb-copied'); return v; } catch { return false; } });
@@ -42,6 +45,7 @@ function LessonBar({ l, onChange }: { l: Lesson; onChange: (x: Lesson) => void }
       {edit !== null
         ? <form className="row grow" style={{ flexWrap: 'nowrap' }} onSubmit={(e) => { e.preventDefault(); save(); }}><input autoFocus maxLength={120} value={edit} onChange={(e) => setEdit(e.target.value)} /><button className="btn primary sm" disabled={busy}>{t.save}</button><button type="button" className="btn sm" onClick={() => setEdit(null)}>{t.cancel}</button></form>
         : <><strong className="grow lesson-title">{l.intake.title}</strong><button className="btn ghost sm" onClick={() => setEdit(l.intake.title)}>{t.rename}</button></>}
+      <button className="btn sm" onClick={onPrint}>{t.printLesson}</button>
       <button className="btn sm" disabled={busy} onClick={copy}>{t.copyLesson}</button>
       <button className="btn sm danger" disabled={busy} onClick={del}>{t.deleteLesson}</button>
       {copied && <p className="ok-note" role="status" style={{ width: '100%', margin: 0 }}>✓ {t.copiedLesson} {t.copiedHint}</p>}
@@ -54,6 +58,7 @@ export function LessonFlow({ id, step }: { id: string; step: string }) {
   const t = useT(T), lang = useLang();
   const [l, setL] = useState<Lesson | null>(null);
   const [err, setErr] = useState('');
+  const [printing, setPrinting] = useState<PrintPart | null>(null);
   useEffect(() => {
     let stop = false, timer = 0;
     const poll = async () => {
@@ -74,10 +79,15 @@ export function LessonFlow({ id, step }: { id: string; step: string }) {
 
   if (err) return <p className="page error">{err}</p>;
   if (!l) return <p className="page muted" role="status">{t.loading}</p>;
+  if (step === 'doc' || step === 'questions') {
+    const i = STEP_KEYS.indexOf(step);
+    return <><Stepper current={i} lessonId={l.id} ready={l.status === 'ready'} />{l.status === 'ready' && <LessonBar l={l} onChange={setL} onPrint={() => setPrinting('slides')} />}<SourceView l={l} step={step} />
+      {printing && <PrintDialog l={l} initial={printing} onClose={() => setPrinting(null)} />}</>;
+  }
   if (l.status !== 'ready') {
     return (
       <>
-        <Stepper current={2} />
+        <Stepper current={2} lessonId={l.id} ready={false} />
         <main className="page narrow stack">
           <h1>{l.intake.title}</h1>
           <div className="card stack">
@@ -98,11 +108,12 @@ export function LessonFlow({ id, step }: { id: string; step: string }) {
   return (
     <>
       <Stepper current={idx} lessonId={l.id} />
-      <LessonBar l={l} onChange={onChange} />
-      {idx === 2 && <Slides l={l} onChange={onChange} />}
+      <LessonBar l={l} onChange={onChange} onPrint={() => setPrinting(idx === 4 ? 'sheet' : 'slides')} />
+      {idx === 2 && <Slides l={l} onChange={onChange} onPrint={() => setPrinting('slides')} />}
       {idx === 3 && <Video l={l} onChange={onChange} onStarted={() => setTimeout(restartPoll, 300)} />}
-      {idx === 4 && <Exercises l={l} onChange={onChange} />}
+      {idx === 4 && <Exercises l={l} onChange={onChange} onPrint={() => setPrinting('sheet')} />}
       {idx === 5 && <Assign l={l} />}
+      {printing && <PrintDialog l={l} initial={printing} onClose={() => setPrinting(null)} />}
     </>
   );
 }

@@ -20,7 +20,7 @@ export function SlideView({ s, n, total, pending }: { s: Pick<Slide, 'kind' | 'h
   );
 }
 
-export function Slides({ l, onChange }: { l: Lesson; onChange: (l: Lesson) => void }) {
+export function Slides({ l, onChange, onPrint }: { l: Lesson; onChange: (l: Lesson) => void; onPrint: () => void }) {
   const t = useT(T);
   const [cur, setCur] = useState(0);
   const [busy, setBusy] = useState(''), [err, setErr] = useState('');
@@ -40,7 +40,7 @@ export function Slides({ l, onChange }: { l: Lesson; onChange: (l: Lesson) => vo
   };
 
   return (
-    <main className="page" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 160px) minmax(0, 1fr) minmax(0, 300px)', gap: 20, alignItems: 'start' }} data-print="slides">
+    <main className="page" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 160px) minmax(0, 1fr) minmax(0, 300px)', gap: 20, alignItems: 'start' }}>
       <ol className="thumbs no-print" aria-label="slides">
         {l.slides.map((x, i) => (
           <li key={x.id}><button className={i === cur ? 'on' : ''} onClick={() => { setCur(i); setEdit(null); }}><span>{i + 1}</span>{x.heading}</button></li>
@@ -54,7 +54,7 @@ export function Slides({ l, onChange }: { l: Lesson; onChange: (l: Lesson) => vo
           <button className="btn sm" disabled={!!busy} onClick={() => act('image')}>{busy === 'image' ? t.busy : t.a3}</button>
           <button className="btn sm" onClick={() => setEdit({ heading: s.heading, bullets: s.bullets.join('\n'), notes: s.notes })}>✏️ {t.edit}</button>
           <div className="grow" />
-          <button className="btn sm" onClick={() => print()}>{t.pdf}</button>
+          <button className="btn sm" onClick={onPrint}>{t.pdf}</button>
         </div>
         <ErrorNote text={err} />
         {edit && (
@@ -72,8 +72,6 @@ export function Slides({ l, onChange }: { l: Lesson; onChange: (l: Lesson) => vo
         <div className="card stack" style={{ gap: 8 }}><h3>🔊 {t.narration}</h3><p className="muted small" style={{ margin: 0 }}>{s.narration}</p></div>
         <button className="btn primary lg" onClick={() => go(`/lesson/${l.id}/video`)}>{t.nextVideo}</button>
       </aside>
-      {/* printed PDF: every slide on its own page */}
-      <div className="print-only">{l.slides.map((x, i) => <div key={x.id} className="print-page"><SlideView s={x} n={i} total={l.slides.length} /><p className="small">{t.notesTitle}: {x.notes}</p></div>)}</div>
     </main>
   );
 }

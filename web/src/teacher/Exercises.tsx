@@ -31,7 +31,7 @@ export function questionText(e: Exercise) {
   }
 }
 
-export function Exercises({ l, onChange }: { l: Lesson; onChange: (l: Lesson) => void }) {
+export function Exercises({ l, onChange, onPrint }: { l: Lesson; onChange: (l: Lesson) => void; onPrint: () => void }) {
   const t = useT(T);
   const types = useMemo(() => [...new Set(l.exercises.map((e) => e.type))], [l.exercises]);
   const [tab, setTab] = useState<string>(types[0] || 'cards');
@@ -65,7 +65,7 @@ export function Exercises({ l, onChange }: { l: Lesson; onChange: (l: Lesson) =>
           {tab !== 'cards' && tab !== 'memory' && (
             <div className="lang no-print" role="group" aria-label="level">{(['basic', 'good', 'advanced'] as Level[]).map((lv) => <button key={lv} className={level === lv ? 'on' : ''} onClick={() => setLevel(lv)}>{t[lv]}</button>)}</div>
           )}
-          <button className="btn sm no-print" onClick={() => print()}>{t.print}</button>
+          <button className="btn sm no-print" onClick={onPrint}>{t.print}</button>
         </div>
         <div className="ok-note">✓ {t.checked}{fixed.size ? ` ${t.fixedN(fixed.size)}` : ''}</div>
 

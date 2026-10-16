@@ -85,7 +85,7 @@ export const teacherApi = {
   addPupils: (id: string, names: string[]) => tc<Pupil[]>('POST', `/classes/${id}/pupils`, { names }),
   lessons: () => tc<LessonCard[]>('GET', '/lessons'),
   intake: (source: string) => tc<Intake>('POST', '/intake', { source }),
-  create: (source: string, intake: Intake) => tc<{ id: string }>('POST', '/lessons', { source, intake }),
+  create: (source: string, intake: Intake, files: string[] = []) => tc<{ id: string }>('POST', '/lessons', { source, intake, files }),
   lesson: (id: string) => tc<Lesson>('GET', `/lessons/${id}`),
   save: (id: string, patch: Partial<Pick<Lesson, 'slides' | 'exercises' | 'flashcards' | 'pairs'>>) => tc<Lesson>('PUT', `/lessons/${id}`, patch),
   slideAction: (id: string, sid: string, action: 'rewrite' | 'simpler' | 'image') => tc<Slide>('POST', `/lessons/${id}/slides/${sid}`, { action }),

@@ -53,15 +53,17 @@ export function Create() {
   const t = useT(T);
   const [step, setStep] = useState<1 | 2>(1);
   // the draft (subject + text) survives a reload in this tab, e.g. the automatic one after a new version
-  const draft = (() => { try { return JSON.parse(sessionStorage.getItem('lb-draft') || '{}') as { subject?: 'math' | 'english'; source?: string }; } catch { return {}; } })();
+  const draft = (() => { try { return JSON.parse(sessionStorage.getItem('lb-draft') || '{}') as { subject?: 'math' | 'english'; source?: string; files?: string[] }; } catch { return {}; } })();
   const [subject, setSubject] = useState<'math' | 'english'>(draft.subject || 'math');
   const [source, setSource] = useState(draft.source || '');
-  useEffect(() => { try { sessionStorage.setItem('lb-draft', JSON.stringify({ subject, source })); } catch { /* private mode */ } }, [subject, source]);
+  const [files, setFiles] = useState<string[]>(draft.files || []);   // shown later on the read-only Document step
+  useEffect(() => { if (!source.trim() && files.length) setFiles([]); }, [source]);
+  useEffect(() => { try { sessionStorage.setItem('lb-draft', JSON.stringify({ subject, source, files })); } catch { /* private mode */ } }, [subject, source, files]);
   const [it, setIt] = useState<Intake | null>(null);
   const [busy, setBusy] = useState(false), [err, setErr] = useState(''), [over, setOver] = useState(false);
   const words = source.trim() ? source.trim().split(/\s+/).length : 0;
 
-  const load = async (f?: File) => { if (!f) return; try { setSource((await readFileText(f)).slice(0, 20000)); } catch (e) { setErr((e as Error).message); } };
+  const load = async (f?: File) => { if (!f) return; try { setSource((await readFileText(f)).slice(0, 20000)); setFiles([f.name]); } catch (e) { setErr((e as Error).message); } };
   const MIN_WORDS = 8;
   const toQuestions = async () => {
     if (words < MIN_WORDS) { setErr(words ? t.needMore(words, MIN_WORDS) : t.needSource); return; }   // say why, never a silently disabled button
@@ -73,7 +75,7 @@ export function Create() {
     const missing = [!it.title.trim() && t.q0, !it.objectives.some((o) => o.trim()) && t.q1].filter(Boolean).map((x) => String(x).replace(/^\d+\.\s*/, ''));
     if (missing.length) { setErr(t.required(missing)); return; }
     setBusy(true); setErr('');
-    try { const { id } = await teacherApi.create(source, it); try { sessionStorage.removeItem('lb-draft'); } catch { /* ok */ } go(`/lesson/${id}/build`); } catch (e) { setErr((e as Error).message); setBusy(false); }
+    try { const { id } = await teacherApi.create(source, it, files); try { sessionStorage.removeItem('lb-draft'); } catch { /* ok */ } go(`/lesson/${id}/build`); } catch (e) { setErr((e as Error).message); setBusy(false); }
   };
   const set = <K extends keyof Intake>(k: K, v: Intake[K]) => setIt((p) => (p ? { ...p, [k]: v } : p));
 
@@ -106,8 +108,8 @@ export function Create() {
             </label>
             <div className="row small">
               <span className="muted">{t.useSample}</span>
-              <button className="btn ghost sm" onClick={() => { setSubject('math'); setSource(SAMPLES.math); }}>{t.sampleMath}</button>
-              <button className="btn ghost sm" onClick={() => { setSubject('english'); setSource(SAMPLES.english); }}>{t.sampleEng}</button>
+              <button className="btn ghost sm" onClick={() => { setSubject('math'); setSource(SAMPLES.math); setFiles([]); }}>{t.sampleMath}</button>
+              <button className="btn ghost sm" onClick={() => { setSubject('english'); setSource(SAMPLES.english); setFiles([]); }}>{t.sampleEng}</button>
             </div>
             <div className="row">
               <span className={`small grow ${words > 0 && words < MIN_WORDS ? '' : 'muted'}`} style={words > 0 && words < MIN_WORDS ? { color: 'var(--amber)' } : undefined}>

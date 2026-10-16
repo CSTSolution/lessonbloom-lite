@@ -14,7 +14,7 @@ import { cleanCard, draftComments, editSlide, intake, meaningless, NotALesson, t
 import { illustrate } from './lesson/illustrate.ts';
 import { runLesson } from './lesson/job.ts';
 import { makeVideo } from './lesson/video.ts';
-import { id, newTeacher, sampleOf, seedTeacher } from './seed.ts';
+import { id, newTeacher, SAMPLE_SOURCE, SAMPLE_TEXT, sampleOf, seedTeacher } from './seed.ts';
 import { SpendGuard, type SpendKind } from './spend.ts';
 import { costOf, PRICE, UsageLog } from './usage.ts';
 import { CREDIT_COST, Credits, ctx, dailyLimit, planOf, type CreditKind } from './credits.ts';
@@ -334,19 +334,20 @@ export function createApp(ai: AI, store: Store) {
     catch (e) { if (e instanceof NotALesson) return bad(c, 'notLesson'); throw e; }
   });
   t.post('/lessons', async (c) => {
-    const { source, intake: it } = await c.req.json<{ source: string; intake: Intake }>();
+    const { source, intake: it, files } = await c.req.json<{ source: string; intake: Intake; files?: unknown }>();
     if (!source?.trim() || !it?.subject) return bad(c, 'missingSource');
     const today = new Date().toISOString().slice(0, 10);
-    const mineToday = (await store.find<Lesson>('lessons', 'teacherId', c.get('teacher').id)).filter((x) => x.createdAt.startsWith(today) && x.source !== 'Bài mẫu do đội LessonBloom tự viết.').length;
+    const mineToday = (await store.find<Lesson>('lessons', 'teacherId', c.get('teacher').id)).filter((x) => x.createdAt.startsWith(today) && !x.sample && x.source !== SAMPLE_SOURCE).length;
     if (mineToday >= config.lessonsPerWorkspaceDay) return bad(c, 'demoLessons', 429, MSG.demoLessons(config.lessonsPerWorkspaceDay));
     const stop = await guard(c, 'lesson'); if (stop) return stop;
     const l: Lesson = { id: id(), teacherId: c.get('teacher').id, createdAt: new Date().toISOString(), status: 'working', progress: [], source: source.slice(0, MAX_SOURCE),
+      files: Array.isArray(files) ? files.filter((f): f is string => typeof f === 'string').slice(0, 10).map((f) => f.slice(0, 120)) : [],
       intake: { ...it, title: String(it.title).slice(0, 120) }, skills: [], slides: [], exercises: [], flashcards: [], pairs: [], checks: [] };
     await store.put('lessons', l);
     void runLesson(ai, store, l);                // background; the page polls GET /lessons/:id
     return c.json({ id: l.id }, 202);
   });
-  t.get('/lessons/:id', async (c) => { const l = await myLesson(c); return l ? c.json({ ...l, flashcards: l.flashcards.map(cleanCard) }) : bad(c, 'notFound', 404); });
+  t.get('/lessons/:id', async (c) => { const l = await myLesson(c); return l ? c.json({ ...l, source: l.source === SAMPLE_SOURCE ? SAMPLE_TEXT : l.source, flashcards: l.flashcards.map(cleanCard) }) : bad(c, 'notFound', 404); });
   t.put('/lessons/:id', async (c) => {
     const l = await myLesson(c);
     if (!l) return bad(c, 'notFound', 404);
@@ -569,7 +570,7 @@ export function createApp(ai: AI, store: Store) {
       const [days, lessons] = await Promise.all([credits.history(t.id, 31), store.find<Lesson>('lessons', 'teacherId', t.id)]);
       const m = days.filter((d) => d.day.startsWith(month));
       return { id: t.id, name: t.name, email: t.email || null, plan: planOf(t), account: !!t.account, createdAt: t.createdAt, proRequestedAt: t.proRequestedAt || null,
-        lessons: lessons.filter((l) => l.source !== 'Bài mẫu do đội LessonBloom tự viết.').length, creditsToday: days.find((d) => d.day === today)?.credits || 0,
+        lessons: lessons.filter((l) => !l.sample && l.source !== SAMPLE_SOURCE).length, creditsToday: days.find((d) => d.day === today)?.credits || 0,
         creditsMonth: m.reduce((a, d) => a + d.credits, 0), usdMonth: Math.round(m.reduce((a, d) => a + d.usd, 0) * 1000) / 1000, lastActive: days[0]?.day || t.createdAt.slice(0, 10) };
     }));
     return c.json(rows.sort((a, b) => (b.proRequestedAt ? 1 : 0) - (a.proRequestedAt ? 1 : 0) || b.usdMonth - a.usdMonth || b.createdAt.localeCompare(a.createdAt)));

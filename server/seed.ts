@@ -11,7 +11,21 @@ export const NAMES = ['An', 'Bình', 'Chi', 'Dũng', 'Hà', 'Khôi', 'Linh', 'Mi
 export const id = (n = 10) => randomBytes(n).toString('base64url').replace(/[-_]/g, 'x').slice(0, n);
 const code = () => Array.from(randomBytes(4)).map((b) => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b % 32]).join('');
 
-export const SAMPLE_SOURCE = 'Bài mẫu do đội LessonBloom tự viết.';
+export const SAMPLE_SOURCE = 'Bài mẫu do đội LessonBloom tự viết.';   // what demo lessons stored as their source before 16 Oct
+// the text the demo lesson is shown as made from (same as the Maths sample on the Create page)
+export const SAMPLE_TEXT = `Toán lớp 2 – Phép cộng có nhớ trong phạm vi 100
+
+Mục tiêu: Học sinh biết đặt tính thẳng cột và thực hiện phép cộng có nhớ hai số có hai chữ số trong phạm vi 100.
+
+Cách làm: Đặt tính thẳng cột, hàng đơn vị thẳng hàng đơn vị, hàng chục thẳng hàng chục. Cộng từ phải sang trái. Cộng hàng đơn vị trước: nếu kết quả từ 10 trở lên thì viết chữ số hàng đơn vị và nhớ 1 sang hàng chục. Sau đó cộng hàng chục, nhớ cộng thêm 1.
+
+Ví dụ: 36 + 27. Hàng đơn vị: 6 cộng 7 bằng 13, viết 3 nhớ 1. Hàng chục: 3 cộng 2 bằng 5, thêm 1 bằng 6, viết 6. Vậy 36 + 27 = 63.
+
+Luyện tập: 48 + 25; 19 + 36; 57 + 28.
+
+Bài toán: Vườn nhà Nam có 28 cây cam và 15 cây bưởi. Hỏi vườn nhà Nam có tất cả bao nhiêu cây?
+
+Lưu ý: Nhiều bạn quên cộng thêm số nhớ ở hàng chục. Hãy viết số 1 nhỏ phía trên hàng chục để nhớ.`;
 // Demo data, including workspaces seeded before the sample flag existed (same source text, classes 2A/2B/2C given that lesson)
 export function sampleOf(classes: ClassRoom[], lessons: Lesson[], assigns: Assignment[]) {
   // a copy of the sample lesson has sample: false, so only unflagged lessons fall back to the source text
@@ -41,7 +55,7 @@ export function sampleLesson(teacherId: string): Lesson {
   const slide = (n: number, kind: Lesson['slides'][0]['kind'], heading: string, bullets: string[], notes: string, narration: string, example?: string) =>
     ({ id: `sl${String(n).padStart(2, '0')}`, kind, heading, bullets, example, notes, narration, imagePrompt: 'children counting mangoes', source: 'Phép cộng có nhớ trong phạm vi 100 (tài liệu mẫu của đội).' });
   return {
-    id: id(), teacherId, createdAt: new Date(Date.now() - 3 * 864e5).toISOString(), status: 'ready', progress: [], sample: true, source: SAMPLE_SOURCE,
+    id: id(), teacherId, createdAt: new Date(Date.now() - 3 * 864e5).toISOString(), status: 'ready', progress: [], sample: true, source: SAMPLE_TEXT,
     intake: { subject: 'math', grade: 2, title: 'Phép cộng có nhớ trong phạm vi 100', objectives: ['Học sinh biết đặt tính thẳng cột và thực hiện phép cộng có nhớ trong phạm vi 100.'], minutes: 25, level: 'mixed', lang: 'vi', outputs: ['slides', 'video', 'exercises', 'flashcards'] },
     skills: [{ tag: 'carry_1', name: 'Nhớ 1 sang hàng chục' }, { tag: 'column', name: 'Đặt tính thẳng cột' }, { tag: 'no_carry', name: 'Cộng không nhớ' }, { tag: 'word_1step', name: 'Toán có lời văn một bước' }],
     slides: [

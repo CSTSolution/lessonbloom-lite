@@ -64,6 +64,7 @@ export interface Lesson {
   sample?: boolean;     // the ready-made demo lesson from seedTeacher   // plain strings in lessons made before VI/EN progress
   error?: string;
   source: string;
+  files?: string[];                // names of the files the source came from (none = pasted)
   intake: Intake;
   skills: Skill[];
   slides: Slide[];
