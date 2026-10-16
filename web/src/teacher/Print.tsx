@@ -72,13 +72,21 @@ export function PrintDialog({ l, initial, onClose }: { l: Lesson; initial: Print
   const [printing, setPrinting] = useState(false), [msg, setMsg] = useState('');
   const items = l.exercises.filter((e) => o.types.includes(e.type) && o.levels.includes(e.level));
   const toggle = (k: 'types' | 'levels', v: string) => setO({ ...o, [k]: o[k].includes(v) ? o[k].filter((x) => x !== v) : [...o[k], v] });
+  useEffect(() => {                               // Esc closes the chooser
+    const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    addEventListener('keydown', k); return () => removeEventListener('keydown', k);
+  }, [onClose]);
   useEffect(() => {
     if (!printing) return;
     const done = () => { setPrinting(false); document.body.classList.remove('printing'); };
     addEventListener('afterprint', done, { once: true });
     document.body.classList.add('printing');
-    const id = setTimeout(() => print(), 300);   // let pictures in the print pages load
-    return () => { clearTimeout(id); removeEventListener('afterprint', done); };
+    // print once every picture in the pages has loaded (or failed), at most 8 s
+    let live = true;
+    const imgs = [...document.querySelectorAll<HTMLImageElement>('#print-root img')];
+    const loaded = Promise.all(imgs.map((im) => im.complete ? null : new Promise((r) => { im.addEventListener('load', r, { once: true }); im.addEventListener('error', r, { once: true }); })));
+    Promise.race([loaded, new Promise((r) => setTimeout(r, 8000))]).then(() => setTimeout(() => { if (live) print(); }, 100));
+    return () => { live = false; removeEventListener('afterprint', done); };
   }, [printing]);
   const go = () => {
     if (!o.slides && !o.sheet && !o.key && !o.cards) return setMsg(p.none);
