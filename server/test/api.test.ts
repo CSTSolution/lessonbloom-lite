@@ -353,3 +353,21 @@ test('assigned lesson summary: every pupil with parts opened, right / not-yet pe
   key = (await call('POST', '/api/t/me', {})).json.key;
   assert.equal((await call('GET', `/api/t/assignments/${a.id}/summary`)).status, 404);
 });
+
+test('learning summary opens on a class the lesson was given to', async () => {
+  const app = createApp(new MockProvider(), new LocalStore(await mkdtemp(join(tmpdir(), 'lb-'))));
+  let key = '';
+  const call = async (method: string, path: string, body?: unknown) => {
+    const r = await app.request(path, { method, headers: { 'content-type': 'application/json', 'x-teacher': key }, body: body ? JSON.stringify(body) : undefined });
+    return { status: r.status, json: await r.json() as any };
+  };
+  key = (await call('POST', '/api/t/me', {})).json.key;
+  const demo = (await call('GET', '/api/t/lessons')).json[0];
+  const copy = (await call('POST', `/api/t/lessons/${demo.id}/copy`, { lang: 'vi' })).json.id;
+  const k2b = (await call('GET', '/api/t/classes')).json.find((k: any) => k.name === '2B');
+  assert.equal((await call('POST', '/api/t/assignments', { lessonId: copy, classId: k2b.id, allowRetry: true, autoSuggest: true })).status, 200);
+  const ins = (await call('GET', '/api/t/insights')).json;
+  assert.equal(ins.lessonId, copy);
+  assert.equal(ins.classId, k2b.id);
+  assert.equal(ins.assigned, true);
+});

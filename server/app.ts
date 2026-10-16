@@ -484,7 +484,8 @@ export function createApp(ai: AI, store: Store) {
       const pupils = await store.find<Pupil>('pupils', 'classId', k.id);
       return { k, pupils, sums: l.skills.map((s) => summarise(s, pupils, atts.filter((a) => a.classId === k.id), tc.criteria)) };
     }));
-    const classId = c.req.query('classId') || per[0]?.k.id;
+    // default class: one this lesson was given to (the latest), not simply the first class
+    const classId = c.req.query('classId') || assigns.find((a) => a.lessonId === l.id && classes.some((k) => k.id === a.classId))?.classId || per[0]?.k.id;
     const detail = per.find((p) => p.k.id === classId);
     // every pupil of the chosen class for this lesson, including those who have not started
     const given = assigns.filter((a) => a.lessonId === l.id && a.classId === classId);
