@@ -1,6 +1,6 @@
 # Setting up LessonBloom with your own keys
 
-This repository contains no keys. The live demo (<https://lessonbloom-148938648869.asia-southeast1.run.app>) runs on the team's own Google Cloud project, and its keys stay there.
+This repository contains no keys. The live demo (<https://lessonbloom.cstsolution.com>) runs on the team's own Google Cloud project, and its keys stay there.
 
 To run your own copy, pick one of three levels. Each level adds to the one before.
 

@@ -1,6 +1,6 @@
 # LessonBloom user guide: roles and screens
 
-Live: https://lessonbloom-148938648869.asia-southeast1.run.app. The UI is in Vietnamese and English; use the VI/EN switch at the top right.
+Live: https://lessonbloom.cstsolution.com. The UI is in Vietnamese and English; use the VI/EN switch at the top right.
 
 ## Roles at a glance
 

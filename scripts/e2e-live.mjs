@@ -7,7 +7,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 
-const U = process.env.LB_URL || 'https://lessonbloom-148938648869.asia-southeast1.run.app';
+const U = process.env.LB_URL || 'https://lessonbloom.cstsolution.com';
 const keyFile = `${homedir()}/.config/lessonbloom/admin-key`;
 const ADMIN = (process.env.LB_ADMIN_KEY || (existsSync(keyFile) ? readFileSync(keyFile, 'utf8') : '')).trim();
 const which = process.argv[2] || 'both', video = !process.argv.includes('--no-video');

@@ -7,7 +7,7 @@ LessonBloom is a web app for Vietnamese primary-school teachers (Maths and Engli
 
 This is our entry for the **Google Cloud AI Builder Cup 2026** (JAPAC, Hack2skill), team CSTSolution (Son, Chi), problem statement *Media, Content & Digital Experiences*.
 
-- **Live:** <https://lessonbloom-148938648869.asia-southeast1.run.app>. Choose "Dùng thử ngay" to try a demo workspace without registering.
+- **Live:** <https://lessonbloom.cstsolution.com> (also <https://lessonbloom-148938648869.asia-southeast1.run.app>). Choose "Dùng thử ngay" to try a demo workspace without registering.
 - **Docs:**
   - [docs/SETUP.md](docs/SETUP.md): run it with your own keys (mock, Gemini on your computer, or your own Cloud Run)
   - [docs/USER-GUIDE.md](docs/USER-GUIDE.md): roles, screens, and a 5-minute walkthrough
