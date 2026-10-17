@@ -36,9 +36,9 @@ Live: https://lessonbloom-148938648869.asia-southeast1.run.app. The UI is in Vie
    - *The AI works live:* slides, then exercises with self-check, then flashcards. The lesson is ready to review in about 1–2 minutes, and pictures keep arriving.
    - **Slide** (Slides): big-type slides, teacher notes, source quote; AI rewrite / simpler / new picture; manual edit.
    - **Video:** voice (female North/South, male North), speed, subtitles; make or remake; sections; download MP4.
-   - **Bài tập** (Exercises): by template and level, skill tag, solution, 🛡️ for items the AI fixed itself; edit or delete; flashcards and memory pairs.
+   - **Bài tập** (Exercises): filter chips **Tất cả** (All) and each template with its count, plus flashcards and memory pairs; combined with the level (all / basic / good / advanced, each with its count). Each item shows its skill tag and solution, and 🛡️ marks items the AI fixed itself; edit or delete. Matching items show the words and pictures in mixed order, with the pairs only in the answer line. In English lessons, skill names and solutions are in English.
    - **Giao bài** (Assign): pick a class (classes of the lesson's subject come first), due date, retries, auto-suggestions; **Giao luôn cho lớp khác** (also assign to other classes); link, QR code, class code; **Gửi qua Zalo / tin nhắn** (on a phone: the share sheet; on a computer: a ready message to paste into the parents' Zalo group); who has joined.
-   - On every lesson step: the title with **Đổi tên** (rename), **In / PDF**, **Nhân bản** (duplicate, to adapt for another class) and **Xoá bài** (delete the lesson with its assignments and results, after a confirm).
+   - On every lesson step: the title (long titles wrap to two lines) with **Đổi tên** (rename), **In / PDF** (the one print button, for every step), **Nhân bản** (duplicate, to adapt for another class) and **Xoá bài** (delete the lesson with its assignments and results, after a confirm).
    - **In / PDF** (also "Xuất PDF" on Slides and "In phiếu bài tập" on Exercises) asks what to print: slides (one per landscape page, with or without teacher notes); a worksheet with chosen templates (each shows its number of questions) and levels, single questions ticked or not ("Chọn từng câu"), and a "Họ và tên / Lớp / Ngày" line; **In tất cả** prints everything; the answer key with solutions on its own page; flashcards to cut out. The browser's print dialog then prints it or saves a PDF.
    - **Steps 1 and 2 stay viewable** once a lesson is made: the text it was made from, the file or photo names, and the answers to the questions, **read-only** (changing them would not change the slides). **Tạo bài mới từ tài liệu này** starts a new lesson from the same text.
 4. **Lớp học** (Classes):
@@ -48,7 +48,9 @@ Live: https://lessonbloom-148938648869.asia-southeast1.run.app. The UI is in Vie
    - **Pupils:** roster (names only); the class code and pupil link with Copy and **Gửi qua Zalo / tin nhắn**; add a class or pupils; print the class code.
    - **Edit:** **Sửa lớp** (rename, change subject) and **Xoá lớp** (delete the class with its pupils, assignments and results).
    - **One pupil:** click a pupil to open their page: every lesson assigned to the class, their skills (Đã vững / Đang luyện / Lỗi lặp lại, teacher only), recent mistakes, their self-check; **Đổi tên** (rename) or **Xoá khỏi lớp** (remove).
-5. **Tóm tắt học tập** (Learning summary), per lesson and class:
+5. **Tóm tắt học tập** (Learning summary), for the chosen lesson, in two parts:
+   - **1 · All classes:** a donut of skill results by level (counted by skill, not by pupil), a stacked bar per class with **Xem chi tiết ›**, and the skill × class table
+   - **2 · One class:** pick a class; its donut, where tapping a level filters the table next to it; everything below counts only that class:
    - every skill per class labelled Đã vững / Đang luyện / Lỗi lặp lại (mastered / practising / repeated mistake)
    - **Kết quả từng học sinh** (each pupil's results): every pupil of the class, including those who have not started, with **Đã xong / Đang làm / Chưa làm** (finished / in progress / not started), questions done, a label per skill, the common slip, how it felt (the pupil's self-check) and last activity. A count at the top ("Đã xong 8/12 · Đang làm 2 · Chưa làm 2"), and **Nhắc các em chưa làm**: a ready message naming the pupils who have not started, for the parents' Zalo group. No scores
    - repeated mistakes with an example and the pupils' names; mastered skills
@@ -73,7 +75,7 @@ New accounts start empty. Only the "Dùng thử ngay" demo has sample data. The 
 
 1. **Vào học** (Join): class code, then tap your name.
 2. **Bài hôm nay** (Today's lesson): a gentle reminder of last time's most frequent slip; 4 activities.
-3. **Xem video** (Watch): the lesson video, or the slides with read-aloud.
+3. **Xem video** (Watch): the lesson video, or the slides with read-aloud. On every activity, the title and instruction show up to two lines; a tap shows all of it.
 4. **Thẻ nhớ** (Flashcards): flip, listen, Đã nhớ (got it) / Ôn lại (review again).
 5. **Làm bài tập** (Practice): 8 formats. A wrong answer shows "Gần đúng rồi! Thử lại nhé" plus a hint and lets them retry; a right answer shows praise and the explanation.
 6. **Lật thẻ** (Memory game): find the pairs.
