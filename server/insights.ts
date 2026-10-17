@@ -161,7 +161,7 @@ export function assignmentSummary(skills: Skill[], exercises: { id: string; skil
 // one pupil's answers question by question (teacher only), in the lesson's order
 export function questionText(e: Exercise): string {
   return 'expr' in e && e.expr ? `${e.prompt} ${e.expr}`.trim() : 'equation' in e ? `${e.prompt} ${e.equation}`.trim() : 'statement' in e ? `${e.prompt} ${e.statement}`.trim()
-    : 'sentence' in e ? `${e.prompt} ${e.sentence}`.trim() : e.type === 'eng_listen' ? `${e.prompt} (“${e.say}”)` : e.type === 'eng_match' ? `${e.prompt}: ${e.pairs.map((x) => x.word).join(', ')}` : e.prompt;
+    : 'sentence' in e ? `${e.prompt} ${e.sentence}`.trim() : e.type === 'eng_listen' ? `${e.prompt} (“${e.say}”)` : e.type === 'eng_match' ? `${e.prompt.trim().replace(/[\s.:;!?…]+$/u, '')}: ${e.pairs.map((x) => x.word).join(', ')}` : e.prompt;
 }
 export function pupilAnswers(exercises: Exercise[], skills: Skill[], attempts: Attempt[]) {
   const name = new Map(skills.map((s) => [s.tag, s.name]));

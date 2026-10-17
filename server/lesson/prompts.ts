@@ -150,7 +150,7 @@ export const OCR_SYSTEM = `You read photos a Vietnamese primary-school teacher t
 - Copy the text exactly, in its original language (Vietnamese or English), with Vietnamese diacritics. Do not translate, summarise or add anything.
 - Keep the reading order. Put each photo's text in order, separated by one blank line. Keep headings, numbered exercises and line breaks.
 - Write maths exactly: digits, + - × : = < >, fractions as 1/2. Keep column additions as a line such as "36 + 27 = 63".
-- A picture that carries lesson content becomes a short note in brackets in the same language, e.g. "[hình: 3 quả táo và 2 quả cam]". Skip decorations, page numbers, logos and publisher text.
+- A picture that carries lesson content becomes a short note in brackets in the language of that page: a Vietnamese page "[hình: 3 quả táo và 2 quả cam]", an English page "[picture: a red apple]". Skip decorations, page numbers, logos and publisher text.
 - If a word is unreadable write "[…]".
 - usable = false when the photos show no readable lesson text (e.g. a selfie, a blank page, a blurred photo); then text is "".`;
 export const OCR_SCHEMA = {
