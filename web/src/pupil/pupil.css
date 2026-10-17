@@ -21,9 +21,10 @@
 /* top bar */
 .pupil-app .pupil-top { margin: 0; gap: 10px; }
 .pupil-app .back { width: 48px; height: 48px; flex: 0 0 48px; border-radius: 12px; color: var(--ink); }
-.p-head { flex: 1; min-width: 0; }
-.p-head .t { font-family: var(--display); font-size: 22px; font-weight: 700; line-height: 1.1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.p-head .s { font-size: 14px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.p-head { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; text-align: left; background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; }
+.p-head .t { font-family: var(--display); font-size: 22px; font-weight: 700; line-height: 1.15; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.p-head .s { font-size: 14px; color: var(--ink-2); overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.p-head.open .t, .p-head.open .s { display: block; -webkit-line-clamp: unset; }
 .p-hi { font-weight: 600; color: var(--ink-2); flex: 1; min-width: 0; }
 
 /* generic pupil pieces */

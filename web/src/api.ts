@@ -75,7 +75,7 @@ export interface AssignmentSummaryT {
 export interface PupilQuestions { name: string; questions: { id: string; type: string; level: string; skill: string; question: string; tries: { answer: string; correct: boolean; errorType?: string; at: string }[] }[] }
 export interface Comments { comments: { pupilId: string; text: string; name: string; skills: { skill: string; label: Label; error?: string }[]; felt?: string }[] | null; stale: boolean; ready: number; waiting: string[]; at: string | null }
 export interface PupilRow { pupilId: string; name: string; status: 'none' | 'started' | 'done'; tried: number; answers: number; skills: Record<string, Label | null>; topError?: string; mood?: 'easy' | 'ok' | 'hard'; lastAt?: string }
-export interface Insights { lessons: { id: string; title: string }[]; lessonId: string; classId: string; classes: { id: string; name: string }[];
+export interface Insights { lessons: { id: string; title: string; subject?: 'math' | 'english' }[]; lessonId: string; classId: string; classes: { id: string; name: string }[];
   assigned?: boolean; pupils?: PupilRow[]; skills?: { tag: string; name: string }[];
   overview: { skill: string; name: string; byClass: Record<string, Label | null> }[]; detail: SkillSummary[] | null }
 

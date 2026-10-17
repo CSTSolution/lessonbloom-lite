@@ -92,6 +92,16 @@ export function BackButton({ to }: { to: string }) {
 }
 
 /** Top row: back button, a middle slot (title or progress dots), language toggle. */
+// screen title + instruction: up to 2 lines each; a tap shows the whole text, another tap folds it again
+export function Head({ title, sub }: { title: ReactNode; sub?: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <button type="button" className={`p-head ${open ? 'open' : ''}`} aria-expanded={open} onClick={() => setOpen(!open)}>
+      <span className="t">{title}</span>{sub ? <span className="s">{sub}</span> : null}
+    </button>
+  );
+}
+
 export function TopBar({ back, children }: { back?: string; children?: ReactNode }) {
   return (
     <div className="pupil-top">

@@ -128,3 +128,13 @@ test('text that cannot be a lesson is spotted before any AI call', () => {
   assert.equal(meaningless(eng), false);
   assert.equal(meaningless('Phép trừ có nhớ: 52 - 18 = 34. Hàng đơn vị 2 không trừ được 8, mượn 1 chục.'), false);
 });
+
+test('English items whose prompt gives the answer away are caught by code', () => {
+  const base = { id: 'x', level: 'basic', skill: 's', explain: '' } as const;
+  const pairs = [{ word: 'girl', emoji: '👧' }, { word: 'boy', emoji: '👦' }, { word: 'book', emoji: '📕' }];
+  assert.equal(checkLocal({ ...base, type: 'eng_match', prompt: 'Match: girl ↔ 👧, boy ↔ 👦', pairs } as any).ok, false);
+  assert.equal(checkLocal({ ...base, type: 'eng_match', prompt: 'Match each word to its picture.', pairs } as any).ok, true);
+  assert.equal(checkLocal({ ...base, type: 'eng_listen', prompt: 'Listen: "red". Choose the colour.', say: 'red', options: ['red', 'blue', 'green'], answer: 'red' } as any).ok, false);
+  assert.equal(checkLocal({ ...base, type: 'eng_listen', prompt: 'Listen and choose the colour.', say: 'red', options: ['red', 'blue', 'green'], answer: 'red' } as any).ok, true);
+  assert.equal(checkLocal({ ...base, type: 'eng_order', prompt: 'Order: It is red', words: ['red', 'It', 'is'], answer: 'It is red.' } as any).ok, false);
+});

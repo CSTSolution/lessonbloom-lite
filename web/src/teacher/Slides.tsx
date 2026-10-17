@@ -54,7 +54,7 @@ export function Slides({ l, onChange, onPrint }: { l: Lesson; onChange: (l: Less
           <button className="btn sm" disabled={!!busy} onClick={() => act('image')}>{busy === 'image' ? t.busy : t.a3}</button>
           <button className="btn sm" onClick={() => setEdit({ heading: s.heading, bullets: s.bullets.join('\n'), notes: s.notes })}>✏️ {t.edit}</button>
           <div className="grow" />
-          <button className="btn sm" onClick={onPrint}>{t.pdf}</button>
+          
         </div>
         <ErrorNote text={err} />
         {edit && (

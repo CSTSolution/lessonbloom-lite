@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { go, type MemoryPair } from '../api.ts';
 import { useT } from '../i18n.ts';
-import { Gate, Star, TopBar, markVisited, shuffle, useLearn } from './shared.tsx';
+import { Gate, Star, TopBar, markVisited, shuffle, useLearn, Head } from './shared.tsx';
 
 const D = {
   vi: { title: 'Lật thẻ tìm cặp', sub: { math: 'Ghép phép tính với kết quả', english: 'Ghép từ với hình hoặc nghĩa của nó' }, pairs: 'cặp', help: 'Chạm vào 2 thẻ để lật. Tìm hết các cặp nhé!',
@@ -48,7 +48,7 @@ function Game({ pid, pairs, subject }: { pid: string; pairs: MemoryPair[]; subje
 
   const head = (
     <TopBar back={`/learn/${pid}`}>
-      <div className="p-head"><div className="t">{t.title}</div><div className="s">{t.sub[subject]}</div></div>
+      <Head title={t.title} sub={t.sub[subject]} />
     </TopBar>
   );
   if (total < 2) return (<>{head}<div className="p-center" style={{ padding: '40px 0' }}><p className="p-sub">{t.empty}</p><button className="p-btn purple" onClick={() => go(`/learn/${pid}`)}>{t.home}</button></div></>);

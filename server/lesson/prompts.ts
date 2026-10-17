@@ -59,13 +59,15 @@ Return the whole slide.`;
 export const SLIDE_SCHEMA = { type: 'object', properties: LESSON_SCHEMA.properties.slides.items.properties, required: LESSON_SCHEMA.properties.slides.items.required };
 
 export const EXERCISES_SYSTEM = `You write practice exercises ("bài luyện tập") for Vietnamese primary pupils from the teacher's lesson.
-First list the lesson's SKILLS ("dạng bài"): 2-4 skills, each { tag: short snake_case id, name: short Vietnamese name } (e.g. carry_1 "Nhớ 1 sang hàng chục", no_carry "Cộng không nhớ", word_1step "Toán có lời văn một bước").
+First list the lesson's SKILLS ("dạng bài"): 2-4 skills the lesson actually teaches, each { tag: short snake_case id, name: short name in {{langName}} } (e.g. maths: carry_1 "Nhớ 1 sang hàng chục", no_carry "Cộng không nhớ"; English: colour_words "Colour words", what_colour "Asking 'What colour is it?'").
 Then write items using ONLY these templates:
 {{templates}}
 Rules:
-- {{perLevel}} items for each level: "basic" (direct practice), "good" (one step more), "advanced" (word problem or a twist). Every item has "skill" = one skill tag. Cover every skill at every level where it makes sense.
+- {{perLevel}} items for each level: "basic" (direct practice), "good" (one step more), "advanced" (word problem or a twist). Every item has "skill" = the ONE skill tag it really practises: a picture-matching item about nouns is never tagged with a grammar skill. Cover every skill at every level where it makes sense.
+- Use a template only when it fits the lesson's content. eng_match only for picture-able nouns the lesson teaches; if the lesson teaches grammar or sentence patterns, use eng_fill / eng_order / eng_listen instead. Never bring in words from outside the lesson's topic just to fill a template.
 - Stay inside the lesson and the grade {{grade}} range. Prompts in {{langName}}; English items keep English words in English.
-- Exactly one correct answer per item. "explain": one short line a child understands (Vietnamese), showing the method ("6 + 7 = 13, viết 3 nhớ 1; 3 + 2 + 1 = 6").
+- The prompt is only the instruction ("Match each word to its picture.", "Choose the missing word."). It NEVER contains the answer, the word-picture pairs, the word read aloud or the finished sentence; the item's own fields carry those.
+- Exactly one correct answer per item. "explain": one short line a child understands, in {{langName}}, showing the method or the reason ("6 + 7 = 13, viết 3 nhớ 1; 3 + 2 + 1 = 6", "'It's' because we talk about one thing.").
 - Wrong options should be the mistakes children really make (forgetting to carry, adding the wrong column...).
 Machine-checked fields (the server recomputes maths; be exact):
 - math_mcq: "expr" (e.g. "36 + 27"), "options" 3-4 numbers as strings, exactly one equal to expr; "answer" = that option.
@@ -98,8 +100,8 @@ export const exercisesSchema = (types: string[]) => ({ type: 'object', propertie
 
 export const REVIEW_SYSTEM = `You are a strict primary-school teacher checking practice items before they reach children.
 The pupil sees the "prompt" TOGETHER WITH the item's equation / statement / sentence / options / words / pairs, so a short prompt like "Điền số vào ô trống" is complete when the equation is given.
-For each item, ok=false only if: more than one acceptable answer or the marked answer is wrong; a grammar or spelling mistake (English or Vietnamese); vocabulary or numbers clearly beyond grade {{grade}} or outside the lesson; confusing for a 6-11 year old; unsuitable for children; the item breaks its template (no gap, answer not among the options...).
-Do NOT judge the "skill" tag. Short issues in English. Do not rewrite items.`;
+For each item, ok=false only if: more than one acceptable answer or the marked answer is wrong; a grammar or spelling mistake (English or Vietnamese); vocabulary or numbers clearly beyond grade {{grade}} or outside the lesson; confusing for a 6-11 year old; unsuitable for children; the item breaks its template (no gap, answer not among the options...); the prompt gives away the answer (e.g. lists the word-picture pairs or the finished sentence); the item clearly does not practise its skill (e.g. matching nouns to pictures tagged as a grammar skill such as relative pronouns) or does not fit the lesson's topic.
+Close or overlapping skill tags are fine; only flag a clear mismatch. Short issues in English. Do not rewrite items.`;
 
 export const REVIEW_SCHEMA = {
   type: 'object',

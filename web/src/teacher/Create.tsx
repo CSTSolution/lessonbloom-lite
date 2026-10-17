@@ -55,7 +55,7 @@ const isPhoto = (f: File) => f.type.startsWith('image/') || /\.(jpe?g|png|webp|h
 const DM = {
   vi: { left: (l: number, lm: number, c: number, cm: number) => `Bản dùng thử: hôm nay cô còn tạo được ${l} bài mới (mỗi ngày tối đa ${lm} bài và ${cm} lượt AI; mỗi bài mới dùng 10 lượt, còn ${c} lượt). Tài khoản miễn phí có 30 lượt mỗi ngày.`,
     register: 'Đăng ký tài khoản miễn phí', registerSub: 'Bài trong bản dùng thử không chuyển sang tài khoản mới.' },
-  en: { left: (l: number, lm: number, c: number, cm: number) => `Demo: you can create ${l} more new lesson(s) today (at most ${lm} lessons and ${cm} AI credits a day; a new lesson uses 10, ${c} credits left). A free account has 30 credits a day.`,
+  en: { left: (l: number, lm: number, c: number, cm: number) => `Demo: you can create ${l} more new ${l === 1 ? 'lesson' : 'lessons'} today (at most ${lm} lessons and ${cm} AI credits a day; a new lesson uses 10, ${c} credits left). A free account has 30 credits a day.`,
     register: 'Register a free account', registerSub: 'Lessons made in the demo do not move to the new account.' },
 };
 
@@ -63,7 +63,7 @@ const PH = {
   vi: { photos: (n: number, max: number) => `Ảnh đã dùng: ${n}/${max}`, reading: (n: number) => `AI đang đọc ${n} ảnh…`, check: 'AI đã chép chữ từ ảnh vào ô bên dưới. Cô đọc lại và sửa chỗ sai trước khi tiếp tục nhé.',
     tooMany: (max: number, left: number) => left > 0 ? `Mỗi bài dùng tối đa ${max} ảnh, nên LessonBloom chỉ đọc ${left} ảnh đầu cô chọn.` : `Bài này đã dùng đủ ${max} ảnh.`,
     cantRead: (n: string) => `Không mở được ảnh ${n}. Cô chụp lại bằng JPG hoặc PNG nhé (ảnh HEIC của iPhone: chọn từ ứng dụng Ảnh trên điện thoại).` },
-  en: { photos: (n: number, max: number) => `Photos used: ${n}/${max}`, reading: (n: number) => `The AI is reading ${n} photo(s)…`, check: 'The AI copied the text from the photos into the box below. Please read it and fix any mistakes before continuing.',
+  en: { photos: (n: number, max: number) => `Photos used: ${n}/${max}`, reading: (n: number) => `The AI is reading ${n === 1 ? '1 photo' : `${n} photos`}…`, check: 'The AI copied the text from the photos into the box below. Please read it and fix any mistakes before continuing.',
     tooMany: (max: number, left: number) => left > 0 ? `A lesson can use up to ${max} photos, so only the first ${left} you chose were read.` : `This lesson already uses ${max} photos.`,
     cantRead: (n: string) => `Could not open the photo ${n}. Please use JPG or PNG (for iPhone HEIC photos, pick them from the Photos app on the phone).` },
 };

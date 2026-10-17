@@ -71,7 +71,8 @@ function CommentsCard({ d }: { d: Ins }) {
           <div key={m.pupilId} className="cm-card">
             <div className="row" style={{ gap: 6 }}>
               <Link to={`/classes/${d.classId}/pupil/${m.pupilId}`}><strong>{m.name}</strong></Link>
-              {m.skills.map((s) => <span key={s.skill} className="row" style={{ gap: 4 }} title={s.skill}><LabelChip l={s.label} /><span className="muted small">{s.skill}</span></span>)}
+              <span className="grow" />
+              <span title={m.skills.map((s) => `${s.skill}: ${t[LABEL_KEY[s.label as Lb]]}`).join('\n')}><LabelChip l={(['repeated', 'practising', 'secure'] as Lb[]).find((k) => m.skills.some((s) => s.label === k)) || null} /></span>
               {m.felt && <span className="small muted">· {c.felt[m.felt]}</span>}
             </div>
             <textarea rows={4} value={text[m.pupilId] ?? m.text} onChange={(e) => setText({ ...text, [m.pupilId]: e.target.value })} onBlur={() => save(m.pupilId)} aria-label={m.name} />
@@ -129,12 +130,61 @@ export function LabelChip({ l }: { l: Label | null }) {
   return <span className={`chip lbl-${l}`}>{t[LABEL_KEY[l]]}</span>;
 }
 
+// ---- learning summary charts: counts of skill labels (per skill and class), never of pupils ----
+type Lb = 'secure' | 'practising' | 'repeated';
+const LBS: Lb[] = ['secure', 'practising', 'repeated'];
+const COLOR: Record<Lb, string> = { secure: '#3C9A5F', practising: '#B8C1CF', repeated: '#E08A3C' };
+const countOf = (labels: (Label | null | undefined)[]) => Object.fromEntries(LBS.map((k) => [k, labels.filter((x) => x === k).length])) as Record<Lb, number>;
+const S19 = {
+  vi: { sub: (subj: string, t: string) => `${subj} · ${t}`, applies: 'Áp dụng cho cả hai phần bên dưới',
+    p1: 'Tổng quan tất cả các lớp cô đang dạy', p1sub: (k: number, s: number) => `${k} lớp · ${s} dạng bài · tính theo dạng bài, không theo từng học sinh`,
+    pie: 'Tỉ lệ dạng bài', pieAll: 'tất cả các lớp', unit: 'lượt dạng bài', unitCls: 'dạng bài', byClass: 'Theo từng lớp', see: 'Xem chi tiết ›',
+    barNote: 'Mỗi ô là số dạng bài ở mức đó. Không so sánh học sinh.', p2: 'Chi tiết từng lớp', p2sub: 'Bảng, biểu đồ và các mục bên dưới chỉ tính lớp đang chọn.',
+    all: 'Tất cả', filterNote: 'Bấm một mức để lọc bảng bên cạnh.', noData: 'Chưa có lượt làm bài cho bài này.', none: 'Không có dạng bài ở mức này.' },
+  en: { sub: (subj: string, t: string) => `${subj} · ${t}`, applies: 'Applies to both parts below',
+    p1: 'Overview of all your classes', p1sub: (k: number, s: number) => `${k} classes · ${s} skills · counted by skill, not by pupil`,
+    pie: 'Skills by level', pieAll: 'all classes', unit: 'skill results', unitCls: 'skills', byClass: 'By class', see: 'See details ›',
+    barNote: 'Each block is the number of skills at that level. Pupils are not compared.', p2: 'Class detail', p2sub: 'The table, chart and sections below count the chosen class only.',
+    all: 'All', filterNote: 'Tap a level to filter the table next to it.', noData: 'No answers yet for this lesson.', none: 'No skills at this level.' },
+};
+function Donut({ c, unit, size = 150 }: { c: Record<Lb, number>; unit: string; size?: number }) {
+  const total = LBS.reduce((a, k) => a + c[k], 0), r = 15.9155, sw = 5.5;
+  let off = 25;
+  return (
+    <svg width={size} height={size} viewBox="0 0 42 42" role="img" aria-label={`${total} ${unit}`}>
+      <circle cx="21" cy="21" r={r} fill="none" stroke="#EEF1F5" strokeWidth={sw} />
+      {total > 0 && LBS.map((k) => { const pct = (100 * c[k]) / total; const el = pct > 0 ? <circle key={k} cx="21" cy="21" r={r} fill="none" stroke={COLOR[k]} strokeWidth={sw} strokeDasharray={`${pct} ${100 - pct}`} strokeDashoffset={off} /> : null; off -= pct; return el; })}
+      <text x="21" y="21" textAnchor="middle" fontSize="9" fontWeight="700" fill="#17202E">{total}</text>
+      <text x="21" y="27" textAnchor="middle" fontSize="2.6" fill="#556072">{unit}</text>
+    </svg>
+  );
+}
+function Legend({ c, pick, on }: { c: Record<Lb, number>; pick?: (k: Lb | 'all') => void; on?: Lb | 'all' }) {
+  const t = useT(T), s = useT(S19);
+  const total = LBS.reduce((a, k) => a + c[k], 0);
+  const name = (k: Lb) => t[LABEL_KEY[k]];
+  if (!pick) return (
+    <ul className="lg">{LBS.map((k) => <li key={k}><i style={{ background: COLOR[k] }} /><b>{name(k)}</b> {c[k]} · {total ? Math.round((100 * c[k]) / total) : 0}%</li>)}</ul>
+  );
+  return (
+    <div className="lg-pick" role="group">
+      <button className={on === 'all' ? 'on' : ''} aria-pressed={on === 'all'} onClick={() => pick('all')}><i className="mix" />{s.all} <span>{total}</span></button>
+      {LBS.map((k) => <button key={k} className={on === k ? 'on' : ''} aria-pressed={on === k} onClick={() => pick(k)}><i style={{ background: COLOR[k] }} />{name(k)} <span>{c[k]}</span></button>)}
+    </div>
+  );
+}
+function Bar({ c }: { c: Record<Lb, number> }) {
+  const total = LBS.reduce((a, k) => a + c[k], 0);
+  return <div className="sbar">{total === 0 ? <span className="empty">–</span> : LBS.filter((k) => c[k]).map((k) => <span key={k} style={{ flex: c[k], background: COLOR[k], color: k === 'practising' ? '#3D4757' : '#fff' }}>{c[k]}</span>)}</div>;
+}
+
 export function Insights() {
-  const t = useT(T);
+  const t = useT(T), s19 = useT(S19);
   const q = new URLSearchParams(location.search);
   const [lessonId, setLessonId] = useState(q.get('lessonId') || undefined);
   const [classId, setClassId] = useState(q.get('classId') || undefined);
   const [d, setD] = useState<Ins | null>(null);
+  const [lvl, setLvl] = useState<Lb | 'all'>('all');
   useEffect(() => { teacherApi.insights(lessonId, classId).then(setD); }, [lessonId, classId]);
   if (!d) return <p className="page muted" role="status">{t.loading}</p>;
   if (!d.lessons.length) return <main className="page stack"><h1>{t.inTitle}</h1><div className="card empty"><p className="muted" style={{ margin: 0 }}>{t.insEmpty}</p><Link to="/new" className="btn primary">＋ {t.newLesson}</Link></div></main>;
@@ -142,29 +192,62 @@ export function Insights() {
   const repeated = (d.detail || []).filter((s) => s.classLabel === 'repeated' || s.errors.length);
   const mastered = (d.detail || []).filter((s) => s.classLabel === 'secure');
 
+  const lesson = d.lessons.find((x) => x.id === d.lessonId);
+  const withData = d.classes.filter((k) => d.overview.some((o) => o.byClass[k.id]));
+  const shownCls = withData.length ? withData : d.classes;
+  const allC = countOf(d.overview.flatMap((o) => shownCls.map((k) => o.byClass[k.id])));
+  const kC = countOf(d.overview.map((o) => o.byClass[d.classId]));
+  const kRows = d.overview.filter((o) => lvl === 'all' ? true : o.byClass[d.classId] === lvl);
+  const pickClass = (id: string) => { setClassId(id); setLvl('all'); setTimeout(() => document.getElementById('part2')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); };
+
   return (
     <main className="page stack" style={{ gap: 18 }}>
-      <h1>{t.inTitle}</h1>
+      <div><h1 style={{ margin: 0 }}>{t.inTitle}</h1>{lesson && <p className="muted" style={{ margin: '4px 0 0' }}>{s19.sub(lesson.subject === 'english' ? t.english : t.math, lesson.title)}</p>}</div>
       <GuideHint step="insights" />
       <div className="card row" style={{ gap: 16 }}>
         <label className="row lesson-pick" style={{ gap: 8, flexWrap: 'nowrap' }}><span className="muted" style={{ whiteSpace: 'nowrap' }}>{t.lessonLabel}</span>
-          <select value={d.lessonId} onChange={(e) => setLessonId(e.target.value)} style={{ minWidth: 0, maxWidth: 420 }}>{d.lessons.map((x) => <option key={x.id} value={x.id}>{x.title}</option>)}</select></label>
-        <span className="muted">{t.cls}</span>
-        <div className="pills">{d.classes.map((k) => <button key={k.id} className={`pill ${d.classId === k.id ? 'on' : ''}`} onClick={() => setClassId(k.id)}>{withCls(t.cls, k.name)}</button>)}</div>
+          <select value={d.lessonId} onChange={(e) => { setLessonId(e.target.value); setClassId(undefined); setLvl('all'); }} style={{ minWidth: 0, maxWidth: 420 }}>{d.lessons.map((x) => <option key={x.id} value={x.id}>{x.title}</option>)}</select></label>
+        <span className="muted small">{s19.applies}</span>
       </div>
       <div className="note">ⓘ {t.notice}</div>
 
-      <div className="card stack">
-        <h2>{t.overview}</h2>
+      <section className="card stack ins-part">
+        <div className="row" style={{ alignItems: 'flex-start' }}><span className="num-badge">1</span><div className="grow"><h2 style={{ margin: 0 }}>{s19.p1}</h2><p className="muted small" style={{ margin: 0 }}>{s19.p1sub(shownCls.length, d.overview.length)}</p></div></div>
+        {!withData.length ? <p className="muted" style={{ margin: 0 }}>{s19.noData}</p> : (
+          <div className="ins-grid">
+            <div className="card-in"><div className="small" style={{ fontWeight: 600 }}>{s19.pie} · {s19.pieAll}</div>
+              <div className="row" style={{ gap: 20, flexWrap: 'nowrap' }}><Donut c={allC} unit={s19.unit} /><Legend c={allC} /></div></div>
+            <div className="card-in"><div className="small" style={{ fontWeight: 600 }}>{s19.byClass}</div>
+              <div className="stack" style={{ gap: 10, marginTop: 8 }}>{shownCls.map((k) => (
+                <div key={k.id} className="row" style={{ gap: 10, flexWrap: 'nowrap' }}><strong style={{ width: 90, flex: '0 0 90px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{withCls(t.cls, k.name)}</strong>
+                  <Bar c={countOf(d.overview.map((o) => o.byClass[k.id]))} /><button className="btn sm" onClick={() => pickClass(k.id)}>{s19.see}</button></div>))}</div>
+              <p className="muted small" style={{ margin: '10px 0 0' }}>{s19.barNote}</p></div>
+          </div>
+        )}
         <div className="table-scroll"><table className="t overview">
-          <thead><tr><th>{t.colSkill}</th>{d.classes.map((k) => <th key={k.id}>{withCls(t.cls, k.name)}</th>)}</tr></thead>
-          <tbody>{d.overview.map((o) => <tr key={o.skill}><td>{o.name}</td>{d.classes.map((k) => <td key={k.id}><LabelChip l={o.byClass[k.id]} /></td>)}</tr>)}</tbody>
+          <thead><tr><th>{t.colSkill}</th>{shownCls.map((k) => <th key={k.id}>{withCls(t.cls, k.name)}</th>)}</tr></thead>
+          <tbody>{d.overview.map((o) => <tr key={o.skill}><td>{o.name}</td>{shownCls.map((k) => <td key={k.id}><LabelChip l={o.byClass[k.id]} /></td>)}</tr>)}</tbody>
         </table></div>
         <div className="row small muted" style={{ gap: 16 }}>
           <span><LabelChip l="repeated" />: {t.tagRd}</span><span><LabelChip l="practising" />: {t.tagPd}</span><span><LabelChip l="secure" />: {t.tagMd}</span>
           <span className="grow" /><Link to="/criteria">{t.editCriteria}</Link>
         </div>
-      </div>
+      </section>
+
+      <section id="part2" className="card stack ins-part part2">
+        <div className="row" style={{ alignItems: 'flex-start' }}><span className="num-badge">2</span><div className="grow"><h2 style={{ margin: 0 }}>{s19.p2} · {cname}</h2><p className="muted small" style={{ margin: 0 }}>{s19.p2sub}</p></div>
+          <div className="pills">{d.classes.map((k) => <button key={k.id} className={`pill ${d.classId === k.id ? 'on' : ''}`} aria-pressed={d.classId === k.id} onClick={() => { setClassId(k.id); setLvl('all'); }}>{withCls(t.cls, k.name)}</button>)}</div></div>
+        <div className="ins-grid">
+          <div className="card-in"><div className="small" style={{ fontWeight: 600 }}>{s19.pie} · {cname}</div>
+            <div className="row" style={{ gap: 20, flexWrap: 'nowrap' }}><Donut c={kC} unit={s19.unitCls} /><Legend c={kC} pick={setLvl} on={lvl} /></div>
+            <p className="muted small" style={{ margin: '8px 0 0' }}>{s19.filterNote}</p></div>
+          <div className="card-in"><table className="t">
+            <thead><tr><th>{t.colSkill}</th><th>{cname}</th></tr></thead>
+            <tbody>{kRows.map((o) => <tr key={o.skill}><td>{o.name}</td><td><LabelChip l={o.byClass[d.classId]} /></td></tr>)}
+              {!kRows.length && <tr><td colSpan={2} className="muted small">{s19.none}</td></tr>}</tbody>
+          </table></div>
+        </div>
+      </section>
 
       <PupilTable d={d} />
 

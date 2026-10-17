@@ -19,28 +19,44 @@ function Options({ e, t }: { e: Exercise; t: (typeof T)['vi'] }) {
   );
 }
 
+// the instruction, then the item's own content; never the answer (word-picture pairs are shown mixed)
+const lead = (p: string) => p.trim().replace(/[\s.:;!?…]+$/u, '');
 export function questionText(e: Exercise) {
   switch (e.type) {
-    case 'math_fill': return `${e.prompt}: ${e.equation.replace('?', '…')}`;
+    case 'math_fill': return `${lead(e.prompt)}: ${e.equation.replace('?', '…')}`;
     case 'math_truefalse': return `${e.prompt} ${e.statement}`;
-    case 'eng_fill': return `${e.prompt}: ${e.sentence}`;
+    case 'eng_fill': return `${lead(e.prompt)}: ${e.sentence}`;
     case 'eng_listen': return `${e.prompt} 🔊 “${e.say}”`;
-    case 'eng_order': return `${e.prompt}: ${e.words.join(' / ')}`;
-    case 'eng_match': return `${e.prompt}: ${e.pairs.map((p) => `${p.word} ↔ ${p.emoji}`).join(', ')}`;
+    case 'eng_order': return `${lead(e.prompt)}: ${[...e.words].sort((a, b) => a.localeCompare(b)).join(' / ')}`;
+    case 'eng_match': return e.prompt;
     default: return e.prompt;
   }
+}
+// word-picture pairs: words in order, pictures rotated so none sits next to its word
+function MatchColumns({ e }: { e: Exercise }) {
+  if (e.type !== 'eng_match') return null;
+  const pics = e.pairs.map((p) => p.emoji); pics.push(pics.shift()!);
+  return (
+    <div style={{ display: 'flex', gap: 40, fontSize: 18 }}>
+      <div className="stack" style={{ gap: 6 }}>{e.pairs.map((p) => <span key={p.word}>{p.word}</span>)}</div>
+      <div className="stack" style={{ gap: 6 }}>{pics.map((x) => <span key={x}>{x}</span>)}</div>
+    </div>
+  );
 }
 
 export function Exercises({ l, onChange, onPrint }: { l: Lesson; onChange: (l: Lesson) => void; onPrint: () => void }) {
   const t = useT(T);
   const types = useMemo(() => [...new Set(l.exercises.map((e) => e.type))], [l.exercises]);
-  const [tab, setTab] = useState<string>(types[0] || 'cards');
-  const [level, setLevel] = useState<Level>('good');
+  const [tab, setTab] = useState<string>('all');            // 'all', a template, 'cards' or 'memory'
+  const [level, setLevel] = useState<Level | 'all'>('all');
   const [editing, setEditing] = useState<{ id: string; prompt: string; answer: string; explain: string } | null>(null);
   const skillName = (tag: string) => l.skills.find((s) => s.tag === tag)?.name || tag;
   const fixed = new Set(l.checks.map((c) => c.exercise));
-  const list = l.exercises.filter((e) => e.type === tab && e.level === level);
-  const tabs = [...types.map((k) => ({ k, n: l.exercises.filter((e) => e.type === k).length })), { k: 'cards', n: l.flashcards.length }, { k: 'memory', n: l.pairs.length }].filter((x) => x.n);
+  const atLevel = l.exercises.filter((e) => level === 'all' || e.level === level);
+  const list = atLevel.filter((e) => tab === 'all' || e.type === tab);
+  const exTab = tab !== 'cards' && tab !== 'memory';
+  const tabs = [{ k: 'all', n: atLevel.length }, ...types.map((k) => ({ k, n: atLevel.filter((e) => e.type === k).length })), { k: 'cards', n: l.flashcards.length }, { k: 'memory', n: l.pairs.length }].filter((x) => x.n || x.k === 'all');
+  const lvN = (lv: Level | 'all') => l.exercises.filter((e) => (lv === 'all' || e.level === lv) && (tab === 'all' || !exTab || e.type === tab)).length;
 
   const save = async (exercises: Exercise[]) => onChange(await teacherApi.save(l.id, { exercises }));
   const saveEdit = async () => {
@@ -50,23 +66,17 @@ export function Exercises({ l, onChange, onPrint }: { l: Lesson; onChange: (l: L
   };
 
   return (
-    <main className="page" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 220px) minmax(0, 1fr)', gap: 24, alignItems: 'start' }}>
-      <aside className="stack no-print" style={{ gap: 8 }}>
-        <h3>{t.tplTitle}</h3>
-        {tabs.map(({ k, n }) => (
-          <button key={k} className="btn" style={{ justifyContent: 'space-between', ...(tab === k ? { borderColor: 'var(--blue)', background: 'var(--blue-soft)', color: 'var(--blue)' } : {}) }} onClick={() => setTab(k)}>
-            <span>{t.tpl[k] || k}</span><span className="muted small">{n}</span>
-          </button>
-        ))}
-      </aside>
+    <main className="page stack" style={{ gap: 14 }}>
       <section className="stack">
         <div className="row">
-          <h1 className="grow" style={{ fontSize: 24, minWidth: 200 }}>{t.tpl[tab]}{tab !== 'cards' && tab !== 'memory' ? ` · ${list.length} ${t.q.toLowerCase()}` : ''}</h1>
-          {tab !== 'cards' && tab !== 'memory' && (
-            <div className="lang no-print" role="group" aria-label="level">{(['basic', 'good', 'advanced'] as Level[]).map((lv) => <button key={lv} className={level === lv ? 'on' : ''} onClick={() => setLevel(lv)}>{t[lv]}</button>)}</div>
-          )}
-          <button className="btn sm no-print" onClick={onPrint}>{t.print}</button>
+          <h1 className="grow" style={{ fontSize: 24, minWidth: 200 }}>{tab === 'all' ? t.allTypes : t.tpl[tab]}{exTab ? ` · ${t.itemsN(list.length)}` : ''}</h1>
         </div>
+        <div className="pills no-print ex-filter" role="group" aria-label={t.tplTitle}>
+          {tabs.map(({ k, n }) => <button key={k} className={`pill sm ${tab === k ? 'on' : ''}`} aria-pressed={tab === k} onClick={() => setTab(k)}>{k === 'all' ? t.allTypes : t.tpl[k] || k} <b>{n}</b></button>)}
+        </div>
+        {exTab && (
+          <div className="lang no-print" role="group" aria-label="level" style={{ alignSelf: 'flex-start' }}>{(['all', 'basic', 'good', 'advanced'] as const).map((lv) => <button key={lv} className={level === lv ? 'on' : ''} aria-pressed={level === lv} onClick={() => setLevel(lv)}>{lv === 'all' ? t.allLevels : t[lv]} · {lvN(lv)}</button>)}</div>
+        )}
         <div className="ok-note">✓ {t.checked}{fixed.size ? ` ${t.fixedN(fixed.size)}` : ''}</div>
 
         {tab === 'cards' && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
@@ -76,15 +86,18 @@ export function Exercises({ l, onChange, onPrint }: { l: Lesson; onChange: (l: L
           {l.pairs.map((p) => <div key={p.id} className="card row display" style={{ fontSize: 22, justifyContent: 'center' }}>{p.a} <span className="muted">↔</span> {p.b}</div>)}
         </div>}
 
-        {list.map((e, i) => (
+        {exTab && list.map((e, i) => (
           <div key={e.id} className="card stack" style={{ gap: 10 }}>
             <div className="row">
               <strong className="grow">{t.q} {i + 1}. {questionText(e)}</strong>
+              {tab === 'all' && <span className="chip">{t.tpl[e.type] || e.type}</span>}
               <span className="chip amber">{t.skillW} {skillName(e.skill)}</span>
               {fixed.has(e.id) && <span className="chip green" title={l.checks.find((c) => c.exercise === e.id)?.issues.join('\n')}>🛡️ AI</span>}
             </div>
             <Options e={e} t={t} />
+            <MatchColumns e={e} />
             {(e.type === 'math_fill' || e.type === 'math_word' || e.type === 'eng_order') && <div><span className="muted">{t.answer}:</span> <strong>{(e as Ans).answer}{e.type === 'math_word' && e.unit ? ` ${e.unit}` : ''}</strong></div>}
+            {e.type === 'eng_match' && <div><span className="muted">{t.answer}:</span> <strong>{e.pairs.map((p) => `${p.word} – ${p.emoji}`).join(', ')}</strong></div>}
             <div className="small"><span className="muted">{t.solution}</span> {e.explain}</div>
             {editing?.id === e.id ? (
               <div className="stack">

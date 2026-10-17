@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { go, sayAloud, type Learn } from '../api.ts';
 import { useT } from '../i18n.ts';
-import { Gate, SpeakerIcon, TopBar, markVisited, useLearn } from './shared.tsx';
+import { Gate, SpeakerIcon, TopBar, markVisited, useLearn, Head } from './shared.tsx';
 
 const D = {
   vi: { title: 'Xem video', slidesTitle: 'Xem bài giảng', prev: 'Trang trước', next: 'Trang sau', listen: 'Nghe cô giảng', page: (i: number, n: number) => `Trang ${i} trên ${n}`,
@@ -26,7 +26,7 @@ function Player({ pid, lesson }: { pid: string; lesson: NonNullable<Learn['lesso
   const slides = lesson.slides;
   const head = (title: string) => (
     <TopBar back={`/learn/${pid}`}>
-      <div className="p-head"><div className="t">{title}</div><div className="s">{lesson.title}</div></div>
+      <Head title={title} sub={lesson.title} />
     </TopBar>
   );
   const after = (

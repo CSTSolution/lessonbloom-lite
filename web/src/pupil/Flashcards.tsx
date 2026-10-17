@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { go, sayAloud, type Flashcard } from '../api.ts';
 import { useT } from '../i18n.ts';
-import { Gate, SpeakerIcon, TopBar, markVisited, useLearn } from './shared.tsx';
+import { Gate, SpeakerIcon, TopBar, markVisited, useLearn, Head } from './shared.tsx';
 
 const D = {
   vi: { title: 'Thẻ nhớ', subj: { math: 'Toán', english: 'Tiếng Anh' }, grade: 'Lớp', card: (i: number, n: number) => `thẻ ${i}/${n}`,
@@ -31,7 +31,7 @@ function Deck({ pid, cards, lesson }: { pid: string; cards: Flashcard[]; lesson:
   const english = lesson.subject === 'english' || lesson.lang === 'en';
   const head = (sub: string) => (
     <TopBar back={`/learn/${pid}`}>
-      <div className="p-head"><div className="t">{t.title} · {lesson.title}</div><div className="s">{t.subj[lesson.subject]} · {t.grade} {lesson.grade}{sub}</div></div>
+      <Head title={`${t.title} · ${lesson.title}`} sub={<>{t.subj[lesson.subject]} · {t.grade} {lesson.grade}{sub}</>} />
     </TopBar>
   );
 

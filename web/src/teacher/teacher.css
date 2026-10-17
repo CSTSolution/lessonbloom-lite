@@ -160,7 +160,7 @@ table.t .chip { white-space: nowrap; }
 .pupil-card { padding: 12px; text-decoration: none; color: inherit; } .pupil-card:hover { border-color: var(--blue); }
 .lesson-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; max-width: 1200px; margin: 0 auto; padding: 10px 32px 0; }
 @media (max-width: 720px) { .lesson-bar { padding: 10px 16px 0; } }
-.lesson-title { font-size: 17px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lesson-title { font-size: 17px; min-width: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; }   /* long titles wrap, never lose their start */
 
 /* read-only steps 1-2 of a made lesson */
 .ro-note { margin: 0; padding: 10px 14px; border-radius: 12px; background: var(--blue-soft); color: var(--ink-2, #3D4757); font-size: 14px; line-height: 1.5; }
@@ -215,3 +215,20 @@ table.t .chip { white-space: nowrap; }
 .pr-pick { margin: 0; padding: 0 0 0 4px; list-style: none; max-height: 240px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
 .pill.sm b { margin-left: 4px; font-weight: 700; }
 a.pill { text-decoration: none; color: inherit; }
+
+/* learning summary (Chi's design v45): part 1 all classes, part 2 one class */
+.ins-part h2 { font-size: 22px; }
+.part2 { border: 2px solid var(--blue); }
+.num-badge { width: 30px; height: 30px; flex: 0 0 30px; border-radius: 50%; background: var(--blue); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; margin-right: 6px; }
+.ins-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 18px; align-items: start; }
+.card-in { border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; background: #fff; }
+.lg { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.lg i, .lg-pick i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 8px; vertical-align: -1px; }
+.lg-pick { display: flex; flex-direction: column; gap: 8px; }
+.lg-pick button { display: flex; align-items: center; gap: 4px; border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 6px 14px; font: inherit; font-weight: 600; cursor: pointer; color: var(--ink); }
+.lg-pick button span { margin-left: auto; padding-left: 12px; color: var(--muted); font-weight: 500; }
+.lg-pick button.on { border-color: var(--blue); background: var(--blue-soft); }
+.lg-pick i.mix { background: conic-gradient(#3C9A5F 0 50%, #E08A3C 0 75%, #B8C1CF 0); }
+.sbar { flex: 1; display: flex; height: 28px; border-radius: 8px; overflow: hidden; background: #EEF1F5; min-width: 120px; }
+.sbar span { display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; }
+.sbar .empty { flex: 1; color: var(--muted); }

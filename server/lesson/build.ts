@@ -67,6 +67,8 @@ export function checkLocal(ex: Exercise): CheckResult {
   if (ex.type.startsWith('math_')) return checkMath(ex);
   const issues: string[] = [];
   const inOpts = (opts: string[], a: string) => opts.filter((o) => o.trim().toLowerCase() === a.trim().toLowerCase()).length === 1;
+  // the prompt is the instruction only: it must not give the answer away
+  const prompt = (ex.prompt || '').toLowerCase(), has = (w: string) => !!w.trim() && new RegExp(`(^|[^\\p{L}])${w.trim().toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^\\p{L}]|$)`, 'u').test(prompt);
   switch (ex.type) {
     case 'eng_fill':
       if ((ex.sentence.match(/_{2,}/g) || []).length !== 1) issues.push('sentence needs exactly one ___ gap');
@@ -74,18 +76,21 @@ export function checkLocal(ex: Exercise): CheckResult {
       break;
     case 'eng_listen':
       if (!inOpts(ex.options, ex.answer)) issues.push('answer must be exactly one of the options');
+      if (has(ex.say) || (/\p{L}/u.test(ex.answer) && has(ex.answer))) issues.push('prompt gives away the word read aloud');
       if (!ex.say?.trim()) issues.push('nothing to say aloud');
       break;
     case 'eng_order': {
       const bag = (s: string) => s.toLowerCase().replace(/[.!?,]/g, '').split(/\s+/).filter(Boolean).sort().join(' ');
       if (bag(ex.words.join(' ')) !== bag(ex.answer)) issues.push('answer does not use exactly the given words');
       if (ex.words.join(' ').toLowerCase() === ex.answer.toLowerCase().replace(/[.!?]$/, '')) issues.push('words are not shuffled');
+      if (has(ex.answer.replace(/[.!?]$/, ''))) issues.push('prompt gives away the sentence');
       break;
     }
     case 'eng_match': {
       const words = ex.pairs.map((p) => p.word.toLowerCase()), emo = ex.pairs.map((p) => p.emoji);
       if (ex.pairs.length < 3) issues.push('needs at least 3 pairs');
       if (new Set(words).size !== words.length || new Set(emo).size !== emo.length) issues.push('words and pictures must be unique');
+      if (emo.some((e) => (ex.prompt || '').includes(e)) || words.filter((w) => has(w)).length >= 2) issues.push('prompt gives away the word-picture pairs');
       break;
     }
   }
@@ -149,6 +154,18 @@ export async function makeExercises(ai: AI, source: string, it: Intake, slides: 
   }
   const used = new Set(items.map((e) => e.skill));
   return { skills: skills.filter((s) => used.has(s.tag)), exercises: items, checks: [...history].map(([exercise, issues]) => ({ exercise, attempts: tries.get(exercise) || 1, issues })) };
+}
+
+// A prompt that gives the answer away (lessons made before the check) becomes a neutral instruction when served.
+const SAFE_PROMPT: Record<string, { vi: string; en: string }> = {
+  eng_match: { vi: 'Nối mỗi từ với hình đúng.', en: 'Match each word to its picture.' },
+  eng_listen: { vi: 'Nghe rồi chọn đáp án đúng.', en: 'Listen and choose the right answer.' },
+  eng_order: { vi: 'Sắp xếp các từ thành câu đúng.', en: 'Put the words in the right order.' },
+};
+export function safePrompt<E extends Exercise>(e: E, lang: 'vi' | 'en'): E {
+  const safe = SAFE_PROMPT[e.type];
+  if (!safe || !checkLocal(e).issues.some((i) => i.startsWith('prompt gives away'))) return e;
+  return { ...e, prompt: safe[lang] };
 }
 
 // The card shows its emoji on its own, so drop any copy of it inside the word ("red 🔴").

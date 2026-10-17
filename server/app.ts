@@ -10,7 +10,7 @@ import { Otp, type Purpose } from './otp.ts';
 import { Hono, type Context } from 'hono';
 import type { AI } from './ai/provider.ts';
 import { assignmentSummary, nextSteps, pupilAnswers, pupilRows, readableAnswer, summarise } from './insights.ts';
-import { cleanCard, draftComments, editSlide, intake, meaningless, NotALesson, readPhotos, shortenComment, tagError, type CommentRow } from './lesson/build.ts';
+import { cleanCard, safePrompt, draftComments, editSlide, intake, meaningless, NotALesson, readPhotos, shortenComment, tagError, type CommentRow } from './lesson/build.ts';
 import { illustrate } from './lesson/illustrate.ts';
 import { runLesson } from './lesson/job.ts';
 import { makeVideo } from './lesson/video.ts';
@@ -385,7 +385,7 @@ export function createApp(ai: AI, store: Store) {
     void runLesson(ai, store, l);                // background; the page polls GET /lessons/:id
     return c.json({ id: l.id }, 202);
   });
-  t.get('/lessons/:id', async (c) => { const l = await myLesson(c); return l ? c.json({ ...l, source: l.source === SAMPLE_SOURCE ? SAMPLE_TEXT : l.source, flashcards: l.flashcards.map(cleanCard) }) : bad(c, 'notFound', 404); });
+  t.get('/lessons/:id', async (c) => { const l = await myLesson(c); return l ? c.json({ ...l, source: l.source === SAMPLE_SOURCE ? SAMPLE_TEXT : l.source, exercises: l.exercises.map((e) => safePrompt(e, l.intake.lang)), flashcards: l.flashcards.map(cleanCard) }) : bad(c, 'notFound', 404); });
   t.put('/lessons/:id', async (c) => {
     const l = await myLesson(c);
     if (!l) return bad(c, 'notFound', 404);
@@ -492,7 +492,7 @@ export function createApp(ai: AI, store: Store) {
     const checks = (await Promise.all(given.map((a) => store.find<SelfCheck>('selfchecks', 'assignmentId', a.id)))).flat();
     const rows = detail ? pupilRows(l.skills, detail.pupils, atts.filter((a) => a.classId === classId), checks, tc.criteria) : [];
     return c.json({
-      lessons: lessons.map((x) => ({ id: x.id, title: x.intake.title })), lessonId: l.id, classId,
+      lessons: lessons.map((x) => ({ id: x.id, title: x.intake.title, subject: x.intake.subject })), lessonId: l.id, classId,
       classes: classes.map((k) => ({ id: k.id, name: k.name })), assigned: given.length > 0, pupils: rows,
       skills: l.skills.map((s) => ({ tag: s.tag, name: s.name })),
       overview: l.skills.map((s, i) => ({ skill: s.tag, name: s.name, byClass: Object.fromEntries(per.map((p) => [p.k.id, p.sums[i].pupils.length ? p.sums[i].classLabel : null])) })),
@@ -625,7 +625,7 @@ export function createApp(ai: AI, store: Store) {
       reminder: lastErr?.errorType || null,
       lesson: { title: l.intake.title, subject: l.intake.subject, grade: l.intake.grade, lang: l.intake.lang, skills: l.skills,
         slides: l.slides.map(({ notes: _n, source: _s, imagePrompt: _i, ...s }) => s), video: l.video?.status === 'ready' ? l.video.url : null, videoSeconds: l.video?.seconds,
-        exercises: l.exercises.map(forPupil), flashcards: l.flashcards.map(cleanCard), pairs: l.pairs },
+        exercises: l.exercises.map((e) => forPupil(safePrompt(e, l.intake.lang))), flashcards: l.flashcards.map(cleanCard), pairs: l.pairs },
       done: [...doneHere],
     });
   });
