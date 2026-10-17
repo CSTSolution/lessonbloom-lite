@@ -5,7 +5,7 @@ LessonBloom is a web app for Vietnamese primary-school teachers (Maths and Engli
 - **Pupils** join with a class code and tap their name. They practise and get a gentle hint when they slip. **No scores, no rankings.**
 - **The teacher sees which skills** each class has mastered and which mistakes keep coming back. Gemini drafts comments in the style of Circular 27/2020/TT-BGDĐT.
 
-This is our entry for the **Google Cloud AI Builder Cup 2026** (JAPAC, Hack2skill), team CSTSolution (Son, Chi), problem statement *Media, Content & Digital Experiences*.
+This is our entry for the **Google Cloud AI Builder Cup 2026** (JAPAC, Hack2skill), team CSTSolution (Son, Chi), problem statement *Future of Work & Enterprise Productivity*.
 
 - **Live:** <https://lessonbloom.cstsolution.com> (also <https://lessonbloom-148938648869.asia-southeast1.run.app>). Choose "Dùng thử ngay" to try a demo workspace without registering.
 - **Docs:**
