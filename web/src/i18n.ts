@@ -1,5 +1,5 @@
 // VI/EN for every screen. Each screen keeps its own small dictionary next to its code
-// (wording copied from Chi's canvas, docs/design/canvas) and reads it with useT(dict).
+// (wording from Chi's design) and reads it with useT(dict).
 import { useSyncExternalStore } from 'react';
 
 export type UiLang = 'vi' | 'en';

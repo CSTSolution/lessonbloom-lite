@@ -1,5 +1,4 @@
-// Sends the verification-code emails through Brevo SMTP from no-reply@example.com (the
-// domain is DKIM-signed for Brevo). The SMTP key comes from Secret Manager on Cloud Run
+// Sends the verification-code emails over SMTP (any provider; SMTP_SERVER, SMTP_USER, LB_MAIL_FROM). The SMTP key comes from Secret Manager on Cloud Run
 // (LB_SMTP_KEY); it is never in the repo. Without a key (local runs) the code is printed to
 // the server log instead, so the flow can be tested end to end.
 import nodemailer from 'nodemailer';
@@ -31,5 +30,5 @@ export async function sendCode(to: string, code: string, p: Purpose, lang: 'vi' 
   // plain text, code in the subject too (phones show it in the notification), no links
   const text = `${k.intro}\n\n    ${code}\n\n${t.expiry}\n\nLessonBloom`;
   if (!process.env.LB_SMTP_KEY) { console.log(`[mail] (no SMTP key) ${p} code for ${to}: ${code}`); return; }
-  await smtp().sendMail({ from: '"LessonBloom" <no-reply@example.com>', to, subject: k.subject(code), text });
+  await smtp().sendMail({ from: process.env.LB_MAIL_FROM || '"LessonBloom" <no-reply@example.com>', to, subject: k.subject(code), text });
 }

@@ -1,4 +1,4 @@
-// Shared shapes (Chi's data model, docs/design/LessonBloom_Luong_san_pham.pdf slide 11).
+// Shared shapes (Chi's data model).
 // Gemini returns lesson content as structured JSON; the web app renders it as-is.
 // Pupils: display name only. No scores anywhere; labels attach to a skill, never shown to pupils.
 

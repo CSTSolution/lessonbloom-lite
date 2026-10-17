@@ -1,5 +1,5 @@
 import { withCls } from '../i18n.ts';
-// Teacher-side wording, VI from Chi's canvas (docs/design/canvas/*.dc.html), EN to match.
+// Teacher-side wording, VI from Chi's canvas, EN to match.
 export const T = {
   vi: { loading: 'Đang tải…',
     editClass: 'Sửa lớp', deleteClass: 'Xoá lớp', delClassConfirm: (n: string) => `Xoá lớp ${n}? Danh sách học sinh, bài đã giao và kết quả của lớp sẽ bị xoá. Bài giảng vẫn giữ.`,

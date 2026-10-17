@@ -1,4 +1,4 @@
-/* Pupil screens (docs/design/screens 11–19): warm cream, big tap targets, a colour per activity.
+/* Pupil screens: warm cream, big tap targets, a colour per activity.
    Everything is scoped under .pupil-app so the teacher screens are untouched. */
 .pupil-app { --pupil-bg: #FFF8EF; --peach: #FFE7CC; --orange-line: #F2A65A; --wrong: #E07A1F; --purple-tile: #F1E9FA; --purple-ink: #5B3A8C;
   background: var(--pupil-bg); color: var(--ink); }

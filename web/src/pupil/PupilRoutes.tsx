@@ -1,4 +1,4 @@
-// Pupil side (docs/design/screens 11–19): /learn (join with class code), /learn/:pid (today's
+// Pupil side: /learn (join with class code), /learn/:pid (today's
 // lesson) and its activities: /video, /cards, /practice, /memory, /done.
 // Product rules: no scores, percentages, rankings or labels are ever shown to a pupil.
 import { Done } from './Done.tsx';

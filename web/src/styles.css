@@ -1,4 +1,4 @@
-/* LessonBloom design tokens, from Chi's canvas (docs/design/canvas). Teacher screens: calm
+/* LessonBloom design tokens, from Chi's design. Teacher screens: calm
    blue on light grey. Pupil screens: warm cream, big tap targets, a colour per activity. */
 @font-face { font-family: 'Be Vietnam Pro'; src: url('/fonts/BeVietnamPro-Regular.ttf'); font-weight: 400; font-display: swap; }
 @font-face { font-family: 'Be Vietnam Pro'; src: url('/fonts/BeVietnamPro-Medium.ttf'); font-weight: 500; font-display: swap; }
