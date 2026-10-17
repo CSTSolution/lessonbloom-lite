@@ -35,9 +35,9 @@ export function meaningless(source: string): boolean {
 
 export class NotALesson extends Error {}
 
-export async function intake(ai: AI, source: string): Promise<Intake> {
+export async function intake(ai: AI, source: string, lang: 'vi' | 'en' = 'vi'): Promise<Intake> {
   if (meaningless(source)) throw new NotALesson('meaningless');
-  const r = await ai.json<Intake & { usable?: boolean }>({ task: 'intake', tier: 'fast', system: INTAKE_SYSTEM, prompt: `DOCUMENT:\n${source}`, schema: INTAKE_SCHEMA, input: { source } });
+  const r = await ai.json<Intake & { usable?: boolean }>({ task: 'intake', tier: 'fast', system: fill(INTAKE_SYSTEM, { langName: LANG_NAME[lang] }), prompt: `DOCUMENT:\n${source}`, schema: INTAKE_SCHEMA, input: { source } });
   if (r.usable === false) throw new NotALesson('not lesson content');
   delete r.usable;
   const minutes = [15, 25, 35].reduce((b, m) => (Math.abs(m - (r.minutes || 25)) < Math.abs(b - (r.minutes || 25)) ? m : b), 25);

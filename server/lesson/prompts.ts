@@ -14,7 +14,7 @@ export const INTAKE_SYSTEM = `You help a Vietnamese primary-school teacher (grad
 Read the document and pre-fill the setup so the teacher only checks it:
 - subject "math" or "english"; grade 1-5 (infer from numbers/vocabulary if not stated)
 - title: the lesson title in the document's language
-- objectives: 1-2 short learning objectives in Vietnamese ("Học sinh biết ...")
+- objectives: 1-2 short learning objectives in {{langName}}, the teacher's language (Vietnamese: "Học sinh biết ..."; English: "Pupils can ...")
 - minutes: 15, 25 or 35
 - level: "basic", "good", "advanced", or "mixed" when the class has all levels (default "mixed")
 - lang: "vi" for maths, "en" for English lessons

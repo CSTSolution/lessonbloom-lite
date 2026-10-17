@@ -100,7 +100,7 @@ export const teacherApi = {
   rename: (name: string) => tc<Teacher>('PUT', '/me', { name }),
   saveProfile: (p: { name?: string; subject?: 'math' | 'english' | 'both' }) => tc<Teacher>('PUT', '/me', p),
   ocr: (images: { data: string; type: string }[]) => tc<{ text: string; max: number }>('POST', '/ocr', { images }),
-  intake: (source: string) => tc<Intake>('POST', '/intake', { source }),
+  intake: (source: string) => tc<Intake>('POST', '/intake', { source, lang: getLang() }),
   create: (source: string, intake: Intake, files: string[] = []) => tc<{ id: string }>('POST', '/lessons', { source, intake, files }),
   lesson: (id: string) => tc<Lesson>('GET', `/lessons/${id}`),
   save: (id: string, patch: Partial<Pick<Lesson, 'slides' | 'exercises' | 'flashcards' | 'pairs'>>) => tc<Lesson>('PUT', `/lessons/${id}`, patch),

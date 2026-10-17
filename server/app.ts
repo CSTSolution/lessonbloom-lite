@@ -348,11 +348,11 @@ export function createApp(ai: AI, store: Store) {
     })));
   });
   t.post('/intake', async (c) => {
-    const { source } = await c.req.json<{ source: string }>();
+    const { source, lang } = await c.req.json<{ source: string; lang?: string }>();
     if (!source?.trim() || source.trim().length < 30) return bad(c, 'sourceShort');
     if (meaningless(source)) return bad(c, 'notLesson');
     const stop = await guard(c, 'intake'); if (stop) return stop;
-    try { return c.json(await intake(ai, source.slice(0, MAX_SOURCE))); }
+    try { return c.json(await intake(ai, source.slice(0, MAX_SOURCE), lang === 'en' ? 'en' : 'vi')); }
     catch (e) { if (e instanceof NotALesson) return bad(c, 'notLesson'); throw e; }
   });
   // step 1 by photo: up to 5 photos per lesson, downscaled in the browser; Gemini copies out the text
