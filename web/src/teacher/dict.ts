@@ -1,4 +1,4 @@
-import { withCls } from '../i18n.ts';
+import { withCls, nOf } from '../i18n.ts';
 // Teacher-side wording, VI from Chi's canvas, EN to match.
 export const T = {
   vi: { loading: 'Đang tải…',
@@ -69,7 +69,7 @@ export const T = {
   en: { loading: 'Loading…',
     editClass: 'Edit class', deleteClass: 'Delete class', delClassConfirm: (n: string) => `Delete class ${n}? Its pupil list, assignments and results will be deleted. Lessons stay.`,
     rename: 'Rename', removePupil: 'Remove from class', delPupilConfirm: (n: string) => `Remove ${n} from the class? Their answers are deleted too.`,
-    pupilOf: (k: string) => `Pupil in ${k}`, backClass: '‹ Back to class', pAnswered: (n: number, s: number) => `${n} answers · ${s} practice sessions`, pNone: 'No work yet.', pLast: 'Last time',
+    pupilOf: (k: string) => `Pupil in ${k}`, backClass: '‹ Back to class', pAnswered: (n: number, s: number) => `${nOf(n, 'answer')} · ${nOf(s, 'practice session')}`, pNone: 'No work yet.', pLast: 'Last time',
     pMood: 'Self-check', moods: { easy: 'Easy', ok: 'OK', hard: 'Hard' }, pMistakes: 'Recent mistakes', pSkills: 'By skill', pNoLessons: 'Nothing has been assigned to this class yet.', viewPupil: 'View progress',
     copyLesson: 'Duplicate', deleteLesson: 'Delete lesson', delLessonConfirm: 'Delete this lesson? Its assignments and the pupils’ results for it are deleted too.', copiedLesson: 'Copy created.', copiedHint: 'You are now viewing the copy (its title ends in "copy"); rename it if you like. The original is unchanged.',
     alsoAssign: 'Also assign to:', assignedMany: (n: string) => `Assigned to ${n}.`,

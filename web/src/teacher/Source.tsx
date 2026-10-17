@@ -2,7 +2,7 @@
 // was built from, and the answers to the setup questions. Changing them would not change the
 // slides already made, so instead the teacher can start a new lesson from the same text.
 import { go, type Lesson } from '../api.ts';
-import { useLang, useT } from '../i18n.ts';
+import { useLang, useT, nOf } from '../i18n.ts';
 import { T } from './dict.ts';
 
 const S = {
@@ -14,7 +14,7 @@ const S = {
   en: {
     docTitle: 'Document used', docSub: 'This lesson was made from the text below.', qTitle: 'Answers given', qSub: 'The choices made when the lesson was created.',
     readOnly: 'View only: changing these would not change the slides and exercises already made. To change the content, edit it in the Slides or Exercises step, or start a new lesson from this document.',
-    files: 'Uploaded files', pasted: 'Pasted directly (no file)', words: (n: number) => `${n} words`, reuse: 'New lesson from this document', none: 'None', made: 'Created',
+    files: 'Uploaded files', pasted: 'Pasted directly (no file)', words: (n: number) => nOf(n, 'word'), reuse: 'New lesson from this document', none: 'None', made: 'Created',
   },
 };
 

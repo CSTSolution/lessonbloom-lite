@@ -3,7 +3,7 @@
 // what the child did today (never a score), to share with the family. Confetti once.
 import { useEffect, useState } from 'react';
 import { go, pupilApi, type NextStep } from '../api.ts';
-import { useLang, useT } from '../i18n.ts';
+import { useLang, useT, nOf } from '../i18n.ts';
 import { shareMessage } from '../teacher/share.ts';
 import { Confetti, Star, TopBar, markFinished, useLearn, visited } from './shared.tsx';
 
@@ -19,12 +19,12 @@ const D = {
     felt: (m: string) => `Con thấy bài: ${m}`, parentNote: 'Cô giáo đã nhận được bài làm của con. Bố mẹ khen con một câu nhé!', share: 'Gửi cho gia đình', shared: 'Đã chép lời nhắn, bố mẹ dán vào Zalo nhé.',
     shareMsg: (n: string, l: string, items: string[]) => `🎉 ${n} đã học xong bài “${l}” trên LessonBloom: ${items.join(', ').toLocaleLowerCase('vi')}.` },
   en: { done: 'All done!', sub: 'You worked really hard. Here is what we suggest next:', subNone: 'You worked really hard. Well done!',
-    same: 'More of the same type', harder: 'Advanced challenge', go: 'Start now', nQ: (n: number) => `${n} questions`,
+    same: 'More of the same type', harder: 'Advanced challenge', go: 'Start now', nQ: (n: number) => nOf(n, 'question'),
     sameB: (r?: string) => (r ? `You often had trouble with: ${r}. A little more practice and you’ve got it!` : 'A little more practice and you’ve got it!'),
     harderB: 'You are steady on this. Try something harder!',
     selfQ: 'How did today feel?', moods: { easy: 'Easy', ok: 'Just right', hard: 'Hard' }, thanks: 'Thanks for telling us!', home: 'Back to the lesson', loading: 'Picking your next practice…',
     parentH: 'Dear parents!', parentB: (n: string, l: string, d: string) => `${n} finished the lesson “${l}” today (${d}). Today they:`,
-    did: { video: 'Watched the lesson video', cards: (k: number) => `Reviewed ${k} flashcards`, practice: (k: number) => `Did ${k} exercises`, memory: 'Played the memory game' },
+    did: { video: 'Watched the lesson video', cards: (k: number) => `Reviewed ${nOf(k, 'flashcard')}`, practice: (k: number) => `Did ${nOf(k, 'exercise')}`, memory: 'Played the memory game' },
     felt: (m: string) => `How it felt: ${m}`, parentNote: 'The teacher has received the work. A word of praise goes a long way!', share: 'Share with the family', shared: 'Message copied; paste it into your family chat.',
     shareMsg: (n: string, l: string, items: string[]) => `🎉 ${n} finished “${l}” on LessonBloom: ${items.join(', ').toLowerCase()}.` },
 };

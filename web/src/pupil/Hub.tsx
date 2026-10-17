@@ -1,7 +1,7 @@
 // Screen 12: today's lesson. Four activities and how far the pupil has got through them today
 // (which activities they opened, not how well they did).
 import { go } from '../api.ts';
-import { useT, withCls } from '../i18n.ts';
+import { useT, withCls, nOf } from '../i18n.ts';
 import { practiceSet } from './Practice.tsx';
 import { Empty, Gate, TopBar, finished, useLearn, visited, type Activity } from './shared.tsx';
 
@@ -16,9 +16,9 @@ const D = {
     noneH: 'Cô chưa giao bài nào', noneB: 'Khi cô giao bài mới, bài sẽ hiện ở đây. Con quay lại sau nhé!' },
   en: { hi: 'Hi', cls: 'Class', subj: { math: 'Math', english: 'English' }, grade: 'Grade', today: 'Today:', remindB: 'Remember!',
     remind: (r: string) => `Last time you often had trouble with: ${r}. Let’s watch out for it today.`,
-    progress: 'Your progress today', progressAria: (a: number, b: number) => `${a} of ${b} parts opened`,
+    progress: 'Your progress today', progressAria: (a: number, b: number) => `${a} of ${nOf(b, 'part')} opened`,
     video: 'Watch video', cards: 'Flashcards', practice: 'Exercises', memory: 'Memory game',
-    min: (m: number) => `${m} min`, slides: (n: number) => `${n} slides`, nCards: (n: number) => `${n} cards`, nQ: (n: number) => `${n} questions`, pairs: (n: number) => `Find ${n} pairs`,
+    min: (m: number) => `${m} min`, slides: (n: number) => nOf(n, 'slide'), nCards: (n: number) => nOf(n, 'card'), nQ: (n: number) => nOf(n, 'question'), pairs: (n: number) => `Find ${nOf(n, 'pair')}`,
     watched: 'watched', doneTag: 'done', tried: 'done', played: 'played',
     finH: 'You finished today’s lesson! 🎉', finB: 'Tap to see your praise. You can still practise more.',
     noneH: 'No lesson yet', noneB: 'When your teacher gives you a lesson, it will show up here. Come back later!' },

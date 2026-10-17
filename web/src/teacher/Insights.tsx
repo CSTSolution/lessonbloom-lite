@@ -3,7 +3,7 @@
 // comment drafts the teacher edits and copies. No scores anywhere.
 import { useEffect, useState } from 'react';
 import { teacherApi, type Comments as Cm, type Insights as Ins, type Label } from '../api.ts';
-import { useLang, useT, withCls } from '../i18n.ts';
+import { useLang, useT, withCls, nOf } from '../i18n.ts';
 import { LABEL_KEY, T } from './dict.ts';
 import { Link } from './TeacherRoutes.tsx';
 import { ErrorNote } from './ErrorNote.tsx';
@@ -31,7 +31,7 @@ const C = {
     count: (n: number) => `${n} em`, felt: { easy: '😊 Dễ', ok: '🙂 Vừa', hard: '😟 Khó' } as Record<string, string> },
   en: { none: 'No answers yet to comment on. When pupils do the lesson, suggestions appear here on their own.', waiting: (n: string[]) => `Not started: ${n.join(', ')}.`,
     auto: (n: number) => `The AI is drafting comments for ${n} pupils…`, stale: 'New answers since these were drafted.', shorter: 'Shorter', shortening: 'Shortening…', saved: 'Saved',
-    count: (n: number) => `${n} pupils`, felt: { easy: '😊 Easy', ok: '🙂 Just right', hard: '😟 Hard' } as Record<string, string> },
+    count: (n: number) => nOf(n, 'pupil'), felt: { easy: '😊 Easy', ok: '🙂 Just right', hard: '😟 Hard' } as Record<string, string> },
 };
 function CommentsCard({ d }: { d: Ins }) {
   const t = useT(T), c = useT(C), lang = useLang();
@@ -142,7 +142,7 @@ const S19 = {
     barNote: 'Mỗi ô là số dạng bài ở mức đó. Không so sánh học sinh.', p2: 'Chi tiết từng lớp', p2sub: 'Bảng, biểu đồ và các mục bên dưới chỉ tính lớp đang chọn.',
     all: 'Tất cả', filterNote: 'Bấm một mức để lọc bảng bên cạnh.', noData: 'Chưa có lượt làm bài cho bài này.', none: 'Không có dạng bài ở mức này.' },
   en: { sub: (subj: string, t: string) => `${subj} · ${t}`, applies: 'Applies to both parts below',
-    p1: 'Overview of all your classes', p1sub: (k: number, s: number) => `${k} classes · ${s} skills · counted by skill, not by pupil`,
+    p1: 'Overview of all your classes', p1sub: (k: number, s: number) => `${nOf(k, 'class', 'classes')} · ${nOf(s, 'skill')} · counted by skill, not by pupil`,
     pie: 'Skills by level', pieAll: 'all classes', unit: 'skill results', unitCls: 'skills', byClass: 'By class', see: 'See details ›',
     barNote: 'Each block is the number of skills at that level. Pupils are not compared.', p2: 'Class detail', p2sub: 'The table, chart and sections below count the chosen class only.',
     all: 'All', filterNote: 'Tap a level to filter the table next to it.', noData: 'No answers yet for this lesson.', none: 'No skills at this level.' },

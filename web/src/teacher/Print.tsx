@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Exercise, Lesson, Level } from '../api.ts';
-import { useT } from '../i18n.ts';
+import { useT, nOf } from '../i18n.ts';
 import { T } from './dict.ts';
 import { SlideView } from './Slides.tsx';
 
@@ -20,7 +20,7 @@ const P = {
     title: 'Print or save as PDF', sub: 'Choose what to print. In the print dialog, choose "Save as PDF" to get a file.',
     slides: 'Lesson slides', notes: 'With teacher notes', sheet: 'Worksheet', templates: 'Templates', levels: 'Levels', nameLine: '"Name / Class" line at the top',
     key: 'Answer key with solutions (separate page)', cards: 'Flashcards to cut out', print: 'Print / Save PDF', close: 'Close', none: 'Choose at least one thing to print.', noItems: 'No items for the chosen templates and levels.',
-    count: (n: number) => `${n} items`, pick: 'Choose questions', pickHide: 'Hide the question list', all: 'Print everything', allSub: 'Slides with notes, a worksheet with every question, the answer key and flashcards', sheetH: 'Worksheet', keyH: 'Answer key', cardsH: 'Flashcards', name: 'Name:', cls: 'Class:', date: 'Date:',
+    count: (n: number) => nOf(n, 'item'), pick: 'Choose questions', pickHide: 'Hide the question list', all: 'Print everything', allSub: 'Slides with notes, a worksheet with every question, the answer key and flashcards', sheetH: 'Worksheet', keyH: 'Answer key', cardsH: 'Flashcards', name: 'Name:', cls: 'Class:', date: 'Date:',
     answer: 'Answer:', tf: ['True', 'False'], listenFor: (w: string) => `Teacher reads: “${w}”`, listen: 'Listen to your teacher, then circle the right word.', match: 'Match each word to the right picture.', order: 'Put the words in the right order.', explain: 'Solution:',
   },
 };

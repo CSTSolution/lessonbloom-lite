@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react';
 import { accountApi, goRegister, teacherApi, type ClassCard, type Teacher } from '../api.ts';
 import { authError, changePassword, signIn, useAuth } from '../auth.ts';
-import { useLang, useT, withCls } from '../i18n.ts';
+import { useLang, useT, withCls, nOf } from '../i18n.ts';
 import { LangToggle } from '../main.tsx';
 import { T } from './dict.ts';
 import { Link } from './TeacherRoutes.tsx';
@@ -35,7 +35,7 @@ const A = {
     same: 'The new password must be different from the current one.', codeShort: 'Please enter all 6 digits from the email.', show: 'Show', hide: 'Hide',
     demoNote: 'This is a trial workspace with no password. For a password, 30 AI credits a day and lessons kept for good, register a free account (trial lessons do not move over).', register: 'Register a free account', busy: 'Saving…',
     subjH: 'Subject you teach', subjSub: 'Used as the default when you create a lesson or a class.', subj: { math: 'Maths', english: 'English', both: 'Both' }, subjSaved: 'Subject saved.',
-    classesH: 'Your classes', noClasses: 'No classes yet.', manage: 'Manage classes ›', pupilsN: (n: number) => `${n} pupils`,
+    classesH: 'Your classes', noClasses: 'No classes yet.', manage: 'Manage classes ›', pupilsN: (n: number) => nOf(n, 'pupil'),
     langH: 'Interface language', loginH: 'Sign-in', loginAcc: (e: string) => `You sign in with ${e} and a password.`, loginDemo: 'Trial workspace, no sign-in; lessons are kept in this browser only.', signOut: 'Sign out',
   },
 };
