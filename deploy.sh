@@ -3,6 +3,9 @@
 # Usage: ./deploy.sh            (first run also enables APIs and creates the bucket and database)
 # Needs: gcloud auth login, Owner on the project. Costs: pay-per-use, within free tiers at demo scale.
 set -euo pipefail
+# Your own settings (PROJECT, ADMIN_EMAILS, SMTP_USER, SMTP_SERVER, LB_MAIL_FROM) can live in a private file outside the repo
+SETTINGS="${LB_DEPLOY_ENV:-$HOME/.config/lessonbloom/deploy.env}"
+if [ -f "$SETTINGS" ]; then set -a; . "$SETTINGS"; set +a; fi
 PROJECT=${PROJECT:?set PROJECT=<your-project-id>}
 REGION=${REGION:-asia-southeast1}
 SERVICE=${SERVICE:-lessonbloom}

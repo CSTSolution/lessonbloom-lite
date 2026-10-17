@@ -64,6 +64,8 @@ Without Firebase settings, only the demo workspace exists. That is enough to try
 
 **Deploy**
 
+You can keep your settings in `~/.config/lessonbloom/deploy.env` (outside the repo; `deploy.sh` reads it), for example `PROJECT=...`, `ADMIN_EMAILS=...`, `SMTP_USER=...`, `SMTP_SERVER=...`, `LB_MAIL_FROM=...`. Or pass them on the command line:
+
 ```bash
 PROJECT=<your-project-id> ADMIN_EMAILS=you@example.com ./deploy.sh
 ```
