@@ -114,9 +114,9 @@ export const teacherApi = {
   verify: (code: string) => tc<{ verified: true }>('POST', '/verify', { code }),
   assignmentSummary: (aid: string) => tc<AssignmentSummaryT>('GET', `/assignments/${aid}/summary`),
   assignmentPupil: (aid: string, pid: string) => tc<PupilQuestions>('GET', `/assignments/${aid}/pupils/${pid}`),
-  comments: (lessonId: string, classId: string) => tc<Comments>('GET', `/insights/comments?lessonId=${encodeURIComponent(lessonId)}&classId=${encodeURIComponent(classId)}`),
-  draftComments: (lessonId: string, classId: string) => tc<Comments>('POST', '/insights/comments', { lessonId, classId }),
-  saveComment: (lessonId: string, classId: string, pupilId: string, text: string) => tc<{ ok: true }>('PUT', '/insights/comments', { lessonId, classId, pupilId, text }),
+  comments: (lessonId: string, classId: string) => tc<Comments>('GET', `/insights/comments?lessonId=${encodeURIComponent(lessonId)}&classId=${encodeURIComponent(classId)}&lang=${getLang()}`),
+  draftComments: (lessonId: string, classId: string) => tc<Comments>('POST', '/insights/comments', { lessonId, classId, lang: getLang() }),
+  saveComment: (lessonId: string, classId: string, pupilId: string, text: string) => tc<{ ok: true }>('PUT', '/insights/comments', { lessonId, classId, pupilId, text, lang: getLang() }),
   shorterComment: (text: string) => tc<{ text: string }>('POST', '/insights/comments/shorter', { text }),
 };
 
@@ -141,7 +141,7 @@ export const pupilApi = {
   roster: (code: string) => call<{ className: string; pupils: { id: string; name: string }[] }>('GET', `/api/join/${encodeURIComponent(code.trim())}`),
   join: (code: string, pupilId: string) => call<{ pupilId: string; name: string; className: string }>('POST', '/api/join', { code, pupilId }),
   learn: (pid: string) => call<Learn>('GET', `/api/learn/${pid}`),
-  answer: (pid: string, b: { assignmentId: string; exerciseId: string; answer: string; session: string }) => call<AnswerResult>('POST', `/api/learn/${pid}/answer`, b),
+  answer: (pid: string, b: { assignmentId: string; exerciseId: string; answer: string; session: string }) => call<AnswerResult>('POST', `/api/learn/${pid}/answer`, { ...b, lang: getLang() }),
   next: (pid: string) => call<NextStep[]>('GET', `/api/learn/${pid}/next`),
   visit: (pid: string, part: 'video' | 'cards' | 'practice' | 'memory') => call<{ ok: true }>('POST', `/api/learn/${pid}/visit`, { part }),
   selfcheck: (pid: string, mood: 'easy' | 'ok' | 'hard' | null) => call<{ ok: true }>('POST', `/api/learn/${pid}/selfcheck`, { mood }),

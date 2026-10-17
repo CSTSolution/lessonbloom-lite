@@ -34,7 +34,7 @@ const C = {
     count: (n: number) => `${n} pupils`, felt: { easy: '😊 Easy', ok: '🙂 Just right', hard: '😟 Hard' } as Record<string, string> },
 };
 function CommentsCard({ d }: { d: Ins }) {
-  const t = useT(T), c = useT(C);
+  const t = useT(T), c = useT(C), lang = useLang();
   const [x, setX] = useState<Cm | null>(null), [busy, setBusy] = useState(''), [err, setErr] = useState(''), [copied, setCopied] = useState('');
   const [text, setText] = useState<Record<string, string>>({});
   const run = async (k: string, fn: () => Promise<void>) => { setErr(''); setBusy(k); try { await fn(); } catch (e) { setErr((e as Error).message); } finally { setBusy(''); } };
@@ -49,7 +49,7 @@ function CommentsCard({ d }: { d: Ins }) {
       if (!r.comments && r.ready > 0) draft();       // answers but no drafts yet: draft them now
     }, (e) => live && setErr((e as Error).message));
     return () => { live = false; };
-  }, [d.lessonId, d.classId]);
+  }, [d.lessonId, d.classId, lang]);
   const copy = (s: string, key: string) => { navigator.clipboard?.writeText(s).catch(() => {}); setCopied(key); setTimeout(() => setCopied(''), 1500); };
   const save = (pid: string) => { const v = text[pid]; if (v !== undefined) teacherApi.saveComment(d.lessonId, d.classId, pid, v).catch(() => {}); };
   const shorter = (pid: string) => run(`s-${pid}`, async () => { const r = await teacherApi.shorterComment(text[pid]); setText((m) => ({ ...m, [pid]: r.text })); await teacherApi.saveComment(d.lessonId, d.classId, pid, r.text); });

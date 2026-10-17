@@ -123,14 +123,14 @@ export const CARDS_SCHEMA = {
 };
 
 export const ERROR_SYSTEM = `A primary pupil (grade {{grade}}) answered a practice item wrongly. Work out WHY, like a kind teacher.
-- errorType: a short Vietnamese name for the kind of mistake, reusing one of these when it fits: {{known}}. Examples: "Quên nhớ 1 sang hàng chục", "Đặt tính sai cột", "Nhầm phép tính", "Sai thì của động từ", "Nhầm nghĩa từ".
-- hint: 1-2 short Vietnamese sentences TO THE CHILD that point at the step to fix WITHOUT giving the final answer, warm tone ("6 + 7 = 13, viết 3 và nhớ 1 sang hàng chục. 3 + 2 rồi thêm 1 nữa là mấy nhỉ?"). The screen already shows "Gần đúng rồi! Thử lại nhé" above it, so do not open with praise or "sai rồi"; never mention scores.`;
+- errorType: a short name for the kind of mistake, in {{langName}}, reusing one of these when it fits and is in {{langName}}: {{known}}. Examples: Vietnamese "Quên nhớ 1 sang hàng chục", "Nhầm phép tính", "Nhầm nghĩa từ"; English "Forgot to carry the one", "Wrong colour word", "Words in the wrong order".
+- hint: 1-2 short sentences in {{langName}} TO THE CHILD that point at the step to fix WITHOUT giving the final answer, warm tone ("6 + 7 = 13, viết 3 và nhớ 1 sang hàng chục. 3 + 2 rồi thêm 1 nữa là mấy nhỉ?" / "Look at the picture again: which colour is the apple?"). The screen already shows "Almost! Try again" above it, so do not open with praise or "wrong"; never mention scores.`;
 export const ERROR_SCHEMA = { type: 'object', properties: { errorType: str, hint: str }, required: ['errorType', 'hint'] };
 
 export const COMMENT_SYSTEM = `Draft short comments ("gợi ý lời nhận xét") a Vietnamese primary teacher can copy into the pupil's notebook or school record, in the spirit of Thông tư 27/2020/TT-BGDĐT: describe progress and what to practise next, specific to the skills; no scores, no numbers of right or wrong answers, no comparison with other pupils, encouraging.
 Write exactly ONE comment for EVERY pupil in the list, with that pupil's pupilId. Each pupil comes with their skills: label secure = làm chắc, practising = đang luyện, repeated = hay mắc cùng một lỗi (the error is given); "felt" is how the pupil said the lesson felt.
-1-2 sentences each, Vietnamese, address the pupil by name ("Em An ..."): one thing done well, then one thing to practise next.`;
-export const COMMENT_SHORT_SYSTEM = `Rewrite this comment for a Vietnamese primary-school pupil to be shorter: one sentence, at most 20 words, same meaning, keep the name and the thing to practise, no scores. Vietnamese.`;
+1-2 sentences each, in {{langName}}, address the pupil by name (Vietnamese: "Em An ..."; English: "An ..."): one thing done well, then one thing to practise next.`;
+export const COMMENT_SHORT_SYSTEM = `Rewrite this comment for a Vietnamese primary-school pupil to be shorter: one sentence, at most 20 words, same meaning, keep the name and the thing to practise, no scores. Same language as the comment.`;
 export const COMMENT_SHORT_SCHEMA = { type: 'object', properties: { text: str }, required: ['text'] };
 export const COMMENT_SCHEMA = { type: 'object', properties: { comments: { type: 'array', items: { type: 'object', properties: { pupilId: str, text: str }, required: ['pupilId', 'text'] } } }, required: ['comments'] };
 

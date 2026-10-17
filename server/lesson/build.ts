@@ -184,20 +184,20 @@ export async function makeCards(ai: AI, source: string, it: Intake): Promise<{ f
   return { flashcards: (r.flashcards || []).slice(0, 12).map((c, i) => cleanCard({ ...c, id: `fc${pad(i + 1)}` })), pairs: pairs.map((p, i) => ({ ...p, id: `mp${i + 1}` })) };
 }
 
-export async function tagError(ai: AI, ex: Exercise, given: string, grade: number, known: string[]): Promise<{ errorType: string; hint: string }> {
+export async function tagError(ai: AI, ex: Exercise, given: string, grade: number, known: string[], lang: 'vi' | 'en' = 'vi'): Promise<{ errorType: string; hint: string }> {
   const correct = ex.type === 'eng_match' ? JSON.stringify(Object.fromEntries(ex.pairs.map((p) => [p.word, p.emoji]))) : (ex as { answer: string }).answer;
-  return ai.json({ task: 'error', tier: 'fast', system: fill(ERROR_SYSTEM, { grade, known: known.length ? known.map((k) => `"${k}"`).join(', ') : '(none yet)' }),
+  return ai.json({ task: 'error', tier: 'fast', system: fill(ERROR_SYSTEM, { grade, langName: LANG_NAME[lang], known: known.length ? known.map((k) => `"${k}"`).join(', ') : '(none yet)' }),
     prompt: `ITEM:\n${JSON.stringify(ex)}\nCORRECT ANSWER: ${correct}\nPUPIL'S ANSWER: ${given}`, schema: ERROR_SCHEMA, input: { ex, given } });
 }
 
 export interface CommentRow { pupilId: string; name: string; skills: { skill: string; label: string; error?: string }[]; felt?: string }
 // one comment per pupil who did the lesson; a pupil the model skipped gets a plain fallback rather than nothing
-export async function draftComments(ai: AI, lessonTitle: string, rows: CommentRow[]): Promise<{ pupilId: string; text: string }[]> {
+export async function draftComments(ai: AI, lessonTitle: string, rows: CommentRow[], lang: 'vi' | 'en' = 'vi'): Promise<{ pupilId: string; text: string }[]> {
   if (!rows.length) return [];
-  const r = await ai.json<{ comments: { pupilId: string; text: string }[] }>({ task: 'comments', tier: 'fast', system: COMMENT_SYSTEM,
+  const r = await ai.json<{ comments: { pupilId: string; text: string }[] }>({ task: 'comments', tier: 'fast', system: fill(COMMENT_SYSTEM, { langName: LANG_NAME[lang] }),
     prompt: `LESSON: ${lessonTitle}\nPUPILS:\n${JSON.stringify(rows)}`, schema: COMMENT_SCHEMA, input: { rows } });
   const got = new Map(r.comments.map((x) => [x.pupilId, x.text]));
-  return rows.map((p) => ({ pupilId: p.pupilId, text: got.get(p.pupilId) || `Em ${p.name} đã hoàn thành bài "${lessonTitle}". Cô và em cùng luyện thêm để em làm chắc hơn nhé.` }));
+  return rows.map((p) => ({ pupilId: p.pupilId, text: got.get(p.pupilId) || (lang === 'en' ? `${p.name} finished the lesson "${lessonTitle}". A little more practice will make it even more secure.` : `Em ${p.name} đã hoàn thành bài "${lessonTitle}". Cô và em cùng luyện thêm để em làm chắc hơn nhé.`) }));
 }
 export async function shortenComment(ai: AI, text: string): Promise<string> {
   const r = await ai.json<{ text: string }>({ task: 'comments', tier: 'fast', system: COMMENT_SHORT_SYSTEM, prompt: text, schema: COMMENT_SHORT_SCHEMA, input: { shorter: text } });

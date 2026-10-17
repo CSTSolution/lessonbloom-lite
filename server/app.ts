@@ -530,7 +530,7 @@ export function createApp(ai: AI, store: Store) {
   // "Gợi ý lời nhận xét": one comment for every pupil who did the lesson, kept per lesson + class (with the
   // teacher's edits) and drafted again only when new answers came in or the teacher asks
   type Drafts = { id: string; fp: string; at: string; comments: { pupilId: string; text: string }[] };
-  const commentData = async (c: Context<Env>, lessonId: string, classId: string) => {
+  const commentData = async (c: Context<Env>, lessonId: string, classId: string, lang: 'vi' | 'en' = 'vi') => {   // drafts follow the teacher's interface language
     const tc = c.get('teacher'), l = await store.get<Lesson>('lessons', lessonId), k = await myClass(c, classId);
     if (!l || l.teacherId !== tc.id || !k) return null;
     const pupils = await store.find<Pupil>('pupils', 'classId', k.id);
@@ -543,30 +543,30 @@ export function createApp(ai: AI, store: Store) {
       skills: sums.flatMap((s) => s.pupils.filter((x) => x.pupilId === p.id).map((x) => ({ skill: s.skillName, label: x.label, error: x.topError }))),
     }));
     const fp = `${atts.length}-${atts.map((a) => a.at).sort().pop() || ''}`;
-    return { l, k, rows, fp, waiting: pupils.filter((p) => !rows.some((r) => r.pupilId === p.id)).map((p) => p.displayName), key: `comments-${l.id}-${k.id}` };
+    return { l, k, rows, fp, waiting: pupils.filter((p) => !rows.some((r) => r.pupilId === p.id)).map((p) => p.displayName), key: `comments-${l.id}-${k.id}${lang === 'en' ? '-en' : ''}`, lang };
   };
   const commentBody = (x: NonNullable<Awaited<ReturnType<typeof commentData>>>, d: Drafts | null) => ({
     comments: d ? d.comments.filter((m) => x.rows.some((r) => r.pupilId === m.pupilId)).map((m) => ({ ...m, ...x.rows.find((r) => r.pupilId === m.pupilId)! })) : null,
     stale: !!d && d.fp !== x.fp, ready: x.rows.length, waiting: x.waiting, at: d?.at || null,
   });
   t.get('/insights/comments', async (c) => {
-    const x = await commentData(c, c.req.query('lessonId') || '', c.req.query('classId') || '');
+    const x = await commentData(c, c.req.query('lessonId') || '', c.req.query('classId') || '', c.req.query('lang') === 'en' ? 'en' : 'vi');
     if (!x) return bad(c, 'notFound', 404);
     return c.json(commentBody(x, await store.get<Drafts>('cache', x.key)));
   });
   t.post('/insights/comments', async (c) => {
-    const { lessonId, classId } = await c.req.json<{ lessonId: string; classId: string }>();
-    const x = await commentData(c, lessonId, classId);
+    const { lessonId, classId, lang } = await c.req.json<{ lessonId: string; classId: string; lang?: string }>();
+    const x = await commentData(c, lessonId, classId, lang === 'en' ? 'en' : 'vi');
     if (!x) return bad(c, 'notFound', 404);
     if (!x.rows.length) return c.json(commentBody(x, null));            // nobody has answered yet: nothing to draft, nothing charged
     const stop = await guard(c, 'comments'); if (stop) return stop;
-    const d: Drafts = { id: x.key, fp: x.fp, at: new Date().toISOString(), comments: await draftComments(ai, x.l.intake.title, x.rows.slice(0, 45)) };
+    const d: Drafts = { id: x.key, fp: x.fp, at: new Date().toISOString(), comments: await draftComments(ai, x.l.intake.title, x.rows.slice(0, 45), x.lang) };
     await store.put('cache', d);
     return c.json(commentBody(x, d));
   });
   t.put('/insights/comments', async (c) => {                             // the teacher's edit of one comment
-    const { lessonId, classId, pupilId, text } = await c.req.json<{ lessonId: string; classId: string; pupilId: string; text: string }>();
-    const x = await commentData(c, lessonId, classId);
+    const { lessonId, classId, pupilId, text, lang } = await c.req.json<{ lessonId: string; classId: string; pupilId: string; text: string; lang?: string }>();
+    const x = await commentData(c, lessonId, classId, lang === 'en' ? 'en' : 'vi');
     const d = x && await store.get<Drafts>('cache', x.key);
     if (!x || !d) return bad(c, 'notFound', 404);
     d.comments = d.comments.map((m) => (m.pupilId === pupilId ? { ...m, text: String(text).slice(0, 600) } : m));
@@ -631,7 +631,8 @@ export function createApp(ai: AI, store: Store) {
   });
   app.post('/api/learn/:pid/answer', async (c) => {
     const x = await pupilCtx(c.req.param('pid'));
-    const b = await c.req.json<{ assignmentId: string; exerciseId: string; answer: string; session: string }>();
+    const b = await c.req.json<{ assignmentId: string; exerciseId: string; answer: string; session: string; lang?: string }>();
+    const lang = b.lang === 'en' ? 'en' : 'vi';   // the pupil's interface language: hint and mistake name follow it
     if (!x || !x.l || !x.a || b.assignmentId !== x.a.id) return bad(c, 'notFound', 404);
     const e = x.l.exercises.find((q) => q.id === b.exerciseId);
     if (!e) return bad(c, 'notFound', 404);
@@ -639,19 +640,19 @@ export function createApp(ai: AI, store: Store) {
     let errorType: string | undefined, hint: string | undefined;
     if (!correct) {
       // why is it wrong? Gemini, cached per (lesson, item, answer) so a class making the same slip costs one call
-      const key = createHash('sha1').update(`${x.l.id}|${e.id}|${clean(answer)}`).digest('hex').slice(0, 24);
+      const key = createHash('sha1').update(`${x.l.id}|${e.id}|${clean(answer)}|${lang}`).digest('hex').slice(0, 24);
       let tag = await store.get<{ id: string; errorType: string; hint: string }>('cache', key);
       if (!tag) {
         const known = [...new Set((await store.find<Attempt>('attempts', 'lessonId', x.l.id)).map((a) => a.errorType).filter(Boolean) as string[])].slice(0, 12);
         const allowed = !(await spend.charge('errorTag'));
-        try { tag = allowed ? { id: key, ...(await ctx.run({ teacherId: x.k.teacherId }, () => tagError(ai, e, answer, x.l!.intake.grade, known))) } : { id: key, errorType: '', hint: '' }; if (allowed) await store.put('cache', tag); } catch { tag = { id: key, errorType: '', hint: '' }; }
+        try { tag = allowed ? { id: key, ...(await ctx.run({ teacherId: x.k.teacherId }, () => tagError(ai, e, answer, x.l!.intake.grade, known, lang))) } : { id: key, errorType: '', hint: '' }; if (allowed) await store.put('cache', tag); } catch { tag = { id: key, errorType: '', hint: '' }; }
       }
       errorType = tag.errorType || undefined; hint = tag.hint || undefined;
     }
     const att: Attempt = { id: id(14), assignmentId: x.a.id, classId: x.k.id, pupilId: x.p.id, lessonId: x.l.id, exerciseId: e.id, skill: e.skill, answer, correct, errorType,
       at: new Date().toISOString(), session: String(b.session || new Date().toISOString().slice(0, 10)).slice(0, 40) };
     await store.put('attempts', att);
-    return c.json({ correct, hint: correct ? undefined : hint || 'Chưa đúng rồi, con thử lại nhé!', explain: correct ? e.explain : undefined, retry: x.a.allowRetry });
+    return c.json({ correct, hint: correct ? undefined : hint || (lang === 'en' ? 'Not quite. Have another go!' : 'Chưa đúng rồi, con thử lại nhé!'), explain: correct ? e.explain : undefined, retry: x.a.allowRetry });
   });
   app.get('/api/learn/:pid/next', async (c) => {
     const x = await pupilCtx(c.req.param('pid'));
