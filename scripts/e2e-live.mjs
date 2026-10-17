@@ -17,7 +17,12 @@ const results = [];
 const check = (name, ok, detail = '') => { results.push({ name, ok: !!ok, detail }); console.log(`${ok ? '✓' : '✗'} ${name}${detail ? ` – ${detail}` : ''}`); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function req(method, path, body, headers = {}) {
-  const r = await fetch(U + path, { method, headers: { 'content-type': 'application/json', ...headers }, body: body ? JSON.stringify(body) : undefined });
+  // a dropped connection on the tester's side is retried (reads only), and its cause logged
+  let r;
+  for (let n = 1; ; n++) {
+    try { r = await fetch(U + path, { method, headers: { 'content-type': 'application/json', ...headers }, body: body ? JSON.stringify(body) : undefined }); break; }
+    catch (e) { console.log(`  (network: ${e.cause?.code || e.cause?.message || e.message} on ${method} ${path}, try ${n})`); if (method !== 'GET' || n >= 4) throw e; await sleep(3000 * n); }
+  }
   const text = await r.text();
   let json; try { json = JSON.parse(text); } catch { json = { raw: text.slice(0, 200) }; }
   return { status: r.status, json };
