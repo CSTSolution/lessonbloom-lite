@@ -39,7 +39,7 @@ export function Hub({ pid }: { pid: string }) {
         const seen = visited(pid);
         const nQ = practiceSet(l.exercises, learn.done).length;
         const tiles: { key: Activity; show: boolean; sub: string; tag: string }[] = [
-          { key: 'video', show: !!l.video || l.slides.length > 0, sub: l.video && l.videoSeconds ? t.min(Math.max(1, Math.round(l.videoSeconds / 60))) : t.slides(l.slides.length), tag: t.watched },
+          { key: 'video', show: !!l.video || l.slides.length > 0, sub: t.min(Math.max(1, Math.round(l.video && l.videoSeconds ? l.videoSeconds / 60 : l.slides.reduce((w, s) => w + (s.narration || '').split(/\s+/).length, 0) / 130 + l.slides.length * 0.05))), tag: t.watched },
           { key: 'cards', show: l.flashcards.length > 0, sub: t.nCards(l.flashcards.length), tag: t.doneTag },
           { key: 'practice', show: nQ > 0, sub: t.nQ(nQ), tag: t.tried },
           { key: 'memory', show: l.pairs.length >= 2, sub: t.pairs(Math.min(4, l.pairs.length)), tag: t.played },

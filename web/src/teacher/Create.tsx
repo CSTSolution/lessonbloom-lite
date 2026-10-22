@@ -53,9 +53,9 @@ const isPhoto = (f: File) => f.type.startsWith('image/') || /\.(jpe?g|png|webp|h
 
 // the demo's daily limits, shown before they run out
 const DM = {
-  vi: { left: (l: number, lm: number, c: number, cm: number) => `Bản dùng thử: hôm nay cô còn tạo được ${l} bài mới (mỗi ngày tối đa ${lm} bài và ${cm} lượt AI; mỗi bài mới dùng 10 lượt, còn ${c} lượt). Tài khoản miễn phí có 30 lượt mỗi ngày.`,
+  vi: { left: (l: number, _lm: number, c: number, cm: number) => `Bản dùng thử: hôm nay còn ${c}/${cm} lượt AI, đủ tạo ${l} bài mới (mỗi bài mới dùng 10 lượt). Tài khoản miễn phí có 30 lượt AI mỗi ngày.`,
     register: 'Đăng ký tài khoản miễn phí', registerSub: 'Bài trong bản dùng thử không chuyển sang tài khoản mới.' },
-  en: { left: (l: number, lm: number, c: number, cm: number) => `Demo: you can create ${l} more new ${l === 1 ? 'lesson' : 'lessons'} today (at most ${lm} lessons and ${cm} AI credits a day; a new lesson uses 10, ${c} credits left). A free account has 30 credits a day.`,
+  en: { left: (l: number, _lm: number, c: number, cm: number) => `Demo: ${c}/${cm} AI credits left today, enough for ${l} new ${l === 1 ? 'lesson' : 'lessons'} (a new lesson uses 10). A free account has 30 AI credits a day.`,
     register: 'Register a free account', registerSub: 'Lessons made in the demo do not move to the new account.' },
 };
 

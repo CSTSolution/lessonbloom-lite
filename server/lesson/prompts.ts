@@ -35,7 +35,7 @@ export const INTAKE_SCHEMA = {
 export const LESSON_SYSTEM = `You build a slide lesson for Vietnamese primary pupils (age 6-11) from the teacher's own document.
 - Use ONLY the document. Nothing from later grades.
 - {{count}} slides in teaching order: "title", "warmup" (activate what they know), "concept" and "example" slides, 1-2 "practice" (a question the class answers together), "summary".
-- Big type: heading under 8 words; at most 4 bullets under 10 words. Put a worked example in "example" (maths: e.g. "36 + 27 = 63", with the carrying step in a bullet).
+- Big type: heading under 8 words, in sentence case (only the first word and names capitalised: "Using can't for things we cannot do", not "Using Can't When You Cannot"); at most 4 bullets under 10 words. Put a worked example in "example" (maths: e.g. "36 + 27 = 63", with the carrying step in a bullet).
 - Familiar Vietnamese names and situations (Lan, Nam, xoài, chợ quê, Tết, sân trường).
 - Language: {{langName}}. For English lessons keep English in English, add a short Vietnamese hint where a grade {{grade}} pupil needs it.
 - imagePrompt: English, one simple scene for a cheerful flat cartoon showing objects and children (e.g. "two children sorting bundles of sticks into groups"). Never mention digits, numbers, equations, text or letters, and never ask for an exact count.
@@ -70,10 +70,10 @@ Rules:
 - Exactly one correct answer per item. "explain": one short line a child understands, in {{langName}}, showing the method or the reason ("6 + 7 = 13, viết 3 nhớ 1; 3 + 2 + 1 = 6", "'It's' because we talk about one thing.").
 - Wrong options should be the mistakes children really make (forgetting to carry, adding the wrong column...).
 Machine-checked fields (the server recomputes maths; be exact):
-- math_mcq: "expr" (e.g. "36 + 27"), "options" 3-4 numbers as strings, exactly one equal to expr; "answer" = that option.
+- math_mcq: "prompt" shows the calculation itself, e.g. "52 - 28 = ?" or "Chọn kết quả đúng: 52 - 28 = ?" (pupils do not see "expr"); "expr" the same calculation (e.g. "52 - 28"); "options" 3-4 numbers as strings, exactly one equal to expr; "answer" = that option.
 - math_fill: "equation" with one blank written "?" (e.g. "45 - ? = 20"); "answer" = the number for the blank.
 - math_truefalse: "statement" is an equation (e.g. "5 × 4 = 25"); "answer" = "true" or "false".
-- math_word: "prompt" is the story; "expr" solves it; "answer" the number; "unit" e.g. "bông hoa".
+- math_word: "prompt" is the story; "expr" solves it; "answer" the number; "unit" = exactly the thing the question asks for (asks "bao nhiêu con gà mái?" → "con gà mái", not "con gà"); "explain" ends with that same unit.
 - eng_match: "pairs" 3-4 {word, emoji}, picture-able nouns from the lesson.
 - eng_fill: "sentence" with one gap "___"; "options" 3 words; "answer" one of them.
 - eng_listen: "say" = word/phrase read aloud; "options" 3 choices (words, or emoji for "choose the picture"); "answer" one of them.
@@ -99,8 +99,8 @@ const SKILLS = { type: 'array', items: { type: 'object', properties: { tag: str,
 export const exercisesSchema = (types: string[]) => ({ type: 'object', properties: { skills: SKILLS, items: { type: 'array', items: { anyOf: types.map((t) => ITEM_SCHEMAS[t]) } } }, required: ['skills', 'items'] });
 
 export const REVIEW_SYSTEM = `You are a strict primary-school teacher checking practice items before they reach children.
-The pupil sees the "prompt" TOGETHER WITH the item's equation / statement / sentence / options / words / pairs, so a short prompt like "Điền số vào ô trống" is complete when the equation is given.
-For each item, ok=false only if: more than one acceptable answer or the marked answer is wrong; a grammar or spelling mistake (English or Vietnamese); vocabulary or numbers clearly beyond grade {{grade}} or outside the lesson; confusing for a 6-11 year old; unsuitable for children; the item breaks its template (no gap, answer not among the options...); the prompt gives away the answer (e.g. lists the word-picture pairs or the finished sentence); the item clearly does not practise its skill (e.g. matching nouns to pictures tagged as a grammar skill such as relative pronouns) or does not fit the lesson's topic.
+The pupil sees the "prompt" TOGETHER WITH the item's equation / statement / sentence / options / words / pairs, so a short prompt like "Điền số vào ô trống" is complete when the equation is given. The pupil never sees "expr": a math_mcq whose prompt does not show the calculation cannot be answered.
+For each item, ok=false only if: more than one acceptable answer or the marked answer is wrong; a grammar or spelling mistake (English or Vietnamese); vocabulary or numbers clearly beyond grade {{grade}} or outside the lesson; confusing for a 6-11 year old; a math_word "unit" that does not name exactly what the question asks for (asks for "gà mái", unit says "gà"); unsuitable for children; the item breaks its template (no gap, answer not among the options...); the prompt gives away the answer (e.g. lists the word-picture pairs or the finished sentence); the item clearly does not practise its skill (e.g. matching nouns to pictures tagged as a grammar skill such as relative pronouns) or does not fit the lesson's topic.
 Close or overlapping skill tags are fine; only flag a clear mismatch. Short issues in English. Do not rewrite items.`;
 
 export const REVIEW_SCHEMA = {

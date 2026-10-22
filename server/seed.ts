@@ -46,11 +46,11 @@ export function sampleLesson(teacherId: string): Lesson {
     { id: 'ex03', type: 'math_fill', level: 'basic', skill: 'carry_1', prompt: 'Điền số vào ô trống', equation: '19 + 36 = ?', answer: '55', explain: '9 + 6 = 15, viết 5 nhớ 1; 1 + 3 + 1 = 5.' },
     { id: 'ex04', type: 'math_truefalse', level: 'basic', skill: 'no_carry', prompt: 'Đúng hay sai?', statement: '42 + 35 = 77', answer: 'true', explain: '2 + 5 = 7; 4 + 3 = 7. Không cần nhớ.' },
     mcq(5, 'good', 57, 28), mcq(6, 'good', 29, 46),
-    { id: 'ex07', type: 'math_fill', level: 'good', skill: 'column', prompt: 'Điền số vào ô trống', equation: '? + 18 = 45', answer: '27', explain: '45 - 18 = 27.' },
+    { id: 'ex07', type: 'math_fill', level: 'good', skill: 'column', prompt: 'Đặt tính rồi tính', equation: '27 + 18 = ?', answer: '45', explain: 'Đặt 27 trên 18, đơn vị thẳng đơn vị: 7 + 8 = 15, viết 5 nhớ 1; 2 + 1 + 1 = 4. Vậy 27 + 18 = 45.' },
     { id: 'ex08', type: 'math_word', level: 'good', skill: 'word_1step', prompt: 'Lan có 19 bông hoa, Mai có 36 bông hoa. Cả hai bạn có bao nhiêu bông hoa?', expr: '19 + 36', answer: '55', unit: 'bông hoa', explain: '19 + 36 = 55 bông hoa.' },
     mcq(9, 'advanced', 38, 47), { id: 'ex10', type: 'math_truefalse', level: 'advanced', skill: 'carry_1', prompt: 'Đúng hay sai?', statement: '68 + 25 = 83', answer: 'false', explain: '8 + 5 = 13, viết 3 nhớ 1; 6 + 2 + 1 = 9. Vậy 68 + 25 = 93.' },
     { id: 'ex11', type: 'math_word', level: 'advanced', skill: 'word_1step', prompt: 'Vườn nhà Nam có 28 cây cam và 15 cây bưởi. Vườn có tất cả bao nhiêu cây?', expr: '28 + 15', answer: '43', unit: 'cây', explain: '28 + 15 = 43 cây.' },
-    { id: 'ex12', type: 'math_fill', level: 'advanced', skill: 'column', prompt: 'Điền số vào ô trống', equation: '56 + ? = 91', answer: '35', explain: '91 - 56 = 35.' },
+    { id: 'ex12', type: 'math_fill', level: 'advanced', skill: 'column', prompt: 'Đặt tính rồi tính', equation: '56 + 35 = ?', answer: '91', explain: 'Đặt 56 trên 35, đơn vị thẳng đơn vị: 6 + 5 = 11, viết 1 nhớ 1; 5 + 3 + 1 = 9. Vậy 56 + 35 = 91.' },
   ];
   const slide = (n: number, kind: Lesson['slides'][0]['kind'], heading: string, bullets: string[], notes: string, narration: string, example?: string) =>
     ({ id: `sl${String(n).padStart(2, '0')}`, kind, heading, bullets, example, notes, narration, imagePrompt: 'children counting mangoes', source: 'Phép cộng có nhớ trong phạm vi 100 (tài liệu mẫu của đội).' });
@@ -82,56 +82,135 @@ export async function newTeacher(store: Store, teacherId: string, name: string, 
   return t;
 }
 
-export async function seedTeacher(store: Store, teacherId: string, name = 'Cô Hạnh'): Promise<Teacher> {
-  const t: Teacher = { id: teacherId, name, subject: 'math', criteria: { ...DEFAULT_CRITERIA }, createdAt: new Date().toISOString() };
-  await store.put('teachers', t);
-  const lesson = sampleLesson(teacherId);
-  await store.put('lessons', lesson);
-  // who struggles with what, per class (invented): 2A carries, 2B columns, 2C fine
-  const plan: Record<string, { carry: string[]; column: string[] }> = {
-    '2A': { carry: ['An', 'Dũng', 'Khôi', 'Minh', 'Nam', 'Thảo'], column: [] },
-    '2B': { carry: ['Hà'], column: ['Bình', 'Linh', 'Quân', 'Phương'] },
-    '2C': { carry: [], column: [] },
+// English Grade 3 sample, written by the team (not from a textbook): shown first when the demo opens in English
+const COLOUR = 'Wrong colour word', ORDER = 'Words in the wrong order';
+export function sampleLessonEn(teacherId: string): Lesson {
+  const match = (n: number, level: Exercise['level'], pairs: [string, string][]): Exercise =>
+    ({ id: `ex${String(n).padStart(2, '0')}`, type: 'eng_match', level, skill: 'colour_words', prompt: 'Match each colour word to its picture.', pairs: pairs.map(([word, emoji]) => ({ word, emoji })),
+      explain: pairs.map(([w, e]) => `${w} = ${e}`).join(', ') + '.' } as Exercise);
+  const listen = (n: number, level: Exercise['level'], say: string, options: string[], skill = 'colour_words'): Exercise =>
+    ({ id: `ex${String(n).padStart(2, '0')}`, type: 'eng_listen', level, skill, prompt: 'Listen and choose the word you hear.', say, options, answer: say, explain: `You heard “${say}”.` } as Exercise);
+  const gap = (n: number, level: Exercise['level'], skill: string, sentence: string, options: string[], answer: string, explain: string): Exercise =>
+    ({ id: `ex${String(n).padStart(2, '0')}`, type: 'eng_fill', level, skill, prompt: 'Choose the missing word.', sentence, options, answer, explain } as Exercise);
+  const order = (n: number, level: Exercise['level'], skill: string, answer: string, words: string[]): Exercise =>
+    ({ id: `ex${String(n).padStart(2, '0')}`, type: 'eng_order', level, skill, prompt: 'Put the words in order.', words, answer, explain: `${answer}` } as Exercise);
+  const ex: Exercise[] = [
+    match(1, 'basic', [['red', '🔴'], ['blue', '🔵'], ['green', '🟢']]),
+    listen(2, 'basic', 'yellow', ['yellow', 'orange', 'pink']),
+    gap(3, 'basic', 'ask_colour', 'What colour is it? It’s ___. 🍎', ['red', 'blue', 'green'], 'red', 'The apple is red: It’s red.'),
+    order(4, 'basic', 'ask_colour', 'What colour is it?', ['is', 'colour', 'it', 'What']),
+    match(5, 'good', [['yellow', '🟡'], ['orange', '🟠'], ['pink', '🌸']]),
+    gap(6, 'good', 'favourite', 'My favourite ___ is blue.', ['colour', 'colours', 'red'], 'colour', 'We say “my favourite colour”.'),
+    gap(7, 'good', 'ask_colour', '___ colour is your bag?', ['What', 'Who', 'Where'], 'What', 'We ask about colours with “What colour…?”.'),
+    order(8, 'good', 'favourite', 'My favourite colour is green.', ['green', 'colour', 'My', 'is', 'favourite']),
+    listen(9, 'advanced', 'orange', ['orange', 'yellow', 'red']),
+    gap(10, 'advanced', 'favourite', 'What’s your favourite colour? – ___ favourite colour is pink.', ['My', 'Your', 'I'], 'My', 'Answer about yourself with “My”.'),
+    order(11, 'advanced', 'favourite', 'What is your favourite colour?', ['favourite', 'your', 'What', 'colour', 'is']),
+    gap(12, 'advanced', 'ask_colour', 'What colour is the sun? It’s ___. ☀️', ['yellow', 'blue', 'pink'], 'yellow', 'The sun is yellow.'),
+  ];
+  const slide = (n: number, kind: Lesson['slides'][0]['kind'], heading: string, bullets: string[], notes: string, narration: string, example?: string) =>
+    ({ id: `sl${String(n).padStart(2, '0')}`, kind, heading, bullets, example, notes, narration, imagePrompt: 'children with coloured pencils', source: 'My favourite colour (sample written by the team).' });
+  return {
+    id: id(), teacherId, createdAt: new Date(Date.now() - 2 * 864e5).toISOString(), status: 'ready', progress: [], sample: true, source: SAMPLE_TEXT_EN,
+    intake: { subject: 'english', grade: 3, title: 'My favourite colour', objectives: ['Pupils can name six colours.', 'Pupils can ask and answer “What colour is it?” and talk about their favourite colour.'], minutes: 25, level: 'mixed', lang: 'en', outputs: ['slides', 'video', 'exercises', 'flashcards'] },
+    skills: [{ tag: 'colour_words', name: 'Colour words' }, { tag: 'ask_colour', name: 'Asking “What colour is it?”' }, { tag: 'favourite', name: 'Talking about favourite colours' }],
+    slides: [
+      slide(1, 'title', 'My favourite colour', ['English · Grade 3'], 'Greet the class and show a box of crayons.', 'Hello, everyone! Today we are going to learn about colours.'),
+      slide(2, 'warmup', 'Look around the classroom', ['What colours can you see?', 'Point and say!'], 'Let pupils point at things and say colours they know.', 'Look around the classroom. What colours can you see? Point and say!'),
+      slide(3, 'concept', 'Six colours', ['red · blue · green', 'yellow · orange · pink'], 'Say each word; the class repeats twice.', 'Listen and repeat: red, blue, green, yellow, orange, pink.'),
+      slide(4, 'example', 'What colour is it?', ['What colour is it?', 'It’s red.'], 'Hold up an apple, ask, and model the answer.', 'What colour is it? It’s red. Now you ask your friend.', 'What colour is it? – It’s red.'),
+      slide(5, 'concept', 'My favourite colour', ['What’s your favourite colour?', 'My favourite colour is blue.'], 'Model the question, then answer about yourself.', 'What’s your favourite colour? My favourite colour is blue. What about you?'),
+      slide(6, 'example', 'Mai and Nam', ['Mai: What’s your favourite colour?', 'Nam: My favourite colour is green.'], 'Read the dialogue in two groups.', 'Mai asks: What’s your favourite colour? Nam answers: My favourite colour is green.'),
+      slide(7, 'practice', 'Ask your friend', ['Ask: What’s your favourite colour?', 'Answer: My favourite colour is…'], 'Pair work: two minutes, then swap.', 'Now ask your friend: What’s your favourite colour? Then answer: My favourite colour is…'),
+      slide(8, 'summary', 'Today we learned', ['Six colour words', 'What colour is it? – It’s…', 'My favourite colour is…'], 'Review the three points; homework: name five colours at home.', 'Today we learned six colours, how to ask what colour something is, and how to talk about our favourite colour.'),
+    ],
+    exercises: ex,
+    flashcards: [['red', '🔴', 'màu đỏ', 'It’s red.'], ['blue', '🔵', 'màu xanh dương', 'My bag is blue.'], ['green', '🟢', 'màu xanh lá', 'It’s green.'], ['yellow', '🟡', 'màu vàng', 'The sun is yellow.'], ['orange', '🟠', 'màu cam', 'It’s orange.'], ['pink', '🌸', 'màu hồng', 'My favourite colour is pink.']]
+      .map(([front, emoji, back, example], i) => ({ id: `fc0${i + 1}`, front, emoji, back, example, say: front })),
+    pairs: [['red', '🔴'], ['blue', '🔵'], ['green', '🟢'], ['yellow', '🟡']].map(([a, b], i) => ({ id: `mp${i + 1}`, a, b })),
+    checks: [],
   };
+}
+export const SAMPLE_TEXT_EN = `English Grade 3 – Unit: My favourite colour
+
+Aims: Pupils can name six colours (red, blue, green, yellow, orange, pink), ask and answer "What colour is it? – It's red." and talk about their favourite colour.
+
+Vocabulary: red, blue, green, yellow, orange, pink, colour, favourite.
+
+Structures:
+- What colour is it? – It's red.
+- What's your favourite colour? – My favourite colour is blue.
+
+Dialogue:
+Mai: What's your favourite colour, Nam?
+Nam: My favourite colour is green.
+
+Practice: pupils ask and answer in pairs about their favourite colour.`;
+
+// The items a pupil gets in one practice round (basic and "good"), as the pupil app picks them
+const practiceItems = (l: Lesson) => l.exercises.filter((e) => e.level === 'basic' || e.level === 'good');
+// a plausible wrong answer for an item, in the form the pupil app sends
+function wrongOf(e: Exercise): string {
+  const a = (e as { answer?: string }).answer ?? '';
+  switch (e.type) {
+    case 'eng_match': { const emo = e.pairs.map((p) => p.emoji); emo.push(emo.shift()!); return JSON.stringify(Object.fromEntries(e.pairs.map((p, i) => [p.word, emo[i]]))); }
+    case 'eng_order': return [...e.words].join(' ');
+    case 'eng_fill': case 'eng_listen': return e.options.find((o) => o !== a) || a;
+    default: return /^\d+$/.test(a) ? String(Math.max(0, Number(a) - 10)) : a === 'true' ? 'false' : 'true';   // maths: the forgotten carry
+  }
+}
+const rightOf = (e: Exercise) => (e.type === 'eng_match' ? JSON.stringify(Object.fromEntries(e.pairs.map((p) => [p.word, p.emoji]))) : (e as { answer: string }).answer);
+
+export async function seedTeacher(store: Store, teacherId: string, name?: string, lang: 'vi' | 'en' = 'vi'): Promise<Teacher> {
+  const t: Teacher = { id: teacherId, name: name || (lang === 'en' ? 'Ms. Hanh' : 'Cô Hạnh'), subject: lang === 'en' ? 'both' : 'math', criteria: { ...DEFAULT_CRITERIA }, createdAt: new Date().toISOString() };
+  await store.put('teachers', t);
+  const maths = sampleLesson(teacherId), english = sampleLessonEn(teacherId);
+  // the lesson in the visitor's language is the newest, so it opens first everywhere
+  const first = lang === 'en' ? english : maths, second = lang === 'en' ? maths : english;
+  second.createdAt = new Date(Date.now() - 3 * 864e5).toISOString(); first.createdAt = new Date(Date.now() - 2 * 864e5).toISOString();
+  await store.putMany('lessons', [maths, english]);
+  // who struggles with what, per class (invented): maths 2A carries, 2B columns; English 2A colour words, 2B word order; 2C fine
+  const plan: Record<string, Record<string, string[]>> = {
+    '2A': { carry_1: ['An', 'Dũng', 'Khôi', 'Minh', 'Nam', 'Thảo'], colour_words: ['Bình', 'Hà', 'Linh'] },
+    '2B': { carry_1: ['Hà'], column: ['Bình', 'Linh', 'Quân', 'Phương'], favourite: ['An', 'Chi', 'Minh', 'Nam'] },
+    '2C': {},
+  };
+  const errName: Record<string, string> = { carry_1: CARRY, column: COLUMN, word_1step: CARRY, no_carry: CARRY, colour_words: COLOUR, ask_colour: ORDER, favourite: ORDER };
   const day = 864e5, now = Date.now();
   for (const cname of ['2A', '2B', '2C']) {
-    const c: ClassRoom = { id: id(), teacherId, name: cname, joinCode: `${cname}-${code()}`, subject: 'math', sample: true };
+    const c: ClassRoom = { id: id(), teacherId, name: cname, joinCode: `${cname}-${code()}`, subject: 'both', sample: true };
     await store.put('classes', c);
     const pupils: Pupil[] = NAMES.map((n, i) => ({ id: id(), classId: c.id, displayName: n, joinedAt: i < 11 || cname !== '2A' ? new Date(now - 2 * day).toISOString() : undefined }));
     await store.putMany('pupils', pupils);
-    const a: Assignment = { id: id(), teacherId, lessonId: lesson.id, classId: c.id, dueAt: new Date(now + 4 * day).toISOString().slice(0, 10), allowRetry: true, autoSuggest: true, createdAt: new Date(now - 3 * day).toISOString() };
-    await store.put('assignments', a);
-    // three practice sessions; each pupil answers 2 items per skill per session (6 per skill in all)
-    let k = 0;
-    const atts: Attempt[] = [];
-    const wrongOf = (ans: string) => (/^\d+$/.test(ans) ? String(Math.max(0, Number(ans) - 10)) : ans === 'true' ? 'false' : 'true');
-    const bySkill = new Map<string, Exercise[]>();
-    for (const e of lesson.exercises) bySkill.set(e.skill, [...(bySkill.get(e.skill) || []), e]);
-    for (const [si, session] of ['s1', 's2', 's3'].entries()) {
-      for (const p of pupils.slice(0, cname === '2A' ? 10 : 12)) {
-        for (const [skill, items] of bySkill) {
-          for (let j = 0; j < 2; j++) {
-            const e = items[(si * 2 + j) % items.length];
-            const carryTrouble = plan[cname].carry.includes(p.displayName) && skill === 'carry_1';
-            const columnTrouble = plan[cname].column.includes(p.displayName) && skill === 'column';
+    const active = pupils.slice(0, cname === '2A' ? 10 : 12);
+    for (const [li, lesson] of [second, first].entries()) {
+      const a: Assignment = { id: id(), teacherId, lessonId: lesson.id, classId: c.id, dueAt: new Date(now + 4 * day).toISOString().slice(0, 10), allowRetry: true, autoSuggest: true, createdAt: new Date(now - (3 - li) * day).toISOString() };
+      await store.put('assignments', a);
+      // three practice rounds of the pupil's own set (the same 8 items the pupil app shows); the last two
+      // active pupils stopped part-way through their last round. A slip is followed by a second try.
+      const items = practiceItems(lesson), atts: Attempt[] = [];
+      let k = 0;
+      for (const [si, session] of ['s1', 's2', 's3'].entries()) {
+        for (const [pi, p] of active.entries()) {
+          const upto = pi >= active.length - 2 && si === 2 ? Math.ceil(items.length / 2) : items.length;
+          for (const e of items.slice(0, upto)) {
             k++;
-            const wrong = carryTrouble ? k % 3 !== 0 : columnTrouble ? k % 2 === 0 : (cname !== '2C' && skill === 'word_1step' && k % 3 === 0) || k % 17 === 0;
-            const ans = (e as { answer: string }).answer;
-            atts.push({ id: id(12), assignmentId: a.id, classId: c.id, pupilId: p.id, lessonId: lesson.id, exerciseId: e.id, skill,
-              answer: wrong ? wrongOf(ans) : ans, correct: !wrong, errorType: wrong ? (carryTrouble ? CARRY : columnTrouble ? COLUMN : 'Nhầm phép tính') : undefined,
-              at: new Date(now - (3 - si) * day + k * 1000).toISOString(), session });
+            const trouble = (plan[cname][e.skill] || []).includes(p.displayName);
+            const slip = trouble ? k % 3 !== 0 : (cname !== '2C' && e.skill === 'word_1step' && k % 5 === 0) || k % 17 === 0;
+            const at = (n: number) => new Date(now - (3 - si) * day + k * 1000 + n).toISOString();
+            if (slip) atts.push({ id: id(12), assignmentId: a.id, classId: c.id, pupilId: p.id, lessonId: lesson.id, exerciseId: e.id, skill: e.skill, answer: wrongOf(e), correct: false, errorType: errName[e.skill], at: at(0), session });
+            if (!slip || k % 2) atts.push({ id: id(12), assignmentId: a.id, classId: c.id, pupilId: p.id, lessonId: lesson.id, exerciseId: e.id, skill: e.skill, answer: rightOf(e), correct: true, at: at(500), session });
           }
         }
       }
+      await store.putMany('attempts', atts);
+      // the parts each active pupil opened: everything for those who finished, video and exercises for the rest
+      await store.putMany('visits', active.map((p, i): Visit => ({ id: `v-${a.id}-${p.id}`, assignmentId: a.id, pupilId: p.id,
+        parts: i < active.length - 2 ? (i % 3 === 2 ? ['video', 'cards', 'practice'] : ['video', 'cards', 'practice', 'memory']) : ['video', 'practice'], at: new Date(now - day + i * 60000).toISOString() })));
+      // the pupils who finished said how it felt; the last two are still practising
+      await store.putMany('selfchecks', active.slice(0, -2).map((p, i): SelfCheck => ({ id: id(12), assignmentId: a.id, pupilId: p.id,
+        mood: Object.values(plan[cname]).some((names) => names.includes(p.displayName)) ? 'hard' : (['easy', 'ok', 'easy'] as const)[i % 3], at: new Date(now - day + i * 60000).toISOString() })));
     }
-    await store.putMany('attempts', atts);
-    const active = pupils.slice(0, cname === '2A' ? 10 : 12);
-    // the parts each active pupil opened: everything for those who finished, video and exercises for the rest
-    await store.putMany('visits', active.map((p, i): Visit => ({ id: `v-${a.id}-${p.id}`, assignmentId: a.id, pupilId: p.id,
-      parts: i < active.length - 2 ? (i % 3 === 2 ? ['video', 'cards', 'practice'] : ['video', 'cards', 'practice', 'memory']) : ['video', 'practice'], at: new Date(now - day + i * 60000).toISOString() })));
-    // most active pupils reached "all done" and said how it felt; the last two are still practising
-    await store.putMany('selfchecks', active.slice(0, -2).map((p, i): SelfCheck => ({ id: id(12), assignmentId: a.id, pupilId: p.id,
-      mood: plan[cname].carry.includes(p.displayName) ? 'hard' : (['easy', 'ok', 'easy'] as const)[i % 3], at: new Date(now - day + i * 60000).toISOString() })));
   }
   return t;
 }

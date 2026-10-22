@@ -41,7 +41,7 @@ export async function loadWorkspace(): Promise<Teacher | null> {
   return null;
 }
 export async function startDemo(): Promise<Teacher> {
-  const { teacher, key } = await call<{ teacher: Teacher; key: string }>('POST', '/api/t/me', {});
+  const { teacher, key } = await call<{ teacher: Teacher; key: string }>('POST', '/api/t/me', { lang: getLang() });
   try { localStorage.setItem(KEY, key); } catch { /* private mode: workspace lasts this tab */ }
   return teacher;
 }
@@ -75,8 +75,8 @@ export interface AssignmentSummaryT {
 export interface PupilQuestions { name: string; questions: { id: string; type: string; level: string; skill: string; question: string; tries: { answer: string; correct: boolean; errorType?: string; at: string }[] }[] }
 export interface Comments { comments: { pupilId: string; text: string; name: string; skills: { skill: string; label: Label; error?: string }[]; felt?: string }[] | null; stale: boolean; ready: number; waiting: string[]; at: string | null }
 export interface PupilRow { pupilId: string; name: string; status: 'none' | 'started' | 'done'; tried: number; answers: number; skills: Record<string, Label | null>; topError?: string; mood?: 'easy' | 'ok' | 'hard'; lastAt?: string }
-export interface Insights { lessons: { id: string; title: string; subject?: 'math' | 'english' }[]; lessonId: string; classId: string; classes: { id: string; name: string }[];
-  assigned?: boolean; pupils?: PupilRow[]; skills?: { tag: string; name: string }[];
+export interface Insights { lessons: { id: string; title: string; subject?: 'math' | 'english' }[]; lessonId: string; classId: string; classes: { id: string; name: string; assigned?: boolean; answers?: boolean }[];
+  assigned?: boolean; practiceN?: number; pupils?: PupilRow[]; skills?: { tag: string; name: string }[];
   overview: { skill: string; name: string; byClass: Record<string, Label | null> }[]; detail: SkillSummary[] | null }
 
 export const teacherApi = {
@@ -130,7 +130,7 @@ export const accountApi = {
 // ----- pupil -----
 export type PupilExercise = Omit<Exercise, 'answer' | 'explain' | 'expr'> & Record<string, any>;
 export interface Learn {
-  name: string; className: string; assignmentId?: string; dueAt?: string; reminder: string | null; done?: string[];
+  name: string; className: string; assignmentId?: string; dueAt?: string; reminder: string | null; done?: string[]; tried?: number;
   lesson: null | { title: string; subject: 'math' | 'english'; grade: number; lang: 'vi' | 'en'; skills: Skill[]; slides: Omit<Slide, 'notes' | 'source' | 'imagePrompt'>[];
     video: string | null; videoSeconds?: number; exercises: PupilExercise[]; flashcards: Flashcard[]; pairs: MemoryPair[] };
 }

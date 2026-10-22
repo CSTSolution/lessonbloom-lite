@@ -64,7 +64,8 @@ export function createApp(ai: AI, store: Store) {
   const usage = new UsageLog(store);
   const credits = new Credits(store);
   const otp = new Otp(store);
-  const clientIp = (c: Context) => (c.req.header('x-forwarded-for') || 'local').split(',')[0].trim();
+  // Cloud Run appends the visitor's real address to X-Forwarded-For; anything before it was written by the client
+  const clientIp = (c: Context) => (c.req.header('x-forwarded-for') || 'local').split(',').map((x) => x.trim()).filter(Boolean).pop() || 'local';
   // every model call: app-wide usage log + the real cost on the teacher whose request made it
   ai.onUsage = (e) => { usage.record(e); const tid = ctx.getStore()?.teacherId; if (tid) credits.addCost(tid, costOf(e)); };
   // an AI action: the teacher's daily credits first, then the app-wide spending guard
@@ -85,14 +86,14 @@ export function createApp(ai: AI, store: Store) {
   // ---------- teacher workspace ----------
   t.post('/me', async (c) => {                      // create + seed a demo workspace
     // each demo seeds ~600 documents: cap per IP per day so bots can't run up Firestore writes
-    const ip = (c.req.header('x-forwarded-for') || 'local').split(',')[0].trim();
+    const ip = clientIp(c);
     const ipKey = `demoip-${createHash('sha1').update(ip).digest('hex').slice(0, 16)}-${new Date().toISOString().slice(0, 10)}`;
     const seen = (await store.get<{ id: string; n: number }>('cache', ipKey)) || { id: ipKey, n: 0 };
     if (seen.n >= config.demoPerIpDay && !(await adminOk(c))) return bad(c, 'demoPerIp', 429);
     await store.put('cache', { ...seen, n: seen.n + 1 });
-    const { name } = await c.req.json<{ name?: string }>().catch(() => ({ name: undefined }));
+    const { name, lang } = await c.req.json<{ name?: string; lang?: string }>().catch(() => ({ name: undefined, lang: undefined }));
     const tid = id(24);
-    const teacher = await seedTeacher(store, tid, name?.trim().slice(0, 40) || undefined);
+    const teacher = await seedTeacher(store, tid, name?.trim().slice(0, 40) || undefined, lang === 'en' ? 'en' : 'vi');
     return c.json({ teacher, key: tid });
   });
   t.use('*', async (c, next) => {
@@ -344,7 +345,7 @@ export function createApp(ai: AI, store: Store) {
       id: l.id, title: l.intake.title, subject: l.intake.subject, grade: l.intake.grade, status: l.status, createdAt: l.createdAt,
       slides: l.slides.length, exercises: l.exercises.length, flashcards: l.flashcards.length, video: l.video?.status === 'ready',
       cover: coverOf(l), copy: !!l.copyOf || COPY_TAIL.test(l.intake.title),
-      classes: [...new Set(assigns.filter((a) => a.lessonId === l.id).map((a) => cname.get(a.classId)).filter(Boolean))],
+      classes: [...new Set(assigns.filter((a) => a.lessonId === l.id).map((a) => cname.get(a.classId)).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b, 'vi', { numeric: true })),
     })));
   });
   t.post('/intake', async (c) => {
@@ -485,7 +486,10 @@ export function createApp(ai: AI, store: Store) {
       return { k, pupils, sums: l.skills.map((s) => summarise(s, pupils, atts.filter((a) => a.classId === k.id), tc.criteria)) };
     }));
     // default class: one this lesson was given to (the latest), not simply the first class
-    const classId = c.req.query('classId') || assigns.find((a) => a.lessonId === l.id && classes.some((k) => k.id === a.classId))?.classId || per[0]?.k.id;
+    const givenTo = new Set(assigns.filter((a) => a.lessonId === l.id).map((a) => a.classId));
+    const hasData = (kid: string) => atts.some((a) => a.classId === kid);
+    const classId = c.req.query('classId') || assigns.find((a) => a.lessonId === l.id && hasData(a.classId))?.classId
+      || assigns.find((a) => a.lessonId === l.id && classes.some((k) => k.id === a.classId))?.classId || per[0]?.k.id;
     const detail = per.find((p) => p.k.id === classId);
     // every pupil of the chosen class for this lesson, including those who have not started
     const given = assigns.filter((a) => a.lessonId === l.id && a.classId === classId);
@@ -493,7 +497,8 @@ export function createApp(ai: AI, store: Store) {
     const rows = detail ? pupilRows(l.skills, detail.pupils, atts.filter((a) => a.classId === classId), checks, tc.criteria) : [];
     return c.json({
       lessons: lessons.map((x) => ({ id: x.id, title: x.intake.title, subject: x.intake.subject })), lessonId: l.id, classId,
-      classes: classes.map((k) => ({ id: k.id, name: k.name })), assigned: given.length > 0, pupils: rows,
+      classes: classes.map((k) => ({ id: k.id, name: k.name, assigned: givenTo.has(k.id), answers: hasData(k.id) })), assigned: given.length > 0, pupils: rows,
+      practiceN: Math.min(10, l.exercises.filter((e) => e.level !== 'advanced').length),
       skills: l.skills.map((s) => ({ tag: s.tag, name: s.name })),
       overview: l.skills.map((s, i) => ({ skill: s.tag, name: s.name, byClass: Object.fromEntries(per.map((p) => [p.k.id, p.sums[i].pupils.length ? p.sums[i].classLabel : null])) })),
       // "36 + 27 → 53": the question next to the pupil's slip
@@ -619,6 +624,7 @@ export function createApp(ai: AI, store: Store) {
     for (const a of sameSubject.slice(-30)) if (!a.correct && a.errorType) counts.set(a.errorType, (counts.get(a.errorType) || 0) + 1);
     const lastErr = { errorType: [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] };
     const doneHere = new Set(mine.filter((a) => a.assignmentId === x.a!.id && a.correct).map((a) => a.exerciseId));
+    const triedHere = new Set(mine.filter((a) => a.assignmentId === x.a!.id).map((a) => a.exerciseId));
     const l = x.l;
     return c.json({
       name: x.p.displayName, className: x.k.name, assignmentId: x.a.id, dueAt: x.a.dueAt,
@@ -626,7 +632,7 @@ export function createApp(ai: AI, store: Store) {
       lesson: { title: l.intake.title, subject: l.intake.subject, grade: l.intake.grade, lang: l.intake.lang, skills: l.skills,
         slides: l.slides.map(({ notes: _n, source: _s, imagePrompt: _i, ...s }) => s), video: l.video?.status === 'ready' ? l.video.url : null, videoSeconds: l.video?.seconds,
         exercises: l.exercises.map((e) => forPupil(safePrompt(e, l.intake.lang))), flashcards: l.flashcards.map(cleanCard), pairs: l.pairs },
-      done: [...doneHere],
+      done: [...doneHere], tried: triedHere.size,
     });
   });
   app.post('/api/learn/:pid/answer', async (c) => {

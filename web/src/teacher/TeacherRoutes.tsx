@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { go, goRegister, isDemo, leaveDemo, loadWorkspace, type Teacher } from '../api.ts';
 import { refreshUser, signOut, useAuth } from '../auth.ts';
-import { useT } from '../i18n.ts';
+import { getLang, useT } from '../i18n.ts';
 import { LangToggle, Logo } from '../main.tsx';
 import { Classes } from './Classes.tsx';
 import { Create } from './Create.tsx';
@@ -48,7 +48,7 @@ export function TopBar({ teacher, path, onSignOut }: { teacher: Teacher; path: s
         <LangToggle />
         {isDemo() && <button className="chip amber hide-sm" style={{ border: 0, cursor: 'pointer', font: 'inherit' }} title={u.register} onClick={goRegister}>{u.demo} · {u.registerShort}</button>}
         <CreditPill path={path} />
-        <Link to="/account" className={`me ${path.startsWith('/account') ? 'on' : ''}`} title={u.account}><span className="avatar">{teacher.name.replace(/^(Cô|Thầy)\s*/, '').slice(0, 1).toUpperCase()}</span><span className="hide-sm">{teacher.name}</span></Link>
+        <Link to="/account" className={`me ${path.startsWith('/account') ? 'on' : ''}`} title={u.account}><span className="avatar">{teacher.name.replace(/^(Cô|Thầy)\s*/, '').slice(0, 1).toUpperCase()}</span><span className="hide-sm hide-md">{teacher.name}</span></Link>
         <button className="btn ghost sm" onClick={onSignOut}>{u.signOut}</button>
       </div>
     </header>
@@ -60,7 +60,7 @@ function CreditPill({ path }: { path: string }) {
   const [u, setU] = useState<UsageT | null>(null);
   useEffect(() => { teacherApi.usage().then(setU).catch(() => {}); }, [path]);
   if (!u) return null;
-  return <Link to="/usage" className={`chip ${u.plan === 'pro' ? 'green' : 'blue'}`} title="AI">{u.plan === 'pro' ? 'PRO' : `⚡ ${Math.max(0, (u.limit ?? 0) - u.usedToday)}/${u.limit}`}</Link>;
+  return <Link to="/usage" className={`chip ${u.plan === 'pro' ? 'green' : 'blue'}`} title={getLang() === 'en' ? 'AI credits left today' : 'Lượt AI còn lại hôm nay'}>{u.plan === 'pro' ? 'PRO' : `⚡ ${Math.max(0, (u.limit ?? 0) - u.usedToday)}/${u.limit}`}</Link>;
 }
 
 // For accounts made before registration used codes: confirm the email with a 6-digit code

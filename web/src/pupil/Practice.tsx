@@ -20,18 +20,18 @@ export function practiceSet(all: PupilExercise[], done: string[] = []): PupilExe
 const D = {
   vi: {
     back: 'Quay lại', qAria: (i: number, n: number) => `Câu ${i} trên ${n}`, listen: 'Nghe câu hỏi', hear: 'Nghe lại', check: 'Kiểm tra', sending: 'Đang xem…',
-    ask: { math_mcq: 'Con chọn kết quả đúng nhé', math_word: 'Con đọc đề rồi trả lời nhé', eng_match: 'Nối từ với hình', eng_order: 'Xếp các từ thành câu', eng_listen: 'Nghe rồi chọn từ đúng' } as Record<string, string>,
+    ask: { math_mcq: 'Con chọn kết quả đúng nhé', math_fill: 'Điền số vào ô trống', math_truefalse: 'Đúng hay sai?', math_word: 'Con đọc đề rồi trả lời nhé', eng_fill: 'Chọn từ còn thiếu', eng_match: 'Nối từ với hình', eng_order: 'Xếp các từ thành câu', eng_listen: 'Nghe rồi chọn từ đúng' } as Record<string, string>,
     yes: 'Đúng', no: 'Sai', answerAria: 'Câu trả lời của con', blank: 'ô trống',
-    wrongH: 'Gần đúng rồi! Thử lại nhé', wrongNoRetry: 'Gần đúng rồi!', moveOn: 'Mình sang câu tiếp theo nhé.',
+    wrongH: 'Gần đúng rồi! Con chọn lại nhé', wrongNoRetry: 'Gần đúng rồi!', moveOn: 'Mình sang câu tiếp theo nhé.', skip: 'Bỏ qua, sang câu sau',
     praise: ['Đúng rồi, giỏi quá!', 'Tuyệt vời, con làm đúng rồi!', 'Chính xác! Con giỏi lắm!'],
     next: 'Câu tiếp theo', finish: 'Xong rồi!', net: 'Mạng đang chậm, con bấm lại nhé.', nothing: 'Hôm nay chưa có câu nào để luyện.', home: 'Về trang bài học',
     pickWord: 'Chọn một từ trước, rồi chạm vào hình', remove: (w: string) => `Bỏ từ ${w}`, add: (w: string) => `Thêm từ ${w}`, matchOf: (w: string, e: string) => `${w}, đã nối với ${e}`,
   },
   en: {
     back: 'Back', qAria: (i: number, n: number) => `Question ${i} of ${n}`, listen: 'Listen to the question', hear: 'Listen again', check: 'Check', sending: 'Checking…',
-    ask: { math_mcq: 'Pick the right answer', math_word: 'Read the problem and answer', eng_match: 'Match the words with the pictures', eng_order: 'Put the words in order', eng_listen: 'Listen and choose the right word' } as Record<string, string>,
+    ask: { math_mcq: 'Pick the right answer', math_fill: 'Fill in the missing number', math_truefalse: 'True or false?', math_word: 'Read the problem and answer', eng_fill: 'Choose the missing word', eng_match: 'Match the words with the pictures', eng_order: 'Put the words in order', eng_listen: 'Listen and choose the right word' } as Record<string, string>,
     yes: 'True', no: 'False', answerAria: 'Your answer', blank: 'blank',
-    wrongH: 'So close! Try again', wrongNoRetry: 'So close!', moveOn: 'Let’s go to the next question.',
+    wrongH: 'So close! Have another go', wrongNoRetry: 'So close!', moveOn: 'Let’s go to the next question.', skip: 'Skip to the next one',
     praise: ['Correct, well done!', 'Brilliant, that’s right!', 'Exactly! Great job!'],
     next: 'Next question', finish: 'All done!', net: 'The connection is slow, please tap again.', nothing: 'There is nothing to practise today.', home: 'Back to the lesson',
     pickWord: 'Pick a word first, then tap a picture', remove: (w: string) => `Remove ${w}`, add: (w: string) => `Add ${w}`, matchOf: (w: string, e: string) => `${w}, matched with ${e}`,
@@ -133,8 +133,11 @@ function Run({ pid, learn }: { pid: string; learn: Learn }) {
       </div>
 
       <span className="p-spacer" />
-      {(status === 'right' || status === 'wrong') && (
+      {(status === 'right' || (status === 'wrong' && res?.retry === false)) && (
         <button className="p-btn" style={{ minHeight: 64 }} onClick={next} autoFocus={status === 'right'}>{idx + 1 >= n ? t.finish : t.next}</button>
+      )}
+      {status === 'wrong' && res?.retry !== false && (
+        <button className="p-pill" style={{ alignSelf: 'center', minHeight: 44 }} onClick={next}>{idx + 1 >= n ? t.finish : t.skip}</button>
       )}
     </>
   );

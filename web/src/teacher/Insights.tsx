@@ -13,12 +13,12 @@ import { shareMessage } from './share.ts';
 // "Kết quả từng học sinh": every pupil of the class for this lesson, including those not started
 const R = {
   vi: { h: 'Kết quả từng học sinh', sub: 'Bấm tên để xem chi tiết. Chỉ cô xem được; học sinh không thấy nhãn hay điểm.',
-    status: { none: 'Chưa làm', started: 'Đang làm', done: 'Đã xong' }, colPupil: 'Học sinh', colStatus: 'Trạng thái', colTried: 'Câu đã làm', colErr: 'Lỗi hay gặp', colMood: 'Con thấy bài', colLast: 'Lần cuối',
+    status: { none: 'Chưa làm', started: 'Đang làm', done: 'Đã xong' }, colPupil: 'Học sinh', colStatus: 'Trạng thái', colTried: 'Câu đã làm (lượt luyện có', of: 'câu)', colErr: 'Lỗi hay gặp', colMood: 'Con thấy bài', colLast: 'Lần cuối',
     count: (d: number, s: number, n: number, all: number) => `Đã xong ${d}/${all} · Đang làm ${s} · Chưa làm ${n}`, moods: { easy: '😊 Dễ', ok: '🙂 Vừa', hard: '😟 Khó' },
     notAssigned: (k: string) => `Bài này chưa giao cho ${k}.`, assign: 'Giao bài', noPupils: 'Lớp này chưa có học sinh.', remind: 'Nhắc các em chưa làm', reminded: 'Đã chép lời nhắc' ,
     remindMsg: (names: string[], title: string) => `Phụ huynh của ${names.join(', ')} nhắc con làm bài "${title}" trên LessonBloom giúp cô nhé. Cảm ơn quý phụ huynh!` },
   en: { h: 'Each pupil’s results', sub: 'Tap a name for details. Only you see this; pupils never see labels or scores.',
-    status: { none: 'Not started', started: 'In progress', done: 'Finished' }, colPupil: 'Pupil', colStatus: 'Status', colTried: 'Questions done', colErr: 'Common slip', colMood: 'How it felt', colLast: 'Last active',
+    status: { none: 'Not started', started: 'In progress', done: 'Finished' }, colPupil: 'Pupil', colStatus: 'Status', colTried: 'Questions done (a round has', of: ')', colErr: 'Common slip', colMood: 'How it felt', colLast: 'Last active',
     count: (d: number, s: number, n: number, all: number) => `Finished ${d}/${all} · In progress ${s} · Not started ${n}`, moods: { easy: '😊 Easy', ok: '🙂 Just right', hard: '😟 Hard' },
     notAssigned: (k: string) => `This lesson is not assigned to ${k} yet.`, assign: 'Assign', noPupils: 'This class has no pupils yet.', remind: 'Remind those not started', reminded: 'Reminder copied',
     remindMsg: (names: string[], title: string) => `Dear parents of ${names.join(', ')}: please remind your child to do "${title}" on LessonBloom. Thank you!` },
@@ -108,7 +108,7 @@ function PupilTable({ d }: { d: Ins }) {
       {!d.assigned ? <div className="row"><span className="muted">{r.notAssigned(cname)}</span><Link to={`/lesson/${d.lessonId}/assign`} className="btn sm primary">{r.assign}</Link></div>
         : !rows.length ? <p className="muted" style={{ margin: 0 }}>{r.noPupils}</p>
         : <div className="table-scroll"><table className="t pupils-t">
-          <thead><tr><th>{r.colPupil}</th><th>{r.colStatus}</th><th>{r.colTried}</th>{skills.map((s) => <th key={s.tag}>{s.name}</th>)}<th>{r.colErr}</th><th>{r.colMood}</th><th>{r.colLast}</th></tr></thead>
+          <thead><tr><th>{r.colPupil}</th><th>{r.colStatus}</th><th>{r.colTried} {Math.min(10, d.practiceN || 0)}{r.of}</th>{skills.map((s) => <th key={s.tag}>{s.name}</th>)}<th>{r.colErr}</th><th>{r.colMood}</th><th>{r.colLast}</th></tr></thead>
           <tbody>{rows.map((p) => (
             <tr key={p.pupilId} className={p.status === 'none' ? 'muted' : ''}>
               <td><Link to={`/classes/${d.classId}/pupil/${p.pupilId}`}>{p.name}</Link></td>
@@ -137,12 +137,12 @@ const COLOR: Record<Lb, string> = { secure: '#3C9A5F', practising: '#B8C1CF', re
 const countOf = (labels: (Label | null | undefined)[]) => Object.fromEntries(LBS.map((k) => [k, labels.filter((x) => x === k).length])) as Record<Lb, number>;
 const S19 = {
   vi: { sub: (subj: string, t: string) => `${subj} · ${t}`, applies: 'Áp dụng cho cả hai phần bên dưới',
-    p1: 'Tổng quan tất cả các lớp cô đang dạy', p1sub: (k: number, s: number) => `${k} lớp · ${s} dạng bài · tính theo dạng bài, không theo từng học sinh`,
+    noAnswers: 'Đã giao, chưa có bài làm', p1: 'Tổng quan tất cả các lớp cô đang dạy', p1sub: (k: number, s: number) => `${k} lớp · ${s} dạng bài · tính theo dạng bài, không theo từng học sinh`,
     pie: 'Tỉ lệ dạng bài', pieAll: 'tất cả các lớp', unit: 'lượt dạng bài', unitCls: 'dạng bài', byClass: 'Theo từng lớp', see: 'Xem chi tiết ›',
     barNote: 'Mỗi ô là số dạng bài ở mức đó. Không so sánh học sinh.', p2: 'Chi tiết từng lớp', p2sub: 'Bảng, biểu đồ và các mục bên dưới chỉ tính lớp đang chọn.',
     all: 'Tất cả', filterNote: 'Bấm một mức để lọc bảng bên cạnh.', noData: 'Chưa có lượt làm bài cho bài này.', none: 'Không có dạng bài ở mức này.' },
   en: { sub: (subj: string, t: string) => `${subj} · ${t}`, applies: 'Applies to both parts below',
-    p1: 'Overview of all your classes', p1sub: (k: number, s: number) => `${nOf(k, 'class', 'classes')} · ${nOf(s, 'skill')} · counted by skill, not by pupil`,
+    noAnswers: 'Assigned, no answers yet', p1: 'Overview of all your classes', p1sub: (k: number, s: number) => `${nOf(k, 'class', 'classes')} · ${nOf(s, 'skill')} · counted by skill, not by pupil`,
     pie: 'Skills by level', pieAll: 'all classes', unit: 'skill results', unitCls: 'skills', byClass: 'By class', see: 'See details ›',
     barNote: 'Each block is the number of skills at that level. Pupils are not compared.', p2: 'Class detail', p2sub: 'The table, chart and sections below count the chosen class only.',
     all: 'All', filterNote: 'Tap a level to filter the table next to it.', noData: 'No answers yet for this lesson.', none: 'No skills at this level.' },
@@ -194,7 +194,8 @@ export function Insights() {
 
   const lesson = d.lessons.find((x) => x.id === d.lessonId);
   const withData = d.classes.filter((k) => d.overview.some((o) => o.byClass[k.id]));
-  const shownCls = withData.length ? withData : d.classes;
+  const given = d.classes.filter((k) => k.assigned || withData.includes(k));
+  const shownCls = given.length ? given : d.classes;
   const allC = countOf(d.overview.flatMap((o) => shownCls.map((k) => o.byClass[k.id])));
   const kC = countOf(d.overview.map((o) => o.byClass[d.classId]));
   const kRows = d.overview.filter((o) => lvl === 'all' ? true : o.byClass[d.classId] === lvl);
@@ -220,7 +221,7 @@ export function Insights() {
             <div className="card-in"><div className="small" style={{ fontWeight: 600 }}>{s19.byClass}</div>
               <div className="stack" style={{ gap: 10, marginTop: 8 }}>{shownCls.map((k) => (
                 <div key={k.id} className="row" style={{ gap: 10, flexWrap: 'nowrap' }}><strong style={{ width: 90, flex: '0 0 90px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{withCls(t.cls, k.name)}</strong>
-                  <Bar c={countOf(d.overview.map((o) => o.byClass[k.id]))} /><button className="btn sm" onClick={() => pickClass(k.id)}>{s19.see}</button></div>))}</div>
+                  {withData.includes(k) ? <Bar c={countOf(d.overview.map((o) => o.byClass[k.id]))} /> : <span className="muted small grow">{s19.noAnswers}</span>}<button className="btn sm" onClick={() => pickClass(k.id)}>{s19.see}</button></div>))}</div>
               <p className="muted small" style={{ margin: '10px 0 0' }}>{s19.barNote}</p></div>
           </div>
         )}
@@ -258,7 +259,7 @@ export function Insights() {
           {repeated.map((s) => (
             <div key={s.skill} className="card stack" style={{ gap: 8 }}>
               <strong>{s.errors[0]?.errorType || s.skillName}</strong>
-              <span className="muted small">{t.colSkill}: {s.skillName}</span>
+              <span className="muted small">{t.colSkill}: {s.skillName} · {t.classIs} <LabelChip l={s.classLabel} /></span>
               {s.errors.slice(0, 2).map((e) => (
                 <div key={e.errorType} className="small">
                   {e.example && <div className="muted">{t.example} {e.example}</div>}

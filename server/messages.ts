@@ -44,11 +44,12 @@ export const MSG = {
   noAccounts: { vi: 'Đăng ký tài khoản chưa bật. Cô dùng thử bản demo nhé.', en: 'Accounts are not switched on. Please try the demo.' },
 
   // lesson build progress (shown live in step 3)
-  pReading: { vi: 'Đang đọc tài liệu và soạn slide…', en: 'Reading the document and writing slides…' },
-  pSlides: (n: number): Msg => ({ vi: `Đã có ${n} slide. Đang soạn bài tập theo mẫu và tự kiểm tra đáp án…`, en: `${n} slides done. Writing exercises from the templates and checking the answers…` }),
+  pReading: { vi: 'Đang soạn cùng lúc: slide, bài tập (có tự kiểm tra đáp án) và thẻ nhớ…', en: 'Writing slides, exercises (with an answer self-check) and flashcards at the same time…' },
+  pSlides: (n: number): Msg => ({ vi: `Đã có ${n} slide.`, en: `${n} slides done.` }),
+  pCards: (n: number): Msg => ({ vi: `Đã có ${n} thẻ nhớ và trò lật thẻ.`, en: `${n} flashcards and the memory game done.` }),
   pExercises: (n: number, skills: number, fixed: number): Msg => ({
-    vi: `Đã có ${n} câu cho ${skills} dạng bài; máy đã tự sửa ${fixed} câu. Đang làm thẻ nhớ…`,
-    en: `${n} exercises for ${skills} skills; ${fixed} fixed by the self-check. Making flashcards…` }),
+    vi: `Đã có ${n} câu cho ${skills} dạng bài; máy đã tự sửa ${fixed} câu.`,
+    en: `${n} exercises for ${skills} skills; ${fixed} fixed by the self-check.` }),
   pDone: { vi: 'Xong phần chữ! Cô xem lại slide và bài tập; hình minh họa đang được vẽ thêm.', en: 'Text is ready! Review the slides and exercises; pictures are still being drawn.' },
   pRewrite: (round: number, n: number): Msg => ({ vi: `Tự kiểm tra lượt ${round}: viết lại ${n} câu`, en: `Self-check round ${round}: rewriting ${n} items` }),
   pDropped: (n: number, rounds: number): Msg => ({ vi: `Bỏ ${n} câu vẫn chưa đạt sau ${rounds} lượt sửa`, en: `Dropped ${n} items that still failed after ${rounds} rounds` }),

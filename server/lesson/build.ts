@@ -107,7 +107,8 @@ export interface ExerciseResult { skills: Skill[]; exercises: Exercise[]; checks
 export async function makeExercises(ai: AI, source: string, it: Intake, slides: Slide[], log: (m: Msg) => void = () => {}, perLevel = 4): Promise<ExerciseResult> {
   const types = it.subject === 'math' ? MATH_TYPES : ENG_TYPES;
   const system = fill(EXERCISES_SYSTEM, { templates: types.map((t) => `- ${TEMPLATE_HELP[t]}`).join('\n'), perLevel, grade: it.grade, langName: LANG_NAME[it.lang], note: noteLine(it) });
-  const lesson = `SETUP:\n${JSON.stringify(it)}\n\nLESSON SLIDES:\n${JSON.stringify(slides.map(({ heading, bullets, example }) => ({ heading, bullets, example })))}\n\nDOCUMENT:\n${source}`;
+  const slideText = slides.length ? `\n\nLESSON SLIDES:\n${JSON.stringify(slides.map(({ heading, bullets, example }) => ({ heading, bullets, example })))}` : '';
+  const lesson = `SETUP:\n${JSON.stringify(it)}${slideText}\n\nDOCUMENT:\n${source}`;
   const gen = async (prompt: string, input: unknown) => {
     const r = await ai.json<{ skills: Skill[]; items: RawItem[] }>({ task: 'exercises', tier: (input as { redo?: unknown }).redo ? 'fast' : 'pro', system, prompt, schema: exercisesSchema(types), input });
     return { skills: r.skills || [], items: (r.items || []).filter((x) => types.includes(x.type)) };
@@ -153,7 +154,7 @@ export async function makeExercises(ai: AI, source: string, it: Intake, slides: 
     });
   }
   const used = new Set(items.map((e) => e.skill));
-  return { skills: skills.filter((s) => used.has(s.tag)), exercises: items, checks: [...history].map(([exercise, issues]) => ({ exercise, attempts: tries.get(exercise) || 1, issues })) };
+  return { skills: skills.filter((s) => used.has(s.tag)), exercises: items.map(withSum), checks: [...history].map(([exercise, issues]) => ({ exercise, attempts: tries.get(exercise) || 1, issues })) };
 }
 
 // A prompt that gives the answer away (lessons made before the check) becomes a neutral instruction when served.
@@ -162,7 +163,18 @@ const SAFE_PROMPT: Record<string, { vi: string; en: string }> = {
   eng_listen: { vi: 'Nghe rồi chọn đáp án đúng.', en: 'Listen and choose the right answer.' },
   eng_order: { vi: 'Sắp xếp các từ thành câu đúng.', en: 'Put the words in the right order.' },
 };
-export function safePrompt<E extends Exercise>(e: E, lang: 'vi' | 'en'): E {
+// A multiple-choice sum must show the sum. Gemini sometimes writes only "Choose the right answer:" and keeps
+// the sum in "expr", which pupils never receive (for word problems "expr" is the solution); put it in the prompt.
+const lead = (p: string) => p.trim().replace(/[\s.:;!?…]+$/u, '');
+export function withSum<E extends Exercise>(e: E): E {
+  if (e.type !== 'math_mcq' || !e.expr?.trim()) return e;
+  const nums = e.expr.match(/\d+/g) || [];
+  if (nums.every((n) => new RegExp(`(^|\\D)${n}(\\D|$)`).test(e.prompt || ''))) return e;
+  return { ...e, prompt: e.prompt?.trim() ? `${lead(e.prompt)}: ${e.expr.trim()} = ?` : `${e.expr.trim()} = ?` };
+}
+
+export function safePrompt<E extends Exercise>(e0: E, lang: 'vi' | 'en'): E {
+  const e = withSum(e0);
   const safe = SAFE_PROMPT[e.type];
   if (!safe || !checkLocal(e).issues.some((i) => i.startsWith('prompt gives away'))) return e;
   return { ...e, prompt: safe[lang] };

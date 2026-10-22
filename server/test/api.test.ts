@@ -110,10 +110,10 @@ test('classes and pupils can be edited and removed; one pupil’s progress; less
   const detail = (await call('GET', `/api/t/classes/${k2a.id}`)).json;
   const an = detail.pupils.find((p: any) => p.displayName === 'An');
 
-  // one pupil: the seeded lesson with skills from their own answers only
+  // one pupil: the two seeded lessons (Maths, English) with skills from their own answers only
   const prog = (await call('GET', `/api/t/classes/${k2a.id}/pupils/${an.id}`)).json;
   assert.equal(prog.pupil.displayName, 'An');
-  assert.equal(prog.lessons.length, 1);
+  assert.equal(prog.lessons.length, 2);
   assert.ok(prog.lessons[0].answered > 0 && prog.lessons[0].skills.some((s: any) => s.label === 'repeated'), 'An is seeded with a carrying problem');
 
   assert.equal((await call('PUT', `/api/t/classes/${k2a.id}/pupils/${an.id}`, { name: 'An Nhiên' })).json.displayName, 'An Nhiên');
@@ -129,7 +129,7 @@ test('classes and pupils can be edited and removed; one pupil’s progress; less
   const c = (await call('GET', `/api/t/lessons/${copy.id}`)).json;
   assert.ok(c.intake.title.endsWith('(bản sao)') && c.exercises.length === 12 && !c.sample);
   assert.equal((await call('DELETE', `/api/t/lessons/${lesson.id}`)).status, 200);
-  assert.equal((await call('GET', `/api/t/classes/${k2a.id}`)).json.assignments.length, 0);
+  assert.equal((await call('GET', `/api/t/classes/${k2a.id}`)).json.assignments.length, 1, 'only the other sample lesson is still assigned');
 
   // a class goes with its pupils; another workspace cannot touch it
   const other = (await call('POST', '/api/t/me', {})).json.key, mine = key;
@@ -370,4 +370,29 @@ test('learning summary opens on a class the lesson was given to', async () => {
   assert.equal(ins.lessonId, copy);
   assert.equal(ins.classId, k2b.id);
   assert.equal(ins.assigned, true);
+});
+
+test('demo: seeded answers follow the pupil app (8 items a round), an English workspace opens on the English lesson, and mistakes list only pupils who repeat them', async () => {
+  const app = createApp(new MockProvider(), new LocalStore(await mkdtemp(join(tmpdir(), 'lb-'))));
+  let key = '';
+  const call = async (method: string, path: string, body?: unknown) => {
+    const r = await app.request(path, { method, headers: { 'content-type': 'application/json', 'x-teacher': key }, body: body ? JSON.stringify(body) : undefined });
+    return { status: r.status, json: await r.json() as any };
+  };
+  const made = (await call('POST', '/api/t/me', { lang: 'en' })).json;
+  key = made.key;
+  assert.equal(made.teacher.name, 'Ms. Hanh');
+  const lessons = (await call('GET', '/api/t/lessons')).json;
+  assert.equal(lessons[0].title, 'My favourite colour');
+  assert.deepEqual(lessons[0].classes, ['2A', '2B', '2C']);
+  // a pupil who finished: 8 different items, the same 8 the pupil app shows
+  const [k2a] = (await call('GET', '/api/t/classes')).json;
+  const an = (await call('GET', `/api/t/classes/${k2a.id}`)).json.pupils.find((p: any) => p.displayName === 'An');
+  const learn = await (await app.request(`/api/learn/${an.id}`)).json() as any;
+  assert.equal(learn.tried, 8);
+  // learning summary: each repeated mistake names only pupils for whom it is a repeated mistake
+  const ins = (await call('GET', `/api/t/insights?lessonId=${lessons[1].id}&classId=${k2a.id}`)).json;
+  for (const s of ins.detail) for (const e of s.errors) for (const name of e.pupils)
+    assert.ok(s.pupils.some((p: any) => p.name === name && p.label === 'repeated'), `${name} listed under ${e.errorType}`);
+  assert.ok(ins.classes.every((k: any) => k.assigned));
 });

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import { MockProvider } from '../ai/mock.ts';
-import { checkLocal, cleanCard, intake, makeCards, makeExercises, makeSlides, meaningless } from '../lesson/build.ts';
+import { checkLocal, cleanCard, intake, makeCards, makeExercises, makeSlides, meaningless, withSum } from '../lesson/build.ts';
 import { illustrate } from '../lesson/illustrate.ts';
 import { checkMath, evaluate, solveBlank } from '../lesson/mathcheck.ts';
 import type { Exercise } from '../types.ts';
@@ -137,4 +137,13 @@ test('English items whose prompt gives the answer away are caught by code', () =
   assert.equal(checkLocal({ ...base, type: 'eng_listen', prompt: 'Listen: "red". Choose the colour.', say: 'red', options: ['red', 'blue', 'green'], answer: 'red' } as any).ok, false);
   assert.equal(checkLocal({ ...base, type: 'eng_listen', prompt: 'Listen and choose the colour.', say: 'red', options: ['red', 'blue', 'green'], answer: 'red' } as any).ok, true);
   assert.equal(checkLocal({ ...base, type: 'eng_order', prompt: 'Order: It is red', words: ['red', 'It', 'is'], answer: 'It is red.' } as any).ok, false);
+});
+
+test('a multiple-choice sum always shows the sum to the pupil; word problems keep their solution hidden', () => {
+  const mcq = { id: 'ex01', type: 'math_mcq', level: 'basic', skill: 's', prompt: 'Chọn kết quả đúng của phép tính sau:', expr: '52 - 28', options: ['24', '34', '26'], answer: '24' } as Exercise;
+  assert.equal(withSum(mcq).prompt, 'Chọn kết quả đúng của phép tính sau: 52 - 28 = ?');
+  const shown = { ...mcq, prompt: '52 - 28 = ?' } as Exercise;
+  assert.equal(withSum(shown).prompt, '52 - 28 = ?');
+  const word = { id: 'ex02', type: 'math_word', level: 'good', skill: 's', prompt: 'Có 52 quả cam, bán 28 quả. Còn bao nhiêu quả?', expr: '52 - 28', answer: '24', unit: 'quả cam' } as Exercise;
+  assert.equal(withSum(word).prompt, word.prompt);
 });

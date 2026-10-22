@@ -3,7 +3,8 @@
 import { useSyncExternalStore } from 'react';
 
 export type UiLang = 'vi' | 'en';
-let lang: UiLang = (() => { try { return (localStorage.getItem('lb-lang') as UiLang) || 'vi'; } catch { return 'vi'; } })();
+const browserLang = (): UiLang => { try { return (navigator.languages?.[0] || navigator.language || 'vi').toLowerCase().startsWith('vi') ? 'vi' : 'en'; } catch { return 'vi'; } };
+let lang: UiLang = (() => { try { return (localStorage.getItem('lb-lang') as UiLang) || browserLang(); } catch { return browserLang(); } })();
 const subs = new Set<() => void>();
 
 export function setLang(l: UiLang) {

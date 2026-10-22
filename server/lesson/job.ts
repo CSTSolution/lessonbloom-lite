@@ -1,5 +1,5 @@
 // Builds one lesson in the background and saves progress as it goes, so the teacher sees the
-// agent working: slides -> exercises (self-check) -> flashcards & memory pairs -> READY, then
+// agent working: slides, exercises (self-check) and flashcards are written side by side -> READY, then
 // pictures (vision check) keep arriving in the background while the teacher already reviews.
 // The video is made separately in step 4 (video.ts), once the teacher has seen the slides.
 import type { AI } from '../ai/provider.ts';
@@ -15,13 +15,19 @@ export async function runLesson(ai: AI, store: Store, l: Lesson): Promise<Lesson
   const save = () => store.put('lessons', l);
   const step = async (m: Msg) => { l.progress.push(m); await save(); };
   try {
+    // The three parts only need the document, so they are written at the same time (one after the other took
+    // 5-7 minutes when Vertex AI was busy). Exercises come from the document, not the slides.
+    const cards = l.intake.outputs.includes('flashcards');
+    l.built = { slides: false, exercises: false, cards: cards ? false : undefined, startedAt: new Date().toISOString() };
     await step(MSG.pReading);
-    l.slides = await makeSlides(ai, l.source, l.intake);
-    await step(MSG.pSlides(l.slides.length));
-    const ex = await makeExercises(ai, l.source, l.intake, l.slides, (m) => l.progress.push(m));
-    Object.assign(l, { skills: ex.skills, exercises: ex.exercises, checks: ex.checks });
-    await step(MSG.pExercises(l.exercises.length, l.skills.length, l.checks.length));
-    if (l.intake.outputs.includes('flashcards')) Object.assign(l, await makeCards(ai, l.source, l.intake));
+    await Promise.all([
+      makeSlides(ai, l.source, l.intake).then(async (s) => { l.slides = s; l.built!.slides = true; await step(MSG.pSlides(s.length)); }),
+      makeExercises(ai, l.source, l.intake, [], (m) => l.progress.push(m)).then(async (ex) => {
+        Object.assign(l, { skills: ex.skills, exercises: ex.exercises, checks: ex.checks }); l.built!.exercises = true;
+        await step(MSG.pExercises(ex.exercises.length, ex.skills.length, ex.checks.length));
+      }),
+      cards ? makeCards(ai, l.source, l.intake).then(async (c) => { Object.assign(l, c); l.built!.cards = true; await step(MSG.pCards(c.flashcards.length)); }) : null,
+    ]);
     l.status = 'ready'; l.picturesPending = true;
     await step(MSG.pDone);
   } catch (e) {

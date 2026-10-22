@@ -93,6 +93,7 @@ export function LessonFlow({ id, step }: { id: string; step: string }) {
           <div className="card stack">
             <h2>{l.status === 'error' ? t.failed : t.buildTitle}</h2>
             <p className="muted" style={{ margin: 0 }}>{t.buildSub}</p>
+            {l.status === 'working' && <BuildBar l={l} t={t} />}
             <ol style={{ margin: 0, paddingLeft: 20, lineHeight: 1.8 }}>
               {l.progress.map((m, i) => <li key={i} style={{ color: i === l.progress.length - 1 && l.status === 'working' ? 'var(--blue)' : undefined }}>{pick(m, lang)}{i === l.progress.length - 1 && l.status === 'working' ? ' ⏳' : ''}</li>)}
             </ol>
@@ -115,5 +116,24 @@ export function LessonFlow({ id, step }: { id: string; step: string }) {
       {idx === 5 && <Assign l={l} />}
       {printing && <PrintDialog l={l} initial={printing} onClose={() => setPrinting(null)} />}
     </>
+  );
+}
+
+// Text parts being written side by side: a bar, a tick per finished part, the time so far and what to expect
+function BuildBar({ l, t }: { l: Lesson; t: { partSlides: string; partEx: string; partCards: string; elapsed: (m: string) => string; estimate: string } }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const i = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(i); }, []);
+  const b = l.built || {};
+  const parts = ([['slides', t.partSlides], ['exercises', t.partEx], ['cards', t.partCards]] as const).filter(([k]) => b[k] !== undefined);
+  const done = parts.filter(([k]) => b[k]).length;
+  const secs = Math.max(0, Math.round((now - Date.parse(b.startedAt || l.createdAt)) / 1000));
+  // the bar never sits still: finished parts, plus slow progress inside the part(s) still running
+  const pct = parts.length ? Math.min(97, (100 * done) / parts.length + ((100 / parts.length) * (parts.length - done) * Math.min(0.85, secs / 300)) / parts.length) : 10;
+  return (
+    <div className="stack" style={{ gap: 8 }} role="status" aria-live="polite">
+      <div style={{ height: 10, borderRadius: 999, background: 'var(--chip)', overflow: 'hidden' }}><div style={{ width: `${pct}%`, height: '100%', background: 'var(--blue)', transition: 'width 1s linear' }} /></div>
+      <div className="row small" style={{ gap: 16 }}>{parts.map(([k, name]) => <span key={k}>{b[k] ? '✓' : '⏳'} {name}</span>)}<span className="grow" /><span className="muted">{t.elapsed(`${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`)}</span></div>
+      <p className="muted small" style={{ margin: 0 }}>{t.estimate}</p>
+    </div>
   );
 }

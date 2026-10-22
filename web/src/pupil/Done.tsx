@@ -61,7 +61,7 @@ export function Done({ pid }: { pid: string }) {
   const did = !l ? [] : [
     seen.includes('video') && t.did.video,
     seen.includes('cards') && l.flashcards.length > 0 && t.did.cards(l.flashcards.length),
-    t.did.practice(Math.max(1, learn?.done?.length || 0)),
+    t.did.practice(Math.max(1, learn?.tried || learn?.done?.length || 0)),
     seen.includes('memory') && t.did.memory,
   ].filter((x): x is string => !!x);
   const today = new Date().toLocaleDateString(lang === 'vi' ? 'vi-VN' : 'en-GB');

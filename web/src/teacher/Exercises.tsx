@@ -2,7 +2,7 @@
 // solution; the self-check note; edit / delete; flashcards and memory pairs; print worksheet.
 import { useMemo, useState } from 'react';
 import { go, teacherApi, type Exercise, type Lesson, type Level } from '../api.ts';
-import { useT } from '../i18n.ts';
+import { getLang, useT } from '../i18n.ts';
 import { T } from './dict.ts';
 
 type Ans = Exercise & { answer?: string };
@@ -26,7 +26,8 @@ export function questionText(e: Exercise) {
     case 'math_fill': return `${lead(e.prompt)}: ${e.equation.replace('?', '…')}`;
     case 'math_truefalse': return `${e.prompt} ${e.statement}`;
     case 'eng_fill': return `${lead(e.prompt)}: ${e.sentence}`;
-    case 'eng_listen': return `${e.prompt} 🔊 “${e.say}”`;
+    // the pupil only hears this (the app reads it aloud); it is never printed on the pupil's screen or the worksheet
+    case 'eng_listen': return `${e.prompt} · 🔊 ${getLang() === 'en' ? 'read aloud, pupils only hear it' : 'đọc to, học sinh chỉ nghe'}: “${e.say}”`;
     case 'eng_order': return `${lead(e.prompt)}: ${[...e.words].sort((a, b) => a.localeCompare(b)).join(' / ')}`;
     case 'eng_match': return e.prompt;
     default: return e.prompt;
@@ -74,6 +75,7 @@ export function Exercises({ l, onChange, onPrint }: { l: Lesson; onChange: (l: L
         <div className="pills no-print ex-filter" role="group" aria-label={t.tplTitle}>
           {tabs.map(({ k, n }) => <button key={k} className={`pill sm ${tab === k ? 'on' : ''}`} aria-pressed={tab === k} onClick={() => setTab(k)}>{k === 'all' ? t.allTypes : t.tpl[k] || k} <b>{n}</b></button>)}
         </div>
+        {exTab && <p className="muted small no-print" style={{ margin: 0 }}>{t.roundNote(Math.min(10, l.exercises.filter((e) => e.level !== 'advanced').length), l.exercises.filter((e) => e.level === 'advanced').length)}</p>}
         {exTab && (
           <div className="lang no-print" role="group" aria-label="level" style={{ alignSelf: 'flex-start' }}>{(['all', 'basic', 'good', 'advanced'] as const).map((lv) => <button key={lv} className={level === lv ? 'on' : ''} aria-pressed={level === lv} onClick={() => setLevel(lv)}>{lv === 'all' ? t.allLevels : t[lv]} · {lvN(lv)}</button>)}</div>
         )}

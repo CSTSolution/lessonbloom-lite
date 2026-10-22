@@ -61,6 +61,7 @@ export interface Lesson {
   status: 'draft' | 'working' | 'ready' | 'error';
   picturesPending?: boolean;       // ready to review; illustrations still arriving
   progress: (string | { vi: string; en: string })[];
+  built?: { slides?: boolean; exercises?: boolean; cards?: boolean; startedAt?: string };   // which parts of the text are done (progress bar)
   sample?: boolean;     // the ready-made demo lesson from seedTeacher   // plain strings in lessons made before VI/EN progress
   error?: string;
   source: string;

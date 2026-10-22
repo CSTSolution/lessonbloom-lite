@@ -77,8 +77,9 @@ export function summarise(skill: Skill, pupils: Pupil[], attempts: Attempt[], c:
     e.count++; e.pupils.add(a.pupilId); if (!e.example) { e.example = readableAnswer(a.answer); e.exampleExercise = a.exerciseId; } errMap.set(a.errorType, e);
   }
   const nameOf = new Map(pupils.map((p) => [p.id, p.displayName]));
-  const errors = [...errMap].map(([errorType, e]) => ({ errorType, count: e.count, pupils: [...e.pupils].map((id) => nameOf.get(id) || '?'), example: e.example, exampleExercise: e.exampleExercise }))
-    .filter((e) => ps.some((p) => p.label === 'repeated' && p.topError === e.errorType))
+  const repeaters = (t: string) => ps.filter((p) => p.label === 'repeated' && p.topError === t).map((p) => p.pupilId);
+  const errors = [...errMap].map(([errorType, e]) => ({ errorType, count: e.count, pupils: repeaters(errorType).map((id) => nameOf.get(id) || '?'), example: e.example, exampleExercise: e.exampleExercise }))
+    .filter((e) => e.pupils.length)
     .sort((a, b) => b.count - a.count);
   return { skill: skill.tag, skillName: skill.name, classLabel, pupils: ps, errors };
 }
