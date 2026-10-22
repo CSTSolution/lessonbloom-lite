@@ -67,8 +67,10 @@ export function summarise(skill: Skill, pupils: Pupil[], attempts: Attempt[], c:
     .filter((p) => p.total > 0);
   const counted = ps.filter((p) => p.enough || p.label === 'repeated');
   const share = (l: Label) => (counted.length ? (100 * counted.filter((p) => p.label === l).length) / counted.length : 0);
+  // a class "repeats" a mistake when enough of the pupils who answered do, not one pupil on a skill few have finished
+  const repeatedShare = ps.length ? (100 * ps.filter((p) => p.label === 'repeated').length) / ps.length : 0;
   let classLabel: Label = 'practising';
-  if (counted.length && share('repeated') >= c.classRepeatedPct) classLabel = 'repeated';
+  if (counted.length && repeatedShare >= c.classRepeatedPct) classLabel = 'repeated';
   else if (counted.length && share('secure') >= c.classSecurePct && !counted.some((p) => p.label === 'repeated')) classLabel = 'secure';
 
   const errMap = new Map<string, { count: number; pupils: Set<string>; example?: string; exampleExercise?: string }>();
