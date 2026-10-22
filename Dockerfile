@@ -13,8 +13,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg chromium
   && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production PORT=8080 CHROMIUM_PATH=/usr/bin/chromium
 COPY package*.json ./
-RUN npm ci --omit=dev && npm install --no-save tsx@4
+RUN npm ci --omit=dev        # tsx is a dependency: a cold start never downloads anything
 COPY server ./server
 COPY --from=build /app/web/dist ./web/dist
 EXPOSE 8080
-CMD ["npx", "tsx", "server/main.ts"]
+CMD ["./node_modules/.bin/tsx", "server/main.ts"]
