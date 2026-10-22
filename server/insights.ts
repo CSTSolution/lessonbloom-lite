@@ -2,6 +2,7 @@
 // 80 / 50 / 3 times in 2 sessions / 30% / 70%). Labels attach to a SKILL for a pupil or a
 // class; nothing here is ever sent to a pupil. Pure functions, so they are easy to test.
 import type { Attempt, Criteria, Exercise, Label, Part, Pupil, SelfCheck, Skill, Visit } from './types.ts';
+import { withSum } from './lesson/build.ts';
 
 export interface PupilSkill { pupilId: string; name: string; label: Label; right: number; total: number; topError?: string; enough: boolean }
 export interface SkillSummary {
@@ -163,6 +164,7 @@ export function assignmentSummary(skills: Skill[], exercises: { id: string; skil
 
 // one pupil's answers question by question (teacher only), in the lesson's order
 export function questionText(e: Exercise): string {
+  if (e.type === 'math_mcq') return withSum(e).prompt;   // the sum is in the prompt (added there if Gemini left it out)
   return 'expr' in e && e.expr ? `${e.prompt} ${e.expr}`.trim() : 'equation' in e ? `${e.prompt} ${e.equation}`.trim() : 'statement' in e ? `${e.prompt} ${e.statement}`.trim()
     : 'sentence' in e ? `${e.prompt} ${e.sentence}`.trim() : e.type === 'eng_listen' ? `${e.prompt} (“${e.say}”)` : e.type === 'eng_match' ? `${e.prompt.trim().replace(/[\s.:;!?…]+$/u, '')}: ${e.pairs.map((x) => x.word).join(', ')}` : e.prompt;
 }
