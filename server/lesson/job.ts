@@ -9,7 +9,7 @@ import type { Lesson } from '../types.ts';
 import { makeCards, makeExercises, makeSlides } from './build.ts';
 import { illustrate } from './illustrate.ts';
 import { pool } from './pool.ts';
-import { MSG, type Msg } from '../messages.ts';
+import { FAILED, MSG, type Msg } from '../messages.ts';
 
 export async function runLesson(ai: AI, store: Store, l: Lesson): Promise<Lesson> {
   const save = () => store.put('lessons', l);
@@ -31,7 +31,9 @@ export async function runLesson(ai: AI, store: Store, l: Lesson): Promise<Lesson
     l.status = 'ready'; l.picturesPending = true;
     await step(MSG.pDone);
   } catch (e) {
-    l.status = 'error'; l.error = (e as Error).message;
+    // the teacher sees a plain message; provider details stay in the server log
+    console.error(`[lesson] ${l.id} failed: ${String((e as Error)?.stack || e).slice(0, 2000)}`);
+    l.status = 'error'; l.error = FAILED.lesson;
     await save();
     return l;
   }

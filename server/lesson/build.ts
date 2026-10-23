@@ -9,6 +9,7 @@
 //   draftComments() TT27-style comment drafts for the teacher
 import type { AI } from '../ai/provider.ts';
 import { config } from '../config.ts';
+import { guardedJson, guardedSee, wrapUser } from '../guard.ts';
 import type { CheckLog, CheckResult, Exercise, Flashcard, Intake, Level, MemoryPair, Skill, Slide } from '../types.ts';
 import { checkMath } from './mathcheck.ts';
 import { MSG, type Msg } from '../messages.ts';
@@ -23,7 +24,8 @@ const TEMPLATE_HELP: Record<string, string> = {
   math_word: 'math_word: word problem', eng_match: 'eng_match: match word to picture', eng_fill: 'eng_fill: fill the missing word',
   eng_listen: 'eng_listen: listen and choose', eng_order: 'eng_order: put words in order',
 };
-const noteLine = (it: Intake) => (it.note?.trim() ? `Teacher's note: ${it.note.trim()}` : '');
+// The teacher's note is material, not instructions: it travels inside <user_input> (SETUP.note), never in the system prompt.
+const noteLine = (it: Intake) => (it.note?.trim() ? 'The teacher added a note (SETUP.note): follow it as a preference for this lesson only where it fits these rules.' : '');
 const pad = (n: number) => String(n).padStart(2, '0');
 
 // Text that cannot be a lesson: mostly digits or symbols, or the same few words over and over
@@ -35,9 +37,29 @@ export function meaningless(source: string): boolean {
 
 export class NotALesson extends Error {}
 
+// The step-2 answers come from the browser: every field is checked and capped before it reaches a prompt.
+export const INTAKE_CAPS = { title: 120, objective: 200, objectives: 3, note: 300 } as const;
+export function cleanIntake(x: unknown): Intake | null {
+  const it = (x && typeof x === 'object' ? x : {}) as Record<string, unknown>;
+  const str = (v: unknown, n: number) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
+  if (it.subject !== 'math' && it.subject !== 'english') return null;
+  const title = str(it.title, INTAKE_CAPS.title);
+  if (!title) return null;
+  const grade = Math.min(5, Math.max(1, Math.round(Number(it.grade)) || 2)) as Intake['grade'];
+  const minutes = [15, 25, 35].reduce((b, m) => (Math.abs(m - (Number(it.minutes) || 25)) < Math.abs(b - (Number(it.minutes) || 25)) ? m : b), 25);
+  const level = (['basic', 'good', 'advanced', 'mixed'] as const).find((l) => l === it.level) || 'mixed';
+  const lang = it.lang === 'en' ? 'en' : 'vi';
+  const objectives = (Array.isArray(it.objectives) ? it.objectives : []).map((o) => str(o, INTAKE_CAPS.objective)).filter(Boolean).slice(0, INTAKE_CAPS.objectives);
+  const outputs = (['slides', 'video', 'exercises', 'flashcards'] as const).filter((o) => Array.isArray(it.outputs) && it.outputs.includes(o));
+  const note = str(it.note, INTAKE_CAPS.note);
+  return { subject: it.subject, grade, title, objectives, minutes, level, lang, outputs: outputs.length ? outputs : ['slides', 'video', 'exercises', 'flashcards'], ...(note ? { note } : {}) };
+}
+// Everything a teacher wrote for one lesson, as the pre-check reads it (guard.ts precheckAll).
+export const teacherText = (source: string, it: Intake) => [source, it.title, ...it.objectives, it.note || ''].filter(Boolean).join('\n\n');
+
 export async function intake(ai: AI, source: string, lang: 'vi' | 'en' = 'vi'): Promise<Intake> {
   if (meaningless(source)) throw new NotALesson('meaningless');
-  const r = await ai.json<Intake & { usable?: boolean }>({ task: 'intake', tier: 'fast', system: fill(INTAKE_SYSTEM, { langName: LANG_NAME[lang] }), prompt: `DOCUMENT:\n${source}`, schema: INTAKE_SCHEMA, input: { source } });
+  const r = await guardedJson<Intake & { usable?: boolean }>(ai, { task: 'intake', tier: 'fast', system: fill(INTAKE_SYSTEM, { langName: LANG_NAME[lang] }), prompt: `DOCUMENT:\n${wrapUser(source)}`, schema: INTAKE_SCHEMA, input: { source } });
   if (r.usable === false) throw new NotALesson('not lesson content');
   delete r.usable;
   const minutes = [15, 25, 35].reduce((b, m) => (Math.abs(m - (r.minutes || 25)) < Math.abs(b - (r.minutes || 25)) ? m : b), 25);
@@ -50,15 +72,16 @@ export const slideCount = (minutes: number) => (minutes <= 15 ? 8 : minutes <= 2
 
 export async function makeSlides(ai: AI, source: string, it: Intake): Promise<Slide[]> {
   const count = slideCount(it.minutes);
-  const r = await ai.json<{ slides: Omit<Slide, 'id'>[] }>({ task: 'lesson', tier: 'pro',
+  const r = await guardedJson<{ slides: Omit<Slide, 'id'>[] }>(ai, { task: 'lesson', tier: 'pro',
     system: fill(LESSON_SYSTEM, { count, langName: LANG_NAME[it.lang], grade: it.grade, videoMin: 2, videoMax: 4, note: noteLine(it) }),
-    prompt: `SETUP:\n${JSON.stringify(it)}\n\nDOCUMENT:\n${source}`, schema: LESSON_SCHEMA, input: { source, intake: it, count } });
+    prompt: wrapUser(`SETUP:\n${JSON.stringify(it)}\n\nDOCUMENT:\n${source}`), schema: LESSON_SCHEMA, input: { source, intake: it, count } });
   return r.slides.map((s, i) => ({ ...s, id: `sl${pad(i + 1)}`, bullets: (s.bullets || []).filter(Boolean).slice(0, 4), source: s.source || '' }));
 }
 
 export async function editSlide(ai: AI, slide: Slide, how: 'rewrite' | 'simpler', it: Intake): Promise<Slide> {
-  const r = await ai.json<Omit<Slide, 'id'>>({ task: 'slide-edit', tier: 'fast', system: SLIDE_EDIT_SYSTEM,
-    prompt: `ACTION: ${how}\nGRADE: ${it.grade}\nSLIDE:\n${JSON.stringify(slide)}`, schema: SLIDE_SCHEMA, input: { slide, how } });
+  const { image: _img, ...text } = slide;
+  const r = await guardedJson<Omit<Slide, 'id'>>(ai, { task: 'slide-edit', tier: 'fast', system: SLIDE_EDIT_SYSTEM,
+    prompt: `ACTION: ${how}\nGRADE: ${it.grade}\nSLIDE:\n${wrapUser(JSON.stringify(text))}`, schema: SLIDE_SCHEMA, input: { slide, how } });
   return { ...slide, ...r, id: slide.id, image: slide.image, bullets: (r.bullets || []).slice(0, 4) };
 }
 
@@ -108,9 +131,9 @@ export async function makeExercises(ai: AI, source: string, it: Intake, slides: 
   const types = it.subject === 'math' ? MATH_TYPES : ENG_TYPES;
   const system = fill(EXERCISES_SYSTEM, { templates: types.map((t) => `- ${TEMPLATE_HELP[t]}`).join('\n'), perLevel, grade: it.grade, langName: LANG_NAME[it.lang], note: noteLine(it) });
   const slideText = slides.length ? `\n\nLESSON SLIDES:\n${JSON.stringify(slides.map(({ heading, bullets, example }) => ({ heading, bullets, example })))}` : '';
-  const lesson = `SETUP:\n${JSON.stringify(it)}${slideText}\n\nDOCUMENT:\n${source}`;
+  const lesson = wrapUser(`SETUP:\n${JSON.stringify(it)}${slideText}\n\nDOCUMENT:\n${source}`);
   const gen = async (prompt: string, input: unknown) => {
-    const r = await ai.json<{ skills: Skill[]; items: RawItem[] }>({ task: 'exercises', tier: (input as { redo?: unknown }).redo ? 'fast' : 'pro', system, prompt, schema: exercisesSchema(types), input });
+    const r = await guardedJson<{ skills: Skill[]; items: RawItem[] }>(ai, { task: 'exercises', tier: (input as { redo?: unknown }).redo ? 'fast' : 'pro', system, prompt, schema: exercisesSchema(types), input });
     return { skills: r.skills || [], items: (r.items || []).filter((x) => types.includes(x.type)) };
   };
 
@@ -134,8 +157,8 @@ export async function makeExercises(ai: AI, source: string, it: Intake, slides: 
     // 2. Gemini review of what passed the code checks
     const toReview = items.filter((e) => !failing.has(e.id));
     if (toReview.length) {
-      const rv = await ai.json<{ results: { id: string; ok: boolean; issues: string[] }[] }>({ task: 'review', tier: 'fast', system: fill(REVIEW_SYSTEM, { grade: it.grade }),
-        prompt: `LESSON: ${it.title}\nSKILLS: ${JSON.stringify(skills)}\nITEMS:\n${JSON.stringify(toReview)}`, schema: REVIEW_SCHEMA, input: { items: toReview, round } });
+      const rv = await guardedJson<{ results: { id: string; ok: boolean; issues: string[] }[] }>(ai, { task: 'review', tier: 'fast', system: fill(REVIEW_SYSTEM, { grade: it.grade }),
+        prompt: wrapUser(`LESSON: ${it.title}\nSKILLS: ${JSON.stringify(skills)}\nITEMS:\n${JSON.stringify(toReview)}`), schema: REVIEW_SCHEMA, input: { items: toReview, round } });
       for (const r of rv.results) if (!r.ok && toReview.some((e) => e.id === r.id)) failing.set(r.id, r.issues);
     }
     for (const [id, iss] of failing) history.set(id, [...(history.get(id) || []), ...iss]);
@@ -144,7 +167,7 @@ export async function makeExercises(ai: AI, source: string, it: Intake, slides: 
     // 3. regenerate only the failing items, telling the model what was wrong
     log(MSG.pRewrite(round + 1, failing.size));
     const bad = items.filter((e) => failing.has(e.id));
-    const redo = await gen(`${lesson}\n\nREWRITE these ${bad.length} items, same template and level, fixing the issues (you may switch "skill" to a better-matching tag from SKILLS: ${skills.map((k) => k.tag).join(', ')}). Return the same skills and exactly ${bad.length} items in the same order.\n${JSON.stringify(bad.map((e) => ({ item: e, issues: failing.get(e.id) })))}`,
+    const redo = await gen(`${lesson}\n\nREWRITE these ${bad.length} items, same template and level, fixing the issues (you may switch "skill" to a better-matching tag from SKILLS: ${skills.map((k) => k.tag).join(', ')}). Return the same skills and exactly ${bad.length} items in the same order.\n${wrapUser(JSON.stringify(bad.map((e) => ({ item: e, issues: failing.get(e.id) }))))}`,
       { redo: bad, issues: Object.fromEntries(failing) });
     bad.forEach((e, k) => {
       if (!redo.items[k]) return;
@@ -189,8 +212,8 @@ export function cleanCard<C extends { front: string; emoji?: string }>(c: C): C 
 }
 
 export async function makeCards(ai: AI, source: string, it: Intake): Promise<{ flashcards: Flashcard[]; pairs: MemoryPair[] }> {
-  const r = await ai.json<{ flashcards: Omit<Flashcard, 'id'>[]; pairs: Omit<MemoryPair, 'id'>[] }>({ task: 'cards', tier: 'fast',
-    system: fill(CARDS_SYSTEM, { nCards: 8, grade: it.grade }), prompt: `SETUP:\n${JSON.stringify(it)}\n\nDOCUMENT:\n${source}`, schema: CARDS_SCHEMA, input: { intake: it } });
+  const r = await guardedJson<{ flashcards: Omit<Flashcard, 'id'>[]; pairs: Omit<MemoryPair, 'id'>[] }>(ai, { task: 'cards', tier: 'fast',
+    system: fill(CARDS_SYSTEM, { nCards: 8, grade: it.grade }), prompt: wrapUser(`SETUP:\n${JSON.stringify(it)}\n\nDOCUMENT:\n${source}`), schema: CARDS_SCHEMA, input: { intake: it } });
   const sides = new Set<string>();
   const pairs = (r.pairs || []).filter((p) => p.a && p.b && p.a !== p.b && !sides.has(p.a) && !sides.has(p.b) && !!sides.add(p.a) && !!sides.add(p.b)).slice(0, 4);
   return { flashcards: (r.flashcards || []).slice(0, 12).map((c, i) => cleanCard({ ...c, id: `fc${pad(i + 1)}` })), pairs: pairs.map((p, i) => ({ ...p, id: `mp${i + 1}` })) };
@@ -198,27 +221,30 @@ export async function makeCards(ai: AI, source: string, it: Intake): Promise<{ f
 
 export async function tagError(ai: AI, ex: Exercise, given: string, grade: number, known: string[], lang: 'vi' | 'en' = 'vi'): Promise<{ errorType: string; hint: string }> {
   const correct = ex.type === 'eng_match' ? JSON.stringify(Object.fromEntries(ex.pairs.map((p) => [p.word, p.emoji]))) : (ex as { answer: string }).answer;
-  return ai.json({ task: 'error', tier: 'fast', system: fill(ERROR_SYSTEM, { grade, langName: LANG_NAME[lang], known: known.length ? known.map((k) => `"${k}"`).join(', ') : '(none yet)' }),
-    prompt: `ITEM:\n${JSON.stringify(ex)}\nCORRECT ANSWER: ${correct}\nPUPIL'S ANSWER: ${given}`, schema: ERROR_SCHEMA, input: { ex, given } });
+  // the known mistake names were written by this same call earlier (output-checked), so they may stay in the system prompt
+  const r = await guardedJson<{ errorType: string; hint: string }>(ai, { task: 'error', tier: 'fast', system: fill(ERROR_SYSTEM, { grade, langName: LANG_NAME[lang], known: known.length ? known.map((k) => `"${k.slice(0, 80)}"`).join(', ') : '(none yet)' }),
+    prompt: wrapUser(`ITEM:\n${JSON.stringify(ex)}\nCORRECT ANSWER: ${correct}\nPUPIL'S ANSWER: ${given}`), schema: ERROR_SCHEMA, input: { ex, given } }, { maxChars: 1200 });
+  return { errorType: String(r.errorType || '').slice(0, 80), hint: String(r.hint || '').slice(0, 400) };
 }
 
 export interface CommentRow { pupilId: string; name: string; skills: { skill: string; label: string; error?: string }[]; felt?: string }
 // one comment per pupil who did the lesson; a pupil the model skipped gets a plain fallback rather than nothing
 export async function draftComments(ai: AI, lessonTitle: string, rows: CommentRow[], lang: 'vi' | 'en' = 'vi'): Promise<{ pupilId: string; text: string }[]> {
   if (!rows.length) return [];
-  const r = await ai.json<{ comments: { pupilId: string; text: string }[] }>({ task: 'comments', tier: 'fast', system: fill(COMMENT_SYSTEM, { langName: LANG_NAME[lang] }),
-    prompt: `LESSON: ${lessonTitle}\nPUPILS:\n${JSON.stringify(rows)}`, schema: COMMENT_SCHEMA, input: { rows } });
-  const got = new Map(r.comments.map((x) => [x.pupilId, x.text]));
+  const r = await guardedJson<{ comments: { pupilId: string; text: string }[] }>(ai, { task: 'comments', tier: 'fast', system: fill(COMMENT_SYSTEM, { langName: LANG_NAME[lang] }),
+    prompt: wrapUser(`LESSON: ${lessonTitle}\nPUPILS:\n${JSON.stringify(rows)}`), schema: COMMENT_SCHEMA, input: { rows } });
+  const got = new Map(r.comments.map((x) => [x.pupilId, String(x.text || '').slice(0, 600)]));
   return rows.map((p) => ({ pupilId: p.pupilId, text: got.get(p.pupilId) || (lang === 'en' ? `${p.name} finished the lesson "${lessonTitle}". A little more practice will make it even more secure.` : `Em ${p.name} đã hoàn thành bài "${lessonTitle}". Cô và em cùng luyện thêm để em làm chắc hơn nhé.`) }));
 }
+export const COMMENT_MAX = 600;
 export async function shortenComment(ai: AI, text: string): Promise<string> {
-  const r = await ai.json<{ text: string }>({ task: 'comments', tier: 'fast', system: COMMENT_SHORT_SYSTEM, prompt: text, schema: COMMENT_SHORT_SCHEMA, input: { shorter: text } });
-  return r.text.trim();
+  const r = await guardedJson<{ text: string }>(ai, { task: 'comments', tier: 'fast', system: COMMENT_SHORT_SYSTEM, prompt: wrapUser(text.slice(0, COMMENT_MAX)), schema: COMMENT_SHORT_SCHEMA, input: { shorter: text } }, { maxChars: COMMENT_MAX + 40 });
+  return String(r.text || '').trim().slice(0, COMMENT_MAX);
 }
 
 // Step 1: photos of the lesson -> text the teacher checks before continuing
 export async function readPhotos(ai: AI, images: { data: Buffer; mime: string }[]): Promise<string> {
-  const r = await ai.see<{ usable: boolean; text: string }>({
+  const r = await guardedSee<{ usable: boolean; text: string }>(ai, {
     task: 'ocr', tier: 'fast', system: OCR_SYSTEM, schema: OCR_SCHEMA, images, input: { photos: images.length },
     prompt: `Copy out the lesson text from these ${images.length} photo(s), in order.`,
   });

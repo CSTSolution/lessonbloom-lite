@@ -68,6 +68,7 @@ export class MockProvider implements AI {
           return { pupilId: r.pupilId, text: `${sec ? `Em ${r.name} đã làm chắc dạng ${sec.skill}` : `Em ${r.name} đã chăm chỉ luyện tập`}; ${rep ? `em hay ${String(rep.error || 'nhầm').toLowerCase()}, cô và em cùng luyện thêm vài bài cùng dạng nhé.` : 'em thử thêm bài nâng cao nhé.'}` };
         }) } as T;
       }
+      case 'guard': return { verdict: 'on_task', reason: 'mock' } as T;   // the input pre-check (guard.ts); tests use their own fake for attacks
       default: throw new Error(`mock has no answer for ${req.task}`);
     }
   }

@@ -10,7 +10,8 @@ import { Otp, type Purpose } from './otp.ts';
 import { Hono, type Context } from 'hono';
 import type { AI } from './ai/provider.ts';
 import { assignmentSummary, nextSteps, pupilAnswers, pupilRows, readableAnswer, summarise } from './insights.ts';
-import { cleanCard, safePrompt, draftComments, editSlide, intake, meaningless, NotALesson, readPhotos, shortenComment, tagError, type CommentRow } from './lesson/build.ts';
+import { cleanCard, cleanIntake, COMMENT_MAX, safePrompt, draftComments, editSlide, intake, meaningless, NotALesson, readPhotos, shortenComment, tagError, teacherText, type CommentRow } from './lesson/build.ts';
+import { Blocked, Limiter, requireOnTask } from './guard.ts';
 import { illustrate } from './lesson/illustrate.ts';
 import { runLesson } from './lesson/job.ts';
 import { makeVideo } from './lesson/video.ts';
@@ -19,14 +20,14 @@ import { SpendGuard, type SpendKind } from './spend.ts';
 import { costOf, PRICE, UsageLog } from './usage.ts';
 import { CREDIT_COST, Credits, ctx, dailyLimit, PHOTOS_PER_LESSON, planOf, type CreditKind } from './credits.ts';
 import { config } from './config.ts';
-import { errorBody, MSG, type Msg } from './messages.ts';
+import { errorBody, FAILED, MSG, type Msg } from './messages.ts';
 import type { Store } from './store.ts';
 import type { Assignment, Attempt, ClassRoom, Criteria, Exercise, Intake, Lesson, Part, Pupil, SelfCheck, Slide, Teacher, Visit } from './types.ts';
 
 const MAX_SOURCE = 20000;
 const COPY_TAIL = /(\s*\((bản sao|copy)( \d+)?\))+$/i;   // what "Nhân bản" adds to a title
 // API errors carry Vietnamese and English (messages.ts); the browser shows the chosen language
-const bad = (c: Context, key: keyof typeof MSG & string, status: 400 | 403 | 404 | 409 | 429 = 400, m: Msg = MSG[key] as Msg, extra: Record<string, unknown> = {}) =>
+const bad = (c: Context, key: keyof typeof MSG & string, status: 400 | 403 | 404 | 409 | 429 | 503 = 400, m: Msg = MSG[key] as Msg, extra: Record<string, unknown> = {}) =>
   c.json(errorBody(m, key, extra), status);
 
 // What a pupil's browser gets for an exercise: enough to render, no answers or maths expressions.
@@ -42,6 +43,41 @@ export function forPupil(e: Exercise) {
   }
   return rest;
 }
+
+// What may reach the error-tagging model from a pupil: only answers the practice screen can produce (an option,
+// true/false, a typed number of at most 12 characters, the item's own words in some order, a word-picture map).
+// Anything else cannot be a real answer, so it gets the plain hint and no AI call; that is why this input has no
+// pre-check (ai-endpoint-guard: inputs that cannot carry instructions).
+export function taggable(e: Exercise, given: string): boolean {
+  if (!given || given.length > 160) return false;
+  switch (e.type) {
+    case 'math_mcq': case 'eng_fill': case 'eng_listen': return e.options.includes(given);
+    case 'math_truefalse': return given === 'true' || given === 'false';
+    case 'math_fill': case 'math_word': return given.length <= 12;
+    case 'eng_order': { const bag = (w: string[]) => w.map((x) => x.trim()).filter(Boolean).sort().join('\u0000'); return bag(given.split(/\s+/)) === bag(e.words.flatMap((w) => w.split(/\s+/))); }
+    case 'eng_match': {
+      try {
+        const m = JSON.parse(given) as unknown;
+        if (!m || typeof m !== 'object' || Array.isArray(m)) return false;
+        const words = new Set(e.pairs.map((p) => p.word)), pics = new Set(e.pairs.map((p) => p.emoji));
+        return Object.entries(m).every(([k, v]) => words.has(k) && typeof v === 'string' && pics.has(v));
+      } catch { return false; }
+    }
+    default: return false;
+  }
+}
+
+// Lesson edits from the browser: arrays and every string are capped, since slides, items and cards feed later AI
+// calls (slide edits, error tags, TTS for the video).
+const EDIT_CAPS = { slides: 30, exercises: 60, flashcards: 40, pairs: 8, str: 1000 } as const;
+function capDeep(v: unknown, depth = 0): unknown {
+  if (typeof v === 'string') return v.slice(0, EDIT_CAPS.str);
+  if (depth > 4 || v === null || typeof v !== 'object') return typeof v === 'number' || typeof v === 'boolean' || v === null ? v : undefined;
+  if (Array.isArray(v)) return v.slice(0, 60).map((x) => capDeep(x, depth + 1));
+  return Object.fromEntries(Object.entries(v).slice(0, 30).map(([k, x]) => [k.slice(0, 40), capDeep(x, depth + 1)]));
+}
+// The teacher-written text of one slide, for the pre-check before a slide edit or a new picture.
+const slideText = (s: Slide) => [s.heading, ...(s.bullets || []), s.example, s.notes, s.source, s.narration, s.imagePrompt].filter(Boolean).join('\n');
 
 const clean = (s: string) => String(s ?? '').trim().toLowerCase().replace(/[.!?]+$/, '').replace(/\s+/g, ' ');
 export function mark(e: Exercise, given: string): boolean {
@@ -68,18 +104,38 @@ export function createApp(ai: AI, store: Store) {
   const clientIp = (c: Context) => (c.req.header('x-forwarded-for') || 'local').split(',').map((x) => x.trim()).filter(Boolean).pop() || 'local';
   // every model call: app-wide usage log + the real cost on the teacher whose request made it
   ai.onUsage = (e) => { usage.record(e); const tid = ctx.getStore()?.teacherId; if (tid) credits.addCost(tid, costOf(e)); };
-  // an AI action: the teacher's daily credits first, then the app-wide spending guard
-  const guard = async (c: Context, kind: SpendKind & CreditKind) => {
+  // an AI action: the teacher's daily credits are reserved first, then the app-wide spending guard. The caller
+  // gets stop (refused: return it) or refund (call it when the action is blocked or fails: the teacher pays nothing).
+  type Gate = { stop: Response; refund?: undefined } | { stop?: undefined; refund: () => Promise<void> };
+  const guard = async (c: Context, kind: SpendKind & CreditKind): Promise<Gate> => {
     const teacher = (c as Context<{ Variables: { teacher: Teacher; unverified?: boolean } }>).get('teacher');
     if (teacher && (c as Context<{ Variables: { unverified?: boolean } }>).get('unverified') && CREDIT_COST[kind] > 0)
-      return bad(c, 'verify', 403, MSG.verify, { limit: 'verify' });
+      return { stop: bad(c, 'verify', 403, MSG.verify, { limit: 'verify' }) };
+    let day: string | null = null;
     if (teacher) {
       const r = await credits.charge(teacher, kind);
-      if (!r.ok) return bad(c, 'credits', 429, MSG.credits(r.used, r.limit, planOf(teacher) === 'demo'), { limit: 'credits', used: r.used, max: r.limit });
+      if (!r.ok) return { stop: bad(c, 'credits', 429, MSG.credits(r.used, r.limit, planOf(teacher) === 'demo'), { limit: 'credits', used: r.used, max: r.limit }) };
+      day = r.day;
     }
+    let done = false;
+    const refund = async () => {
+      if (done || !teacher || !day) return;
+      done = true;
+      await credits.refund(teacher.id, kind, day).catch((e) => console.error(`[credits] refund ${kind} for ${teacher.id}: ${(e as Error).message}`));
+    };
     const why = await spend.charge(kind);
-    return why ? bad(c, why as 'month' | 'day', 429, undefined, { limit: why }) : null;
+    if (why) { await refund(); return { stop: bad(c, why as 'month' | 'day', 429, undefined, { limit: why }) }; }
+    return { refund };
   };
+  // an AI action that did not go through: give the credits back; a guard refusal gets its plain message,
+  // anything else goes to onError (logged, generic 500)
+  const aiFailed = async (c: Context, e: unknown, g: { refund: () => Promise<void> }) => {
+    await g.refund();
+    if (e instanceof Blocked) return e.busy ? bad(c, 'aiBusy', 503) : bad(c, 'aiBlocked', 400);
+    throw e;
+  };
+  // pupils' wrong answers: the error-tagging model is limited per pupil and per network (a class shares one IP)
+  const tagPerPupil = new Limiter(10, 200), tagPerIp = new Limiter(120, 3000);
   type Env = { Variables: { teacher: Teacher; unverified?: boolean } };
   const t = new Hono<Env>();
 
@@ -352,9 +408,12 @@ export function createApp(ai: AI, store: Store) {
     const { source, lang } = await c.req.json<{ source: string; lang?: string }>();
     if (!source?.trim() || source.trim().length < 30) return bad(c, 'sourceShort');
     if (meaningless(source)) return bad(c, 'notLesson');
-    const stop = await guard(c, 'intake'); if (stop) return stop;
-    try { return c.json(await intake(ai, source.slice(0, MAX_SOURCE), lang === 'en' ? 'en' : 'vi')); }
-    catch (e) { if (e instanceof NotALesson) return bad(c, 'notLesson'); throw e; }
+    const g = await guard(c, 'intake'); if (g.stop) return g.stop;
+    const text = source.slice(0, MAX_SOURCE);      // only what reaches the model is classified, and all of it
+    try {
+      await requireOnTask(ai, text);
+      return c.json(await intake(ai, text, lang === 'en' ? 'en' : 'vi'));
+    } catch (e) { if (e instanceof NotALesson) { await g.refund(); return bad(c, 'notLesson'); } return aiFailed(c, e, g); }
   });
   // step 1 by photo: up to 5 photos per lesson, downscaled in the browser; Gemini copies out the text
   t.post('/ocr', async (c) => {
@@ -368,22 +427,26 @@ export function createApp(ai: AI, store: Store) {
       if (!/^image\/(jpeg|png|webp)$/.test(mime) || data.length < 100 || data.length > 4e6) return bad(c, 'photoBad');
       pics.push({ data, mime });
     }
-    const stop = await guard(c, 'ocr'); if (stop) return stop;
+    const g = await guard(c, 'ocr'); if (g.stop) return g.stop;
     try { return c.json({ text: (await readPhotos(ai, pics)).slice(0, MAX_SOURCE), max }); }
-    catch (e) { if (e instanceof NotALesson) return bad(c, 'photoNoText'); throw e; }
+    catch (e) { if (e instanceof NotALesson) { await g.refund(); return bad(c, 'photoNoText'); } return aiFailed(c, e, g); }
   });
   t.post('/lessons', async (c) => {
-    const { source, intake: it, files } = await c.req.json<{ source: string; intake: Intake; files?: unknown }>();
-    if (!source?.trim() || !it?.subject) return bad(c, 'missingSource');
+    const { source: raw0, intake: raw, files } = await c.req.json<{ source: string; intake: unknown; files?: unknown }>();
+    const it = cleanIntake(raw), source = typeof raw0 === 'string' ? raw0.slice(0, MAX_SOURCE) : '';
+    if (!source.trim() || !it) return bad(c, 'missingSource');
     const mineToday = await lessonsToday(c.get('teacher').id);
     // demo workspaces only: accounts are limited by their daily credits (Free) or not at all (Pro)
     if (planOf(c.get('teacher')) === 'demo' && mineToday >= config.lessonsPerWorkspaceDay) return bad(c, 'demoLessons', 429, MSG.demoLessons(config.lessonsPerWorkspaceDay));
-    const stop = await guard(c, 'lesson'); if (stop) return stop;
-    const l: Lesson = { id: id(), teacherId: c.get('teacher').id, createdAt: new Date().toISOString(), status: 'working', progress: [], source: source.slice(0, MAX_SOURCE),
+    const g = await guard(c, 'lesson'); if (g.stop) return g.stop;
+    // every word the teacher wrote (document, title, objectives, note) is classified before the lesson is built
+    try { await requireOnTask(ai, teacherText(source, it)); } catch (e) { return aiFailed(c, e, g); }
+    const l: Lesson = { id: id(), teacherId: c.get('teacher').id, createdAt: new Date().toISOString(), status: 'working', progress: [], source,
       files: Array.isArray(files) ? files.filter((f): f is string => typeof f === 'string').slice(0, 10).map((f) => f.slice(0, 120)) : [],
-      intake: { ...it, title: String(it.title).slice(0, 120) }, skills: [], slides: [], exercises: [], flashcards: [], pairs: [], checks: [] };
+      intake: it, skills: [], slides: [], exercises: [], flashcards: [], pairs: [], checks: [] };
     await store.put('lessons', l);
-    void runLesson(ai, store, l);                // background; the page polls GET /lessons/:id
+    // background; the page polls GET /lessons/:id. A lesson that fails costs no credits.
+    void runLesson(ai, store, l).then((r) => (r.status === 'error' ? g.refund() : undefined), async (e) => { console.error(`[lesson] ${l.id}: ${(e as Error)?.message}`); await g.refund(); });
     return c.json({ id: l.id }, 202);
   });
   t.get('/lessons/:id', async (c) => { const l = await myLesson(c); return l ? c.json({ ...l, source: l.source === SAMPLE_SOURCE ? SAMPLE_TEXT : l.source, exercises: l.exercises.map((e) => safePrompt(e, l.intake.lang)), flashcards: l.flashcards.map(cleanCard) }) : bad(c, 'notFound', 404); });
@@ -391,7 +454,7 @@ export function createApp(ai: AI, store: Store) {
     const l = await myLesson(c);
     if (!l) return bad(c, 'notFound', 404);
     const body = await c.req.json<Partial<Pick<Lesson, 'slides' | 'exercises' | 'flashcards' | 'pairs'>> & { title?: string }>();
-    for (const k of ['slides', 'exercises', 'flashcards', 'pairs'] as const) if (Array.isArray(body[k])) (l as unknown as Record<string, unknown>)[k] = body[k];
+    for (const k of ['slides', 'exercises', 'flashcards', 'pairs'] as const) if (Array.isArray(body[k])) (l as unknown as Record<string, unknown>)[k] = (capDeep(body[k].slice(0, EDIT_CAPS[k])) as unknown[]);
     if (typeof body.title === 'string') { if (!body.title.trim()) return bad(c, 'badRequest'); l.intake.title = body.title.trim().slice(0, 120); }
     await store.put('lessons', l);
     return c.json(l);
@@ -424,12 +487,16 @@ export function createApp(ai: AI, store: Store) {
     const i = l ? l.slides.findIndex((s) => s.id === c.req.param('sid')) : -1;
     if (!l || i < 0) return bad(c, 'notFound', 404);
     const { action } = await c.req.json<{ action: 'rewrite' | 'simpler' | 'image' }>();
-    const stop = await guard(c, action === 'image' ? 'slideImage' : 'slideEdit'); if (stop) return stop;
+    const g = await guard(c, action === 'image' ? 'slideImage' : 'slideEdit'); if (g.stop) return g.stop;
     let s: Slide = l.slides[i];
-    if (action === 'image') {
-      const pic = await illustrate(ai, { ...s, imagePrompt: `${s.imagePrompt} (a different composition)` });
-      s = { ...s, image: await store.putFile(l.id, `${s.id}-${Date.now()}.${pic.ext}`, pic.image, pic.ext === 'png' ? 'image/png' : 'image/jpeg') };
-    } else s = await editSlide(ai, s, action === 'simpler' ? 'simpler' : 'rewrite', l.intake);
+    try {
+      // the teacher can edit every field of a slide, so its text is classified before it goes to a model
+      await requireOnTask(ai, slideText(s));
+      if (action === 'image') {
+        const pic = await illustrate(ai, { ...s, imagePrompt: `${String(s.imagePrompt || '').slice(0, 400)} (a different composition)` });
+        s = { ...s, image: await store.putFile(l.id, `${s.id}-${Date.now()}.${pic.ext}`, pic.image, pic.ext === 'png' ? 'image/png' : 'image/jpeg') };
+      } else s = await editSlide(ai, s, action === 'simpler' ? 'simpler' : 'rewrite', l.intake);
+    } catch (e) { return aiFailed(c, e, g); }
     l.slides[i] = s;
     await store.put('lessons', l);
     return c.json(s);
@@ -439,18 +506,22 @@ export function createApp(ai: AI, store: Store) {
     if (!l || l.status !== 'ready') return bad(c, 'notReady', 409);
     if (l.video?.status === 'working') return c.json(l.video, 202);
     const o = await c.req.json<{ speed?: number; subtitles?: boolean; voice?: string }>().catch(() => ({} as { speed?: number; subtitles?: boolean; voice?: string }));
-    const stop = await guard(c, 'video'); if (stop) return stop;
-    l.video = { status: 'working', speed: o.speed ?? 0.9, subtitles: o.subtitles ?? true, voice: o.voice };
+    const g = await guard(c, 'video'); if (g.stop) return g.stop;
+    const speed = Number.isFinite(Number(o.speed)) ? Math.min(1.2, Math.max(0.7, Number(o.speed))) : 0.9;
+    l.video = { status: 'working', speed, subtitles: o.subtitles !== false, voice: ['0', '1', '2'].includes(String(o.voice)) ? String(o.voice) : undefined };
     await store.put('lessons', l);
     void (async () => {
       try {
-        const v = await makeVideo(ai, store, l, { speed: l.video!.speed!, subtitles: !!l.video!.subtitles, voice: o.voice });
+        const v = await makeVideo(ai, store, l, { speed: l.video!.speed!, subtitles: !!l.video!.subtitles, voice: l.video!.voice });
         const fresh = (await store.get<Lesson>('lessons', l.id))!;
         fresh.video = { ...l.video!, status: 'ready', url: v.url, seconds: v.seconds, chapters: v.chapters };
         await store.put('lessons', fresh);
       } catch (e) {
+        // the teacher sees a plain message; provider details stay in the server log
+        console.error(`[video] ${l.id} failed: ${String((e as Error)?.stack || e).slice(0, 2000)}`);
+        await g.refund();
         const fresh = (await store.get<Lesson>('lessons', l.id))!;
-        fresh.video = { ...l.video!, status: 'error', error: (e as Error).message };
+        fresh.video = { ...l.video!, status: 'error', error: FAILED.video };
         await store.put('lessons', fresh);
       }
     })();
@@ -564,8 +635,14 @@ export function createApp(ai: AI, store: Store) {
     const x = await commentData(c, lessonId, classId, lang === 'en' ? 'en' : 'vi');
     if (!x) return bad(c, 'notFound', 404);
     if (!x.rows.length) return c.json(commentBody(x, null));            // nobody has answered yet: nothing to draft, nothing charged
-    const stop = await guard(c, 'comments'); if (stop) return stop;
-    const d: Drafts = { id: x.key, fp: x.fp, at: new Date().toISOString(), comments: await draftComments(ai, x.l.intake.title, x.rows.slice(0, 45), x.lang) };
+    const g = await guard(c, 'comments'); if (g.stop) return g.stop;
+    let d: Drafts;
+    try {
+      // the lesson title and pupil names are the only free text the teacher wrote here
+      const rows = x.rows.slice(0, 45);
+      await requireOnTask(ai, [x.l.intake.title, ...rows.map((r) => r.name)].join('\n'));
+      d = { id: x.key, fp: x.fp, at: new Date().toISOString(), comments: await draftComments(ai, x.l.intake.title, rows, x.lang) };
+    } catch (e) { return aiFailed(c, e, g); }
     await store.put('cache', d);
     return c.json(commentBody(x, d));
   });
@@ -580,9 +657,13 @@ export function createApp(ai: AI, store: Store) {
   });
   t.post('/insights/comments/shorter', async (c) => {
     const { text } = await c.req.json<{ text: string }>();
-    if (!String(text || '').trim()) return bad(c, 'badRequest');
-    const stop = await guard(c, 'comments'); if (stop) return stop;
-    return c.json({ text: await shortenComment(ai, String(text).slice(0, 600)) });
+    const t0 = typeof text === 'string' ? text.trim() : '';
+    if (!t0) return bad(c, 'badRequest');
+    if (t0.length > COMMENT_MAX) return bad(c, 'tooLong', 400, MSG.tooLong(COMMENT_MAX), { max: COMMENT_MAX });
+    const g = await guard(c, 'comments'); if (g.stop) return g.stop;
+    // scope-locked: a comment about a pupil, checked first, shortened by a fixed prompt, output checked
+    try { await requireOnTask(ai, t0); return c.json({ text: await shortenComment(ai, t0) }); }
+    catch (e) { return aiFailed(c, e, g); }
   });
   app.route('/api/t', t);
 
@@ -650,7 +731,9 @@ export function createApp(ai: AI, store: Store) {
       let tag = await store.get<{ id: string; errorType: string; hint: string }>('cache', key);
       if (!tag) {
         const known = [...new Set((await store.find<Attempt>('attempts', 'lessonId', x.l.id)).map((a) => a.errorType).filter(Boolean) as string[])].slice(0, 12);
-        const allowed = !(await spend.charge('errorTag'));
+        // no model call for an answer the screen cannot produce, nor past the pupil's or the network's limit
+        const ip = clientIp(c);
+        const allowed = taggable(e, answer) && tagPerPupil.check(x.p.id) && tagPerIp.check(ip) && !(await spend.charge('errorTag'));
         try { tag = allowed ? { id: key, ...(await ctx.run({ teacherId: x.k.teacherId }, () => tagError(ai, e, answer, x.l!.intake.grade, known, lang))) } : { id: key, errorType: '', hint: '' }; if (allowed) await store.put('cache', tag); } catch { tag = { id: key, errorType: '', hint: '' }; }
       }
       errorType = tag.errorType || undefined; hint = tag.hint || undefined;

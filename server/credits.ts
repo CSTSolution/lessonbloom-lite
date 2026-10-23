@@ -31,13 +31,22 @@ export class Credits {
   }
 
   // Take the credits for one action, or say why not.
-  async charge(t: Teacher, kind: CreditKind): Promise<{ ok: true } | { ok: false; used: number; limit: number }> {
+  // The credits are reserved here; refund() gives them back when the action is blocked or fails.
+  async charge(t: Teacher, kind: CreditKind): Promise<{ ok: true; day: string } | { ok: false; used: number; limit: number }> {
     const cost = CREDIT_COST[kind], limit = dailyLimit(planOf(t));
     const d = await this.day(t.id);
     if (cost > 0 && d.credits + cost > limit) return { ok: false, used: d.credits, limit };
     d.credits += cost; d.actions[kind] = (d.actions[kind] || 0) + 1;
     await this.store.put('cache', d);
-    return { ok: true };
+    return { ok: true, day: d.day };
+  }
+
+  // A blocked, refused or failed action costs the teacher nothing (on the day it was charged).
+  async refund(teacherId: string, kind: CreditKind, day = today()): Promise<void> {
+    const d = await this.day(teacherId, day);
+    d.credits = Math.max(0, d.credits - CREDIT_COST[kind]);
+    d.actions[kind] = Math.max(0, (d.actions[kind] || 0) - 1);
+    await this.store.put('cache', d);
   }
 
   // Real AI cost of a model call, attributed to the teacher whose request made it. Batched:

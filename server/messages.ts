@@ -30,6 +30,10 @@ export const MSG = {
   badRequest: { vi: 'Yêu cầu chưa hợp lệ.', en: 'Invalid request.' },
   forbidden: { vi: 'Không có quyền truy cập.', en: 'Access denied.' },
   server: { vi: 'Máy chủ gặp lỗi, cô thử lại sau ít phút nhé.', en: 'Something went wrong on the server. Please try again in a few minutes.' },
+  // the AI guard (guard.ts): material that is not a lesson, or a check that could not run; no credits are used
+  aiBlocked: { vi: 'LessonBloom chỉ soạn bài giảng, bài luyện tập và lời nhận xét từ nội dung bài học. Cô kiểm tra lại nội dung nhé (không tốn lượt AI).', en: 'LessonBloom only makes lessons, practice and comments from lesson material. Please check the text (no AI credits were used).' },
+  aiBusy: { vi: 'AI đang bận, cô thử lại sau ít phút nhé (không tốn lượt AI).', en: 'The AI is busy. Please try again in a few minutes (no AI credits were used).' },
+  tooLong: (n: number): Msg => ({ vi: `Nội dung dài quá (tối đa ${n} ký tự). Cô rút gọn lại nhé.`, en: `The text is too long (at most ${n} characters). Please shorten it.` }),
 
   // sign-up and password reset with an emailed 6-digit code
   badEmail: { vi: 'Email chưa đúng định dạng (ví dụ: ten@truong.edu.vn).', en: 'That email address looks wrong (e.g. name@school.edu).' },
@@ -55,5 +59,11 @@ export const MSG = {
   pDropped: (n: number, rounds: number): Msg => ({ vi: `Bỏ ${n} câu vẫn chưa đạt sau ${rounds} lượt sửa`, en: `Dropped ${n} items that still failed after ${rounds} rounds` }),
   pNoPicture: (n: number): Msg => ({ vi: `Slide ${n}: chưa vẽ được hình, cô có thể bấm "Đổi hình minh họa"`, en: `Slide ${n}: no picture yet; you can press "New illustration"` }),
 } as const;
+
+// Stored on a lesson / video that failed and shown as one line in either language (never the provider's error)
+export const FAILED = {
+  lesson: 'Chưa soạn xong bài này, cô thử tạo lại nhé (không tốn lượt AI). / The lesson could not be built; please try again (no credits used).',
+  video: 'Chưa làm được video, cô thử lại nhé (không tốn lượt AI). / The video could not be made; please try again (no credits used).',
+};
 
 export const errorBody = (m: Msg, code: string, extra: Record<string, unknown> = {}) => ({ error: m.vi, errorEn: m.en, code, ...extra });
